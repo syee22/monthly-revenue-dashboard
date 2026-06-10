@@ -260,8 +260,11 @@ if uploaded_file:
             return styles
             
         styler.apply(highlight_specifics, axis=1)
-        styler.applymap_index(lambda v: 'color: #002060; font-weight: bold;', axis=0) 
-        styler.applymap_index(lambda v: 'color: #0070c0; font-weight: bold;', axis=0, level=1) 
+       # Pandas 버전 이슈를 피하기 위해 CSS 스타일을 직접 스타일러에 주입합니다.
+        styler.set_table_styles({
+            'Cust. GR': [{'selector': 'th', 'props': [('color', '#002060'), ('font-weight', 'bold')]}],
+            'Project': [{'selector': 'th', 'props': [('color', '#0070c0'), ('font-weight', 'bold')]}]
+        }, overwrite=False, axis=0)
         
         current_month_label = phase_names[0]
         border_styles = []
