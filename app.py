@@ -130,7 +130,7 @@ if uploaded_file:
                       'EUR:USD', 'EUR:KRW', 'Business Type', 'Curr.', 'Con.']
         
         if 'BIZ Type' in df.columns:
-            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMMERCIAL')
+            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMM')
             df['BIZ Type'] = df['BIZ Type'].fillna('Unknown')
         
         sop_dict = {}
@@ -228,7 +228,7 @@ if uploaded_file:
         
         results = []
         # 카테고리 순서 정의
-        biz_categories = ['DIRECT', 'COMMERCIAL', 'Unknown']
+        biz_categories = ['DIRECT', 'COMM', 'Unknown']
         
         for biz in biz_categories:
             biz_df = df[(df['BIZ Type'] == biz) & (df['Year'] == year)]
