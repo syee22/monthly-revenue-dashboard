@@ -318,28 +318,65 @@ if uploaded_file:
         grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('', f'{biz_type} Total', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
         return pd.concat([final_df, grand_row]), phase_names
 
-    # ==========================================
-    # 5. 스타일링 및 렌더링
-    # ==========================================
-    def render_html_view(df, phase_curr):
-        df_display = df.replace(0, '')
-        format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
-        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
-        numeric_cols = get_numeric_cols(df)
-        styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
-        # 'TTL (K.€)' 또는 'Total'이 들어간 행에 동일 음영 적용
-        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row) if 'TTL (K.€)' in str(row.name) or 'Total' in str(row.name) or 'Subtotal' in str(row.name) else [''] * len(row), axis=1)
-        return f'<div class="table-container">{styler.to_html()}</div>'
+# ==========================================
+# 스타일링 및 렌더링 함수 수정
+# ==========================================
+
+def render_html_view(df, phase_curr):
+    # 0을 빈칸으로 대체
+    df_display = df.replace(0, '')
+    
+    # 포맷팅 설정: ACT 컬럼은 노란색 텍스트(#FFC000), 나머지는 기본 포맷
+    def style_act_yellow(val):
+        return f'<span style="color: #FFC000; font-weight: bold;">{format_k_val(val)}</span>'
+
+    # 포맷 딕셔너리 생성
+    format_dict = {}
+    for col in df.columns:
+        if 'ACT' in col[1]:
+            format_dict[col] = style_act_yellow
+        elif 'ACHI' in col[1]:
+            format_dict[col] = format_percentage_html
+        else:
+            format_dict[col] = format_k_val
+
+    # Styler 적용
+    styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
+    
+    # 숫자열 오른쪽 정렬
+    numeric_cols = get_numeric_cols(df)
+    styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
+    
+    # 합계 행 스타일 (배경색 + 굵게)
+    styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row) 
+                 if 'TTL (K.€)' in str(row.name) or 'Total' in str(row.name) or 'Subtotal' in str(row.name) 
+                 else [''] * len(row), axis=1)
+    
+    return f'<div class="table-container">{styler.to_html(escape=False)}</div>'
 
     def render_biz_html_table(df):
+        # 비즈니스 타입 표도 동일하게 적용
         df_display = df.replace(0, '')
-        format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
+        
+        def style_act_yellow(val):
+            return f'<span style="color: #FFC000; font-weight: bold;">{format_k_val(val)}</span>'
+    
+        format_dict = {}
+        for col in df.columns:
+            if 'ACT' in col[1]:
+                format_dict[col] = style_act_yellow
+            elif 'ACHI' in col[1]:
+                format_dict[col] = format_percentage_html
+            else:
+                format_dict[col] = format_k_val
+    
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
-        numeric_cols = get_numeric_cols(df)
-        styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
-        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' if '소계' in str(row.name) or 'Total' in str(row.name) else '' for _ in row], axis=1)
-        return f'<div class="table-container">{styler.to_html()}</div>'
-
+        styler.set_properties(subset=get_numeric_cols(df), **{'text-align': 'right'})
+        
+        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' 
+                                  if '소계' in str(row.name) or 'Total' in str(row.name) else '' for _ in row], axis=1)
+        
+        return f'<div class="table-container">{styler.to_html(escape=False)}</div>'
     # ==========================================
     # 6. 화면 출력
     # ==========================================
