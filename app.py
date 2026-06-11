@@ -48,7 +48,7 @@ st.markdown("""
     
     .report-table td {
         border: 1px solid #d9d9d9;
-        text-align: center; /* 텍스트 가운데 정렬 기본 */
+        text-align: center;
         padding: 4px;
         vertical-align: middle;
     }
@@ -101,7 +101,6 @@ def to_excel_multiple(df_dict):
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     workbook = writer.book
     
-    # 엑셀 서식 정의 (3번 개선사항 유지)
     header_fmt = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#002060', 'font_color': 'white', 'border': 1})
     center_fmt = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
     num_fmt = workbook.add_format({'align': 'right', 'valign': 'vcenter', 'num_format': '#,##0', 'border': 1})
@@ -112,28 +111,20 @@ def to_excel_multiple(df_dict):
         if df.empty: continue
         df.to_excel(writer, index=True, sheet_name=sheet_name[:31])
         worksheet = writer.sheets[sheet_name[:31]]
-        
-        # 헤더 서식 적용
         for col_num, value in enumerate(df.columns.values):
             worksheet.write(0, col_num + df.index.nlevels, str(value), header_fmt)
-            
-        # 데이터 서식 적용
         for row_idx in range(len(df)):
             for col_idx in range(len(df.columns) + df.index.nlevels):
                 val = df.iloc[row_idx, col_idx - df.index.nlevels] if col_idx >= df.index.nlevels else df.index[row_idx][col_idx]
-                
                 is_num = isinstance(val, (int, float)) and col_idx >= df.index.nlevels
                 is_pct = 'ACHI' in str(df.columns[col_idx - df.index.nlevels]) if col_idx >= df.index.nlevels else False
-                is_total = 'Total' in str(df.index[row_idx]) or 'Subtotal' in str(df.index[row_idx])
-                
+                is_total = 'TTL (K.€)' in str(df.index[row_idx]) or 'Total' in str(df.index[row_idx]) or 'Subtotal' in str(df.index[row_idx])
                 if is_pct: worksheet.write(row_idx + 1, col_idx, val, pct_fmt)
                 elif is_num:
                     if is_total: worksheet.write(row_idx + 1, col_idx, val, total_fmt)
                     else: worksheet.write(row_idx + 1, col_idx, val, num_fmt)
                 else: worksheet.write(row_idx + 1, col_idx, val, center_fmt)
-                    
         worksheet.set_column(0, len(df.columns) + df.index.nlevels, 15)
-            
     writer.close()
     return output.getvalue()
 
@@ -152,19 +143,15 @@ if uploaded_file:
                       'Rev. ($)', 'Rev. (€)', 'Rev. ₩', 'BIZ Type', 'Group 1', 'Group 2', 
                       'Project', 'PF', 'Item', 'Source', 'KOx', 'Memo', 'CPS', 
                       'EUR:USD', 'EUR:KRW', 'Business Type', 'Curr.', 'Con.']
-        
         if 'BIZ Type' in df.columns:
             df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMMERCIAL')
             df['BIZ Type'] = df['BIZ Type'].fillna('Unknown')
-        
         sop_dict = {}
         if len(sheets) > 1:
             df_sop = pd.read_excel(xl, sheet_name=sheets[1])
             sop_dict = dict(zip(df_sop.iloc[:, 0], df_sop.iloc[:, 3]))
-        
         df['SOP'] = df['Project'].map(sop_dict)
         df['SOP'] = pd.to_datetime(df['SOP'], errors='coerce').dt.strftime('%Y.%m').fillna(df['SOP'].astype(str))
-        
         df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
         df['Month'] = pd.to_numeric(df['Month'], errors='coerce')
         df = df.dropna(subset=['Year', 'Month'])
@@ -210,7 +197,10 @@ if uploaded_file:
         
         if not all_indices: return pd.DataFrame(), col_prev, phase_curr
         all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
-        idx = pd.MultiIndex.from_tuples(all_indices, names=index_names or index_cols) if len(index_cols) > 1 else pd.Index([x[0] for x in all_indices], name=(index_names[0] if index_names else index_cols[0]))
+        
+        # 인덱스 이름 설정 (첫 번째 컬럼을 CPS로 명시)
+        current_index_names = index_names if index_names else (['CPS'] if index_cols == ['CPS'] else index_cols)
+        idx = pd.MultiIndex.from_tuples(all_indices, names=current_index_names) if len(index_cols) > 1 else pd.Index([x[0] for x in all_indices], name=current_index_names[0])
         
         combined_dict, col_tuples = {}, [('', col_prev)]
         for p in phases:
@@ -225,55 +215,44 @@ if uploaded_file:
         
         final_df = pd.DataFrame(combined_dict)
         final_df.columns = pd.MultiIndex.from_tuples(col_tuples)
-        final_df.index.names = index_names or index_cols
+        final_df.index.names = current_index_names
         final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
         
-        if 'BIZ Type' in final_df.index.names:
-            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMMERCIAL', 'Unknown'], ordered=True)
-            try:
-                final_df.index = final_df.index.set_levels(final_df.index.levels[0].astype(cats), level=0)
-                final_df = final_df.sort_index(level=0)
-            except: pass
-        elif (phase_curr, 'ACT') in final_df.columns:
-            final_df = final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
-            
         total_row = final_df.sum(numeric_only=True)
         for phase_name in phases:
             num = total_row.get((phase_name, 'ACT'), 0)
             den = total_row.get((phase_name, '26 FC1'), 0)
             total_row[(phase_name, 'ACHI %')] = num / den if den != 0 else 0
         
-        t_index = tuple([''] * (len(final_df.index.names)-1) + [total_label]) if isinstance(final_df.index, pd.MultiIndex) else total_label
+        # 합계 행 라벨 변경
+        t_label = "TTL (K.€)"
+        t_index = tuple([''] * (len(final_df.index.names)-1) + [t_label]) if isinstance(final_df.index, pd.MultiIndex) else t_label
         t_df = pd.DataFrame([total_row], index=[t_index] if not isinstance(final_df.index, pd.MultiIndex) else pd.MultiIndex.from_tuples([t_index], names=final_df.index.names))
         return pd.concat([final_df, t_df]), col_prev, phase_curr
 
+    # (이하 get_biz_type_detailed_report, get_biz_report 함수는 기존과 동일)
     def get_biz_type_detailed_report(df, year, month):
         if month == 1: prev_year, prev_month = year - 1, 12
         else: prev_year, prev_month = year, month - 1
-        
         month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
         m_str, pm_str = month_names.get(month, f'{month}'), month_names.get(prev_month, f'{prev_month}')
         phase_names = [f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL']
         prev_phase_name = f'{pm_str}. {prev_year}'
-        
         results = []
         biz_categories = ['DIRECT', 'COMMERCIAL', 'Unknown']
         for biz in biz_categories:
             biz_df = df[(df['BIZ Type'] == biz) & (df['Year'] == year)]
             if biz_df.empty: continue
-            
             p_m = biz_df[biz_df['Month'] == month].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             p_y = biz_df[biz_df['Month'] <= month].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             p_fy = biz_df.pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             p_prev = df[(df['BIZ Type'] == biz) & (df['Year'] == prev_year) & (df['Month'] == prev_month)].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-            
             combined_dict = {(prev_phase_name, 'ACT'): p_prev.get('ACT', 0)}
             for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
                 for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data.get(c, 0)
                 num = pd.Series(data.get('ACT', 0))
                 den = pd.Series(data.get('26 FC1', 0))
                 combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
-            
             combined = pd.DataFrame(combined_dict, index=p_m.index)
             subtotal = combined.sum(numeric_only=True)
             for p_name in phase_names:
@@ -296,12 +275,10 @@ if uploaded_file:
         for brand in ['HYU', 'KIA', 'GM']:
             brand_df = df_biz[df_biz['Group 2'] == brand].copy()
             if brand_df.empty: continue
-            
             p_m = brand_df[brand_df['Month'] == month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             p_y = brand_df[brand_df['Month'] <= month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             p_fy = brand_df.pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             p_prev = df[(df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-            
             if "Core" in biz_type and brand in ['HYU', 'KIA']:
                 top = p_m[p_m['ACT'] >= 10000].index if not p_m.empty and 'ACT' in p_m.columns else p_m.index
                 def group_others(p):
@@ -309,7 +286,6 @@ if uploaded_file:
                     main = p.loc[p.index.isin(top)]; oth = p.loc[~p.index.isin(top)].sum().to_frame().T; oth.index = pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP'])
                     return pd.concat([main, oth])
                 p_m, p_y, p_fy, p_prev = group_others(p_m), group_others(p_y), group_others(p_fy), group_others(p_prev)
-            
             p_prev, p_y, p_fy = p_prev.reindex(p_m.index, fill_value=0), p_y.reindex(p_m.index, fill_value=0), p_fy.reindex(p_m.index, fill_value=0)
             combined_dict = {(prev_phase_name, 'ACT'): p_prev.get('ACT', 0)}
             for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
@@ -317,21 +293,17 @@ if uploaded_file:
                 num = pd.Series(data.get('ACT', 0))
                 den = pd.Series(data.get('26 FC1', 0))
                 combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
-            
             combined = pd.DataFrame(combined_dict, index=p_m.index)
             if ('Others', '', '') in combined.index: combined = pd.concat([combined.drop(index=('Others', '', '')).sort_values(by=(phase_names[0], 'ACT'), ascending=False), combined.loc[[('Others', '', '')]]])
             else: combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
-            
             subtotal = combined.sum(numeric_only=True)
-            for p_name in phase_names: 
+            for p_name in phase_names:
                 num = subtotal.get((p_name, 'ACT'), 0)
                 den = subtotal.get((p_name, '26 FC1'), 0)
                 subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
-            
             combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
             results.append(combined)
             if brand != 'GM': results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, '소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
-        
         final_df = pd.concat(results)
         grand_total = final_df[final_df.index.get_level_values(1) != '소계'].sum(numeric_only=True)
         for p_name in phase_names:
@@ -345,16 +317,17 @@ if uploaded_file:
     # 5. 스타일링 및 렌더링
     # ==========================================
     def render_html_view(df, phase_curr):
-        df_display = df.replace(0, '') 
+        df_display = df.replace(0, '')
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
         numeric_cols = get_numeric_cols(df)
         styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
-        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row) if 'Total' in str(row.name) or 'Subtotal' in str(row.name) else [''] * len(row), axis=1)
+        # 'TTL (K.€)' 또는 'Total'이 들어간 행에 동일 음영 적용
+        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row) if 'TTL (K.€)' in str(row.name) or 'Total' in str(row.name) or 'Subtotal' in str(row.name) else [''] * len(row), axis=1)
         return f'<div class="table-container">{styler.to_html()}</div>'
 
     def render_biz_html_table(df):
-        df_display = df.replace(0, '') 
+        df_display = df.replace(0, '')
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
         numeric_cols = get_numeric_cols(df)
@@ -368,12 +341,12 @@ if uploaded_file:
     reports_to_download = {}
     
     st.subheader("📌 1. 매출 요약 (CPS 기준)")
-    df_cps, p_col, c_col = build_summary_report(raw_df, ['CPS'], selected_year, selected_month, 'Total')
+    df_cps, p_col, c_col = build_summary_report(raw_df, ['CPS'], selected_year, selected_month, 'TTL (K.€)')
     if not df_cps.empty: st.markdown(render_html_view(df_cps, c_col), unsafe_allow_html=True); reports_to_download["CPS_Summary"] = df_cps
 
     st.subheader("📌 2. 매출 요약 (Item 기준)")
     df_item_raw = raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])]
-    df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'Total')
+    df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)')
     if not df_item.empty: st.markdown(render_html_view(df_item, c_col), unsafe_allow_html=True); reports_to_download["Item_Summary"] = df_item
 
     st.subheader("📌 3. 비즈니스 타입별 매출 요약 (DIRECT / COMM.)")
