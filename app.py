@@ -24,6 +24,10 @@ st.markdown("""
         background-color: white;
     }
     
+    /* 행 사이 구분선 제거 (요청하신 "가운데 줄 없애기" 구현) */
+    .report-table tr { border-bottom: none !important; }
+    .report-table td, .report-table th { border-bottom: none !important; border-top: none !important; }
+
     .report-table th, .report-table td {
         max-width: 250px;
         white-space: nowrap;
@@ -51,7 +55,6 @@ st.markdown("""
         vertical-align: middle;
     }
     
-    /* 좌측 인덱스(Row Heading) 스타일 */
     .report-table th.row_heading, .report-table td.row_heading {
         background-color: white !important;
         color: #333 !important;
@@ -61,9 +64,8 @@ st.markdown("""
         vertical-align: middle !important;
     }
 
-    /* level0과 level1 사이 가로줄 제거 */
-    .report-table th.row_heading.level0 { color: #002060 !important; font-weight: bold !important; border-bottom: none !important; }
-    .report-table th.row_heading.level1 { color: #0070c0 !important; font-weight: bold !important; border-top: none !important; }
+    .report-table th.row_heading.level0 { color: #002060 !important; font-weight: bold !important; }
+    .report-table th.row_heading.level1 { color: #0070c0 !important; font-weight: bold !important; }
     
     .table-container {
         overflow-x: auto;
@@ -167,7 +169,6 @@ if uploaded_file:
         all_indices = set()
         for p in [s_prev, p_curr, p_ytd, p_ttl]:
             if not p.empty: all_indices.update(p.index.tolist() if isinstance(p.index, pd.MultiIndex) else [(x,) for x in p.index.tolist()])
-        if not all_indices: return pd.DataFrame(), col_prev, phase_curr
         
         all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
         idx = pd.MultiIndex.from_tuples(all_indices, names=index_names or index_cols) if len(index_cols) > 1 else pd.Index([x[0] for x in all_indices], name=(index_names[0] if index_names else index_cols[0]))
@@ -185,7 +186,6 @@ if uploaded_file:
         final_df.columns = pd.MultiIndex.from_tuples(col_tuples)
         final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
         
-        # 정렬
         if (phase_curr, 'ACT') in final_df.columns:
             final_df = final_df.sort_values(by=[(final_df.index.get_level_values(0).name if len(index_cols)>1 else final_df.index.name), (phase_curr, 'ACT')], ascending=[True, False]) if len(index_cols)>1 else final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
             
@@ -207,6 +207,7 @@ if uploaded_file:
         for brand in ['HYU', 'KIA', 'GM']:
             brand_df = df_biz[df_biz['Group 2'] == brand].copy()
             if brand_df.empty: continue
+            
             p_m = brand_df[brand_df['Month'] == month].pivot_table(index=['Project', 'Con.'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             p_y = brand_df[brand_df['Month'] <= month].pivot_table(index=['Project', 'Con.'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             p_fy = brand_df.pivot_table(index=['Project', 'Con.'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
@@ -233,7 +234,7 @@ if uploaded_file:
             subtotal = combined.sum(numeric_only=True)
             for p_name in phase_names: subtotal[(p_name, 'ACHI %')] = subtotal.get((p_name, 'ACT'), 0) / subtotal.get((p_name, '26 FC1'), 0) if subtotal.get((p_name, '26 FC1'), 0) != 0 else 0
             
-            # Flatten index: Project & Con. -> Project(Con.)
+            # Flatten to 2 levels: Cust. GR, Project(Con.)
             combined.index = combined.index.map(lambda x: (brand, f"{x[0]} ({x[1]})"))
             combined.index.names = ['Cust. GR', 'Project(Con.)']
             results.append(combined)
@@ -242,7 +243,6 @@ if uploaded_file:
                 sub_row = pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, '소계')], names=['Cust. GR', 'Project(Con.)']))
                 results.append(sub_row)
         
-        if not results: return pd.DataFrame(), []
         final_df = pd.concat(results)
         grand_total = final_df[final_df.index.get_level_values(1) != '소계'].sum(numeric_only=True)
         for p_name in phase_names: grand_total[(p_name, 'ACHI %')] = grand_total.get((p_name, 'ACT'), 0) / grand_total.get((p_name, '26 FC1'), 0) if grand_total.get((p_name, '26 FC1'), 0) != 0 else 0
@@ -263,8 +263,10 @@ if uploaded_file:
         df = df.replace(0, '') 
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
         styler = df.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
+        # 소계 및 총계 스타일 적용
         styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' if row.name[1] == '소계' or 'Sales Revenue' in str(row.name[1]) else '' for _ in row], axis=1)
         html = styler.to_html()
+        # Grand Total 행 병합 처리 (colspan 2)
         pattern = r'(<tr[^>]*>.*?)(<td[^>]*class="[^"]*row_heading[^>]*>[^<]*Sales Revenue[^<]*</td>)\s*<td[^>]*>.*?</td>'
         html = re.sub(pattern, r'\1<td colspan="2" style="text-align: center; font-weight: bold; background-color: #ffffe0; color: #002060; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;">\2</td>', html)
         return f'<div class="table-container">{html}</div>'
@@ -287,7 +289,6 @@ if uploaded_file:
 
     st.subheader("📌 3. 비즈니스 타입별 매출 요약 (DIRECT / COMM.)")
     df_biz, p_col, c_col = build_summary_report(raw_df, ['BIZ Type', 'KOx'], selected_year, selected_month, 'Sales Rev. TTL (K.€)', index_names=['Biz Type', 'KOx'])
-    df_biz.index.names = ['Biz Type', 'KOx']
     if not df_biz.empty: st.markdown(render_html_view(df_biz, c_col), unsafe_allow_html=True); reports_to_download["Biz_Type_Summary"] = df_biz
 
     st.subheader("📌 4. Power Electronics 비즈니스")
