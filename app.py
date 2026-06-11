@@ -5,7 +5,7 @@ import io
 import re
 
 # ==========================================
-# 1. 페이지 설정 및 전역 CSS 주입
+# 1. 페이지 설정 및 전역 CSS 주입 (제목 크기 축소 반영)
 # ==========================================
 st.set_page_config(page_title="월간 매출 보고서", layout="wide")
 
@@ -13,27 +13,33 @@ st.markdown("""
     <style>
     .block-container { padding: 2rem 3rem; }
     
+    /* 💡 메인 타이틀 및 서브 타이틀 텍스트 크기 대폭 축소 */
+    h1 { font-size: 1.6rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
+    h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0.5rem !important; color: #002060 !important; }
+    
     .report-table {
         border-collapse: collapse;
         font-family: 'Malgun Gothic', sans-serif;
-        font-size: 13px;
+        font-size: 12px; /* 기본 표 글꼴 크기도 13px -> 12px로 소폭 축소 */
         width: 100%;
         background-color: white;
     }
     
+    /* 💡 표 제목(헤더) 텍스트 크기 및 여백 축소 */
     .report-table th {
         background-color: #002060 !important;
         color: white !important;
         border: 1px solid #8ea9db !important;
         text-align: center !important;
-        padding: 6px 4px !important;
+        padding: 4px 3px !important;
         font-weight: 600 !important;
+        font-size: 11.5px !important; /* 표 헤더 글꼴 크기 축소 */
     }
     
     .report-table td {
         border: 1px solid #d9d9d9;
         text-align: right;
-        padding: 5px;
+        padding: 4px;
         vertical-align: middle;
     }
     
@@ -64,7 +70,7 @@ st.markdown("""
 st.title("📊 월간 매출 보고서 (Core & Power Electronics)")
 
 # ==========================================
-# 2. 포맷팅 함수 (화면용 - K단위 유지)
+# 2. 포맷팅 함수 (화면용)
 # ==========================================
 def format_k_val(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
@@ -87,24 +93,18 @@ def format_percentage_html(val):
         return pct_str
 
 # ==========================================
-# 3. 엑셀 다운로드 (실제 값 저장 로직으로 변경)
+# 3. 엑셀 다운로드 
 # ==========================================
 def to_excel(df, title="Report"):
     output = io.BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     
     df_formatted = df.copy().fillna(0)
-    
-    # [수정 2] / 1000.0 나누기 로직을 제거하여 엑셀에는 실제 값(Raw Value) 그대로 저장
-    for col in df_formatted.columns:
-        if 'ACHI' not in col[1]:
-            df_formatted[col] = pd.to_numeric(df_formatted[col], errors='ignore')
             
     df_formatted.to_excel(writer, index=True, sheet_name='Sheet1')
     workbook = writer.book
     worksheet = writer.sheets['Sheet1']
     
-    # 엑셀 서식: 정수로 콤마 찍기 (실제 값 표시)
     num_fmt = workbook.add_format({'num_format': '#,##0'})
     pct_fmt = workbook.add_format({'num_format': '0%'})
     
@@ -180,7 +180,6 @@ if uploaded_file:
             p_prev = brand_df_prev.pivot_table(index=['Project', 'Con.'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
 
             if biz_type == "Core" and brand in ['HYU', 'KIA']:
-                # [수정 1] 상위 10개가 아닌, 당월 ACT 10K(10,000유로) 이상 조건 적용
                 if not p_m.empty and 'ACT' in p_m.columns:
                     top = p_m[p_m['ACT'] >= 10000].index
                 else:
