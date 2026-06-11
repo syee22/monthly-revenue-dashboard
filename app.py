@@ -46,16 +46,17 @@ st.markdown("""
     }
     
     /* 좌측 인덱스(Row Heading) 스타일 */
-    .report-table tbody th.row_heading {
+    .report-table th.row_heading, .report-table td.row_heading {
         background-color: white !important;
         color: #333 !important;
         text-align: center !important;
         border: 1px solid #d9d9d9 !important;
+        border-right: 1px solid #8ea9db;
         vertical-align: middle !important;
     }
 
-    .report-table tbody th.row_heading.level0 { color: #002060 !important; font-weight: bold !important; }
-    .report-table tbody th.row_heading.level1 { color: #0070c0 !important; font-weight: bold !important; }
+    .report-table th.row_heading.level0 { color: #002060 !important; font-weight: bold !important; }
+    .report-table th.row_heading.level1 { color: #0070c0 !important; font-weight: bold !important; }
     
     .table-container {
         overflow-x: auto;
@@ -144,7 +145,7 @@ if uploaded_file:
         df['Year'] = df['Year'].astype(int)
         df['Month'] = df['Month'].astype(int)
         
-        # SOP(Date) 포맷 정리 (예: 2024.08)
+        # SOP(Date) 포맷 정리
         df['Date'] = df['Date'].astype(str).str.replace('00:00:00', '').str.strip()
         
         return df
@@ -204,7 +205,7 @@ if uploaded_file:
         if not all_indices:
             return pd.DataFrame(), col_prev, phase_curr
 
-        # 타입 에러 방지를 위한 인덱스 문자열 변환 정렬
+        # [오류 해결 부분] 타입 에러 방지를 위한 인덱스 문자열 변환 정렬
         all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
         
         if len(index_cols) > 1:
@@ -247,7 +248,6 @@ if uploaded_file:
         # 정렬 (다중 인덱스일 경우 상위 인덱스 기준 그룹핑 및 당월 ACT 기준 내림차순 정렬)
         if (phase_curr, 'ACT') in final_df.columns:
             if len(index_cols) > 1:
-                # pandas MultiIndex column 이슈 우려 방지를 위해 임시 컬럼 생성 활용
                 temp_level0 = final_df.index.get_level_values(0)
                 final_df[('__temp__', 'level0')] = temp_level0
                 final_df = final_df.sort_values(by=[('__temp__', 'level0'), (phase_curr, 'ACT')], ascending=[True, False])
@@ -291,7 +291,10 @@ if uploaded_file:
             
         styler.apply(highlight_totals, axis=1)
         
-        border_styles = []
+        border_styles = [
+            {'selector': 'th', 'props': [('vertical-align', 'middle')]},
+            {'selector': 'td', 'props': [('vertical-align', 'middle')]}
+        ]
         
         # 현재 월 컬럼 그룹에 빨간색 테두리 강조 적용
         for i, col in enumerate(df.columns):
@@ -317,7 +320,7 @@ if uploaded_file:
         reports_to_download["CPS_Summary"] = df_cps
 
     st.subheader("📌 2. 매출 요약 (Item 기준)")
-    # 요구사항 1 반영: ICCU1, ICCU2, VCMS 정보만 필요
+    # 요구사항 1 반영 유지: ICCU1, ICCU2, VCMS 정보만 필요
     df_item_raw = raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])]
     df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)')
     if not df_item.empty:
@@ -325,26 +328,27 @@ if uploaded_file:
         reports_to_download["Item_Summary"] = df_item
 
     st.subheader("📌 3. 비즈니스 타입별 매출 요약 (DIRECT / COMM.)")
-    # 요구사항 2 반영: Biz Type 상위 정렬 + 내부 KOx는 당월 ACT 기준 내림차순 정렬 (build_summary_report 함수 내부에 로직 추가 완료)
     df_biz, p_col, c_col = build_summary_report(raw_df, ['BIZ Type', 'KOx'], selected_year, selected_month, 'Sales Rev. TTL (K.€)', index_names=['Biz Type', 'KOx'])
     if not df_biz.empty:
         st.markdown(render_html_view(df_biz, c_col), unsafe_allow_html=True)
         reports_to_download["Biz_Type_Summary"] = df_biz
 
-    st.subheader("📌 4. Power Electronics 비즈니스 (고객사/프로젝트별)")
+    st.subheader("📌 4. Power Electronics 비즈니스 (고객사별)")
     df_pe_raw = raw_df[raw_df['Business Type'].str.contains('Power', case=False, na=False)]
-    # 요구사항 3 반영: Group 1(Cust. GR)이 HYU, KIA로만 구분됨
+    # 요구사항 3 반영 유지: Group 1(Cust. GR)이 HYU, KIA로만 구분됨
     df_pe_raw = df_pe_raw[df_pe_raw['Group 1'].isin(['HYU', 'KIA'])]
-    df_pe, p_col, c_col = build_summary_report(df_pe_raw, ['Group 1', 'Project'], selected_year, selected_month, 'PE Biz Rev. TTL (K.€)', index_names=['Cust. GR', 'Project'])
+    # 참고 파일 로직 반영: Project -> KOx 변경
+    df_pe, p_col, c_col = build_summary_report(df_pe_raw, ['Group 1', 'KOx'], selected_year, selected_month, 'PE Biz Rev. TTL (K.€)', index_names=['Cust. GR', 'KOx'])
     if not df_pe.empty:
         st.markdown(render_html_view(df_pe, c_col), unsafe_allow_html=True)
         reports_to_download["PE_Biz"] = df_pe
 
-    st.subheader("📌 5. Core 비즈니스 (고객사/프로젝트별)")
+    st.subheader("📌 5. Core 비즈니스 (고객사별)")
     df_core_raw = raw_df[raw_df['Business Type'].str.contains('Core', case=False, na=False)]
-    # 요구사항 4 반영: Group 1(Cust. GR)이 HYU, KIA, GM으로만 구분됨
+    # 요구사항 4 반영 유지: Group 1(Cust. GR)이 HYU, KIA, GM으로만 구분됨
     df_core_raw = df_core_raw[df_core_raw['Group 1'].isin(['HYU', 'KIA', 'GM'])]
-    df_core, p_col, c_col = build_summary_report(df_core_raw, ['Group 1', 'Project'], selected_year, selected_month, 'Core Biz Rev. TTL (K.€)', index_names=['Cust. GR', 'Project'])
+    # 참고 파일 로직 반영: Project -> KOx 변경
+    df_core, p_col, c_col = build_summary_report(df_core_raw, ['Group 1', 'KOx'], selected_year, selected_month, 'Core Biz Rev. TTL (K.€)', index_names=['Cust. GR', 'KOx'])
     if not df_core.empty:
         st.markdown(render_html_view(df_core, c_col), unsafe_allow_html=True)
         reports_to_download["Core_Biz"] = df_core
