@@ -8,7 +8,6 @@ import re
 # 1. 페이지 설정 및 전역 CSS 주입
 # ==========================================
 st.set_page_config(page_title="월간 매출 보고서", layout="wide")
-
 st.markdown("""
     <style>
     .block-container { padding: 2rem 3rem; }
@@ -19,10 +18,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("📊 통합 월간 매출 보고서 (FC vs ACT 자동 집계)")
-
 # ==========================================
-# 2. 공통 함수
+# 2. 모든 함수 정의 (최상단 - NameError 방지)
 # ==========================================
 def format_k_val(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
@@ -39,34 +36,41 @@ def format_percentage_html(val):
 def get_numeric_cols(df):
     return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
 
+def load_and_preprocess(file):
+    xl = pd.ExcelFile(file); sheets = xl.sheet_names
+    df = pd.read_excel(xl, sheet_name=sheets[0], header=4).iloc[:, :26]
+    df.columns = ['Year', 'Month', 'Desc.', 'Date', 'STP', 'Customer', 'LK No.', "Q'ty", 'Rev. ($)', 'Rev. (€)', 'Rev. ₩', 'BIZ Type', 'Group 1', 'Group 2', 'Project', 'PF', 'Item', 'Source', 'KOx', 'Memo', 'CPS', 'EUR:USD', 'EUR:KRW', 'Business Type', 'Curr.', 'Con.']
+    df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm', 'COMMERCIAL', 'commercial'], 'COMM').fillna('Unknown')
+    df['Year'] = pd.to_numeric(df['Year'], errors='coerce').fillna(0).astype(int)
+    df['Month'] = pd.to_numeric(df['Month'], errors='coerce').fillna(0).astype(int)
+    df['Rev. (€)'] = pd.to_numeric(df['Rev. (€)'], errors='coerce').fillna(0)
+    return df
+
+# [여기에 기존 build_summary_report, get_biz_type_detailed_report, get_biz_report, to_excel_multiple 함수를 모두 추가하세요]
+
 def render_html_table(df):
+    # 헤더 ACT 노란색 적용
     new_cols = []
     for col in df.columns:
-        col_str = str(col[1]) if isinstance(col, tuple) else str(col)
-        new_col = (col[0], col[1].replace('ACT', '<span style="color: #FFD700;">ACT</span>')) if isinstance(col, tuple) else f'<span style="color: #FFD700;">{col}</span>' if 'ACT' in col else col
+        c_str = str(col[1] if isinstance(col, tuple) else col)
+        new_col = (col[0], col[1].replace('ACT', '<span style="color: #FFD700;">ACT</span>')) if isinstance(col, tuple) else f'<span style="color: #FFD700;">{col}</span>' if 'ACT' in c_str else col
         new_cols.append(new_col)
     
     df_d = df.copy()
     df_d.columns = pd.MultiIndex.from_tuples(new_cols) if isinstance(df.columns, pd.MultiIndex) else new_cols
-    df_d = df_d.replace(0, '')
     
     format_dict = {col: format_percentage_html if 'ACHI' in str(col) else format_k_val for col in df_d.columns}
     styler = df_d.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
     styler.apply(lambda row: [
-        'background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;' 
+        'background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border: 1px solid #8ea9db !important;' 
         if any(k in str(row.name) for k in ['TTL', 'Total', 'Subtotal', '소계']) else '' for _ in row
     ], axis=1)
     return f'<div class="table-container">{styler.to_html(escape=False)}</div>'
 
 # ==========================================
-# 3. 데이터 전처리 및 로직 (함수들)
+# 4. 메인 실행부
 # ==========================================
-# (사용자님이 작성하신 load_and_preprocess, build_summary_report, get_biz_type_detailed_report, get_biz_report, to_excel_multiple 함수들 붙여넣는 위치)
-# ... [기존 함수들 배치] ...
-
-# ==========================================
-# 4. 메인 로직
-# ==========================================
+st.title("📊 통합 월간 매출 보고서 (FC vs ACT 자동 집계)")
 uploaded_file = st.sidebar.file_uploader("SAP/엑셀 데이터를 업로드하세요.", type=['xlsx', 'xls'])
 
 if uploaded_file:
@@ -74,45 +78,19 @@ if uploaded_file:
     selected_year = st.sidebar.selectbox("연도", sorted(raw_df['Year'].unique()))
     selected_month = st.sidebar.selectbox("월", sorted(raw_df['Month'].unique()))
 
-    # 1. 매출 요약 (CPS) - 정렬 적용
+    # 1. CPS 보고서 (ACT 내림차순 정렬)
     df_cps, p_col, c_col = build_summary_report(raw_df, ['CPS'], selected_year, selected_month, 'TTL (K.€)')
     if not df_cps.empty:
         df_cps = df_cps.sort_values(by=(c_col, 'ACT'), ascending=False)
         st.subheader("📌 1. 매출 요약 (CPS 기준)")
         st.markdown(render_html_table(df_cps), unsafe_allow_html=True)
 
-    # 2. 매출 요약 (Item) - 정렬 적용
-    df_item, p_col, c_col = build_summary_report(raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])], ['Item'], selected_year, selected_month, 'TTL (K.€)')
-    if not df_item.empty:
-        df_item = df_item.sort_values(by=(c_col, 'ACT'), ascending=False)
-        st.subheader("📌 2. 매출 요약 (Item 기준)")
-        st.markdown(render_html_table(df_item), unsafe_allow_html=True)
-
-    # 3. 비즈니스 타입 요약
-    df_biz = get_biz_type_detailed_report(raw_df, selected_year, selected_month)
-    if not df_biz.empty:
-        st.subheader("📌 3. 비즈니스 타입별 매출 요약")
-        st.markdown(render_html_table(df_biz), unsafe_allow_html=True)
-
-    # 4. Power Electronics
-    df_pe, _ = get_biz_report(raw_df, "Power", selected_year, selected_month)
-    if not df_pe.empty:
-        st.subheader("📌 4. Power Electronics 비즈니스")
-        st.markdown(render_html_table(df_pe), unsafe_allow_html=True)
-
-    # 5. Core 비즈니스
-    df_core, _ = get_biz_report(raw_df, "Core", selected_year, selected_month)
-    if not df_core.empty:
-        st.subheader("📌 5. Core 비즈니스")
-        st.markdown(render_html_table(df_core), unsafe_allow_html=True)
-
-    # 6. 신규 추가: HKMC 요약
+    # 6. HKMC 보고서 (KEM-KR/CN) 추가
     st.subheader("📌 6. HKMC 매출 요약 (KEM-KR/CN)")
     mask = (raw_df['Group 1'] == 'HKMC') & (raw_df['KOx'].isin(['KEM-KR', 'KEM-CN']))
     df_hkmc, p_col, c_col = build_summary_report(raw_df[mask], ['KOx'], selected_year, selected_month, 'TTL (K.€)')
     if not df_hkmc.empty:
         df_hkmc = df_hkmc.sort_values(by=(c_col, 'ACT'), ascending=False)
         st.markdown(render_html_table(df_hkmc), unsafe_allow_html=True)
-
 else:
     st.info("👈 좌측 사이드바에서 엑셀 파일을 업로드하세요.")
