@@ -23,6 +23,7 @@ st.markdown("""
         background-color: white;
     }
     
+    /* 행 사이 구분선 제거 */
     .report-table tr { border-bottom: none !important; }
     .report-table td, .report-table th { border-bottom: none !important; border-top: none !important; }
 
@@ -176,7 +177,6 @@ if uploaded_file:
         all_indices = set()
         for p in [s_prev, p_curr, p_ytd, p_ttl]:
             if not p.empty: all_indices.update(p.index.tolist() if isinstance(p.index, pd.MultiIndex) else [(x,) for x in p.index.tolist()])
-        if not all_indices: return pd.DataFrame(), col_prev, phase_curr
         
         all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
         idx = pd.MultiIndex.from_tuples(all_indices, names=index_names or index_cols) if len(index_cols) > 1 else pd.Index([x[0] for x in all_indices], name=(index_names[0] if index_names else index_cols[0]))
@@ -188,7 +188,11 @@ if uploaded_file:
         combined_dict[('', col_prev)] = s_prev.reindex(idx).fillna(0) if not s_prev.empty else pd.Series(0, index=idx)
         for phase_name, data in zip(phases, [p_curr, p_ytd, p_ttl]):
             for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data[c].reindex(idx).fillna(0) if not data.empty and c in data.columns else pd.Series(0, index=idx)
-            combined_dict[(phase_name, 'ACHI %')] = np.where(combined_dict[(phase_name, '26 FC1')] != 0, combined_dict[(phase_name, 'ACT')] / combined_dict[(phase_name, '26 FC1')], 0)
+            
+            # Safe Division (ACHI %)
+            num = combined_dict[(phase_name, 'ACT')]
+            den = combined_dict[(phase_name, '26 FC1')]
+            combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
         
         final_df = pd.DataFrame(combined_dict)
         final_df.columns = pd.MultiIndex.from_tuples(col_tuples)
@@ -196,9 +200,7 @@ if uploaded_file:
         
         final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
         
-        # 정렬 로직: DIRECT 우선 정렬
         if 'BIZ Type' in final_df.index.names:
-            # 카테고리 타입으로 변환하여 순서 보장 (level=0)
             cats = pd.CategoricalDtype(categories=['DIRECT', 'COMMERCIAL'], ordered=True)
             final_df.index = final_df.index.set_levels(final_df.index.levels[0].astype(cats), level=0)
             final_df = final_df.sort_index(level=0)
@@ -206,7 +208,11 @@ if uploaded_file:
             final_df = final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
             
         total_row = final_df.sum(numeric_only=True)
-        for phase_name in phases: total_row[(phase_name, 'ACHI %')] = total_row[(phase_name, 'ACT')] / total_row[(phase_name, '26 FC1')] if total_row[(phase_name, '26 FC1')] != 0 else 0
+        # 총계 행도 안전하게 계산
+        for phase_name in phases:
+            num = total_row[(phase_name, 'ACT')]
+            den = total_row[(phase_name, '26 FC1')]
+            total_row[(phase_name, 'ACHI %')] = num / den if den != 0 else 0
         
         t_index = tuple([''] * (len(final_df.index.names)-1) + [total_label]) if isinstance(final_df.index, pd.MultiIndex) else total_label
         t_df = pd.DataFrame([total_row], index=[t_index] if not isinstance(final_df.index, pd.MultiIndex) else pd.MultiIndex.from_tuples([t_index], names=final_df.index.names))
@@ -243,14 +249,21 @@ if uploaded_file:
             combined_dict = {(prev_phase_name, 'ACT'): p_prev.get('ACT', 0)}
             for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
                 for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data.get(c, 0)
-                combined_dict[(phase_name, 'ACHI %')] = np.where(data.get('26 FC1', 0) != 0, data.get('ACT', 0) / data.get('26 FC1', 0), 0)
+                
+                # Safe Division
+                num = data.get('ACT', 0)
+                den = data.get('26 FC1', 0)
+                combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
             
             combined = pd.DataFrame(combined_dict, index=p_m.index)
             if ('Others', '', '') in combined.index: combined = pd.concat([combined.drop(index=('Others', '', '')).sort_values(by=(phase_names[0], 'ACT'), ascending=False), combined.loc[[('Others', '', '')]]])
             else: combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
             
             subtotal = combined.sum(numeric_only=True)
-            for p_name in phase_names: subtotal[(p_name, 'ACHI %')] = subtotal.get((p_name, 'ACT'), 0) / subtotal.get((p_name, '26 FC1'), 0) if subtotal.get((p_name, '26 FC1'), 0) != 0 else 0
+            for p_name in phase_names: 
+                num = subtotal.get((p_name, 'ACT'), 0)
+                den = subtotal.get((p_name, '26 FC1'), 0)
+                subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
             
             combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
             results.append(combined)
@@ -259,7 +272,11 @@ if uploaded_file:
         
         final_df = pd.concat(results)
         grand_total = final_df[final_df.index.get_level_values(1) != '소계'].sum(numeric_only=True)
-        for p_name in phase_names: grand_total[(p_name, 'ACHI %')] = grand_total.get((p_name, 'ACT'), 0) / grand_total.get((p_name, '26 FC1'), 0) if grand_total.get((p_name, '26 FC1'), 0) != 0 else 0
+        for p_name in phase_names:
+            num = grand_total.get((p_name, 'ACT'), 0)
+            den = grand_total.get((p_name, '26 FC1'), 0)
+            grand_total[(p_name, 'ACHI %')] = num / den if den != 0 else 0
+            
         grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('', f'{biz_type} Total', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
         return pd.concat([final_df, grand_row]), phase_names
 
