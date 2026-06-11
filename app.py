@@ -48,7 +48,7 @@ st.markdown("""
     
     .report-table td {
         border: 1px solid #d9d9d9;
-        text-align: right;
+        text-align: center; /* 텍스트 가운데 정렬 기본 */
         padding: 4px;
         vertical-align: middle;
     }
@@ -126,7 +126,7 @@ if uploaded_file:
         sheets = xl.sheet_names
         df = pd.read_excel(xl, sheet_name=sheets[0], header=4).iloc[:, :26]
         df.columns = ['Year', 'Month', 'Desc.', 'Date', 'STP', 'Customer', 'LK No.', "Q'ty", 
-                      'Rev. ($)', 'Rev. (€)', 'Rev. (₩)', 'BIZ Type', 'Group 1', 'Group 2', 
+                      'Rev. ($)', 'Rev. (€)', 'Rev. ₩', 'BIZ Type', 'Group 1', 'Group 2', 
                       'Project', 'PF', 'Item', 'Source', 'KOx', 'Memo', 'CPS', 
                       'EUR:USD', 'EUR:KRW', 'Business Type', 'Curr.', 'Con.']
         
@@ -163,6 +163,10 @@ if uploaded_file:
     # ==========================================
     # 4. 핵심 비즈니스 로직
     # ==========================================
+    # 숫자 칼럼 추출 함수
+    def get_numeric_cols(df):
+        return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
+
     def build_summary_report(df_sub, index_cols, year, month, total_label, index_names=None):
         if df_sub.empty: return pd.DataFrame(), "", ""
         if month == 1: prev_year, prev_month = year - 1, 12
@@ -180,6 +184,7 @@ if uploaded_file:
         all_indices = set()
         for p in [s_prev, p_curr, p_ytd, p_ttl]:
             if not p.empty: all_indices.update(p.index.tolist() if isinstance(p.index, pd.MultiIndex) else [(x,) for x in p.index.tolist()])
+        if not all_indices: return pd.DataFrame(), col_prev, phase_curr
         
         all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
         idx = pd.MultiIndex.from_tuples(all_indices, names=index_names or index_cols) if len(index_cols) > 1 else pd.Index([x[0] for x in all_indices], name=(index_names[0] if index_names else index_cols[0]))
@@ -261,7 +266,8 @@ if uploaded_file:
             results.append(combined)
             results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(biz, 'Subtotal')], names=['BIZ Type', 'KOx'])))
             
-        return pd.concat(results)
+        final_df = pd.concat(results)
+        return final_df
 
     def get_biz_report(df, biz_type, year, month):
         if month == 1: prev_year, prev_month = year - 1, 12
@@ -327,16 +333,26 @@ if uploaded_file:
     # 5. 스타일링 및 렌더링
     # ==========================================
     def render_html_view(df, phase_curr):
-        df = df.replace(0, '') 
+        df_display = df.replace(0, '') 
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
-        styler = df.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
+        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
+        
+        # 숫자 컬럼 오른쪽 정렬 적용
+        numeric_cols = get_numeric_cols(df)
+        styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
+        
         styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row) if 'Total' in str(row.name) or 'Subtotal' in str(row.name) else [''] * len(row), axis=1)
         return f'<div class="table-container">{styler.to_html()}</div>'
 
     def render_biz_html_table(df):
-        df = df.replace(0, '') 
+        df_display = df.replace(0, '') 
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
-        styler = df.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
+        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
+        
+        # 숫자 컬럼 오른쪽 정렬 적용
+        numeric_cols = get_numeric_cols(df)
+        styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
+        
         styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' if '소계' in str(row.name) or 'Total' in str(row.name) else '' for _ in row], axis=1)
         html = styler.to_html()
         pattern = r'(<tr[^>]*>.*?)(<td[^>]*class="[^"]*row_heading[^>]*>[^<]*Total[^<]*</td>)\s*<td[^>]*>.*?</td>\s*<td[^>]*>.*?</td>\s*<td[^>]*>.*?</td>'
