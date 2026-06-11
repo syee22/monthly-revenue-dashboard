@@ -65,10 +65,9 @@ st.markdown("""
     
     .table-container {
         overflow-x: auto;
-        /* 세로 스크롤 방지를 위해 max-height 및 overflow-y 제거 */
         border: 2px solid #002060;
         box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
-        margin-bottom: 2rem;
+        margin-bottom: 0px !important; /* 여백 제거 */
         width: 100%;
     }
     </style>
