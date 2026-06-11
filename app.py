@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import io
-import re
 
 # ==========================================
 # 1. 페이지 설정 및 전역 CSS 주입
@@ -24,7 +23,8 @@ st.markdown("""
         background-color: white;
     }
     
-    .report-table th {
+    /* 상단 컬럼 헤더 스타일 */
+    .report-table thead th {
         background-color: #002060 !important;
         color: white !important;
         border: 1px solid #8ea9db !important;
@@ -32,8 +32,12 @@ st.markdown("""
         padding: 4px 3px !important;
         font-weight: 600 !important;
         font-size: 11.5px !important;
+        position: sticky;
+        top: 0;
+        z-index: 10;
     }
     
+    /* 일반 데이터 셀 스타일 */
     .report-table td {
         border: 1px solid #d9d9d9;
         text-align: right;
@@ -41,13 +45,17 @@ st.markdown("""
         vertical-align: middle;
     }
     
-    .report-table th.row_heading, .report-table td.row_heading {
+    /* 좌측 인덱스(Row Heading) 스타일 - 글자 안 보이는 현상 수정 */
+    .report-table tbody th.row_heading {
+        background-color: white !important;
+        color: #333 !important;
         text-align: center !important;
-        border-right: 1px solid #8ea9db;
+        border: 1px solid #d9d9d9 !important;
+        vertical-align: middle !important;
     }
 
-    .report-table th.row_heading.level0 { color: #002060 !important; font-weight: bold !important; }
-    .report-table th.row_heading.level1 { color: #0070c0 !important; font-weight: bold !important; }
+    .report-table tbody th.row_heading.level0 { color: #002060 !important; font-weight: bold !important; }
+    .report-table tbody th.row_heading.level1 { color: #0070c0 !important; font-weight: bold !important; }
     
     .table-container {
         overflow-x: auto;
@@ -56,12 +64,6 @@ st.markdown("""
         border: 2px solid #002060;
         box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
         margin-bottom: 2rem;
-    }
-    
-    .report-table thead th {
-        position: sticky;
-        top: 0;
-        z-index: 10;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -141,6 +143,10 @@ if uploaded_file:
         
         df['Year'] = df['Year'].astype(int)
         df['Month'] = df['Month'].astype(int)
+        
+        # SOP(Date) 포맷 정리 (예: 2024.08)
+        df['Date'] = df['Date'].astype(str).str.replace('00:00:00', '').str.strip()
+        
         return df
 
     raw_df = load_and_preprocess(uploaded_file)
@@ -152,7 +158,6 @@ if uploaded_file:
     # 5. 핵심 비즈니스 로직 (다목적 피벗 빌더)
     # ==========================================
     def build_summary_report(df_sub, index_cols, year, month, total_label, index_names=None):
-        """특정 차원(index_cols) 기준으로 첨부 이미지 형태의 리포트를 동적 생성합니다."""
         if df_sub.empty:
             return pd.DataFrame(), "", ""
 
@@ -199,11 +204,9 @@ if uploaded_file:
         if not all_indices:
             return pd.DataFrame(), col_prev, phase_curr
 
-        # [오류 해결 부분] 문자와 숫자가 섞여 있을 때 발생하는 TypeError 방지
-        # 튜플 내의 각 요소를 임시로 문자열로 변환하여 안전하게 정렬합니다.
+        # 타입 에러 방지를 위한 인덱스 문자열 변환 정렬
         all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
         
-        # 인덱스 생성
         if len(index_cols) > 1:
             idx = pd.MultiIndex.from_tuples(all_indices, names=index_names or index_cols)
         else:
@@ -215,7 +218,6 @@ if uploaded_file:
             for c in ['25 FC3', '26 FC1', 'ACT', 'ACHI %']:
                 col_tuples.append((p, c))
 
-        # 데이터 매핑
         if not s_prev.empty:
             s_prev.index = s_prev.index if len(index_cols) == 1 else pd.MultiIndex.from_tuples(s_prev.index)
             combined_dict[('', col_prev)] = s_prev.reindex(idx).fillna(0)
@@ -236,6 +238,11 @@ if uploaded_file:
 
         final_df = pd.DataFrame(combined_dict)
         final_df.columns = pd.MultiIndex.from_tuples(col_tuples)
+
+        # 🚀 추가된 로직: 25 FC3, 26 FC1, ACT가 모두 0인 무의미한 행 제거
+        check_cols = [c for c in final_df.columns if c[1] in ['25 FC3', '26 FC1', 'ACT']]
+        if check_cols:
+            final_df = final_df.loc[(final_df[check_cols] != 0).any(axis=1)]
 
         # 정렬 (당월 ACT 기준 내림차순)
         if (phase_curr, 'ACT') in final_df.columns:
@@ -268,7 +275,7 @@ if uploaded_file:
         styler = df.style.format(format_dict, na_rep='')
         styler.set_table_attributes('class="report-table"')
         
-        # 합계(TTL) 행 배경색 (이미지와 동일한 연노랑색 #ffffe0 적용)
+        # 합계(TTL) 행 배경색 (연노랑색)
         def highlight_totals(row):
             row_name = str(row.name[-1]) if isinstance(row.name, tuple) else str(row.name)
             if 'TTL' in row_name:
@@ -277,10 +284,7 @@ if uploaded_file:
             
         styler.apply(highlight_totals, axis=1)
         
-        border_styles = [
-            {'selector': 'th', 'props': [('vertical-align', 'middle')]},
-            {'selector': 'td', 'props': [('vertical-align', 'middle')]}
-        ]
+        border_styles = []
         
         # 현재 월 컬럼 그룹에 빨간색 테두리 강조 적용
         for i, col in enumerate(df.columns):
@@ -317,16 +321,18 @@ if uploaded_file:
         st.markdown(render_html_view(df_biz, c_col), unsafe_allow_html=True)
         reports_to_download["Biz_Type_Summary"] = df_biz
 
-    st.subheader("📌 4. Power Electronics 비즈니스 (고객사별)")
+    st.subheader("📌 4. Power Electronics 비즈니스 (고객사/프로젝트별)")
     df_pe_raw = raw_df[raw_df['Business Type'].str.contains('Power', case=False, na=False)]
-    df_pe, p_col, c_col = build_summary_report(df_pe_raw, ['Group 1', 'KOx'], selected_year, selected_month, 'PE Biz Rev. TTL (K.€)', index_names=['Cust. GR', 'KOx'])
+    # 첨부 이미지와 동일한 인덱스 구조 (Cust. GR, Project, Ctry., SOP)
+    df_pe, p_col, c_col = build_summary_report(df_pe_raw, ['Group 1', 'Project', 'STP', 'Date'], selected_year, selected_month, 'PE Biz Rev. TTL (K.€)', index_names=['Cust. GR', 'Project', 'Ctry.', 'SOP'])
     if not df_pe.empty:
         st.markdown(render_html_view(df_pe, c_col), unsafe_allow_html=True)
         reports_to_download["PE_Biz"] = df_pe
 
-    st.subheader("📌 5. Core 비즈니스 (고객사별)")
+    st.subheader("📌 5. Core 비즈니스 (고객사/프로젝트별)")
     df_core_raw = raw_df[raw_df['Business Type'].str.contains('Core', case=False, na=False)]
-    df_core, p_col, c_col = build_summary_report(df_core_raw, ['Group 1', 'KOx'], selected_year, selected_month, 'Core Biz Rev. TTL (K.€)', index_names=['Cust. GR', 'KOx'])
+    # 첨부 이미지와 동일한 인덱스 구조 (Cust. GR, Project, Ctry., SOP)
+    df_core, p_col, c_col = build_summary_report(df_core_raw, ['Group 1', 'Project', 'STP', 'Date'], selected_year, selected_month, 'Core Biz Rev. TTL (K.€)', index_names=['Cust. GR', 'Project', 'Ctry.', 'SOP'])
     if not df_core.empty:
         st.markdown(render_html_view(df_core, c_col), unsafe_allow_html=True)
         reports_to_download["Core_Biz"] = df_core
