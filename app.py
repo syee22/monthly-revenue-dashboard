@@ -235,15 +235,15 @@ def to_excel_multiple(df_dict):
             # 2. 배경색/테두리 조건부 서식 적용 (화면과 동일하게)
 
             def apply_row_style(row):
-
-                if 'TTL (K.€)' in str(row.name) or 'Total' in str(row.name) or 'Subtotal' in str(row.name):
-
-                    return ['background-color: #ffffe0; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
-
+                # row.name이 튜플(MultiIndex)일 수 있으므로 문자열로 변환 후 모든 요소를 확인
+                row_name_str = str(row.name)
+                
+                # 합계나 소계 키워드가 인덱스의 어느 위치에 있든 상관없이 노란색 적용
+                if any(k in row_name_str for k in ['TTL', 'Total', 'Subtotal', '소계']):
+                    return ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
                 return [''] * len(row)
-
             
-
+            # 렌더링 함수 내 적용
             styler.apply(apply_row_style, axis=1)
 
             
