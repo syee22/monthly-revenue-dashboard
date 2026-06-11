@@ -421,11 +421,7 @@ if uploaded_file:
             else '' for _ in row
         ], axis=1)
         
-        # 합계 행의 컬럼 인덱스를 병합(colspan)하여 깔끔하게 보여주기 위한 정규식 처리
-        html = re.sub(r'<th[^>]*level0[^>]*>.*?</th>\s*<th[^>]*level1[^>]*>(.*?)</th>\s*<th[^>]*level2[^>]*>.*?</th>', 
-                      lambda m: m.group(0).replace('<th', '<th colspan="3"') if "Sales Revenue" in m.group(1) else m.group(0), 
-                      styler.to_html())
-        return f'<div class="table-container">{html}</div>'
+        return f'<div class="table-container">{styler.to_html()}</div>'
 
     # ==========================================
     # 7. 화면 출력 (5가지 View) 및 통합 다운로드
