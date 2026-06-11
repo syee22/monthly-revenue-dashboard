@@ -130,6 +130,9 @@ if uploaded_file:
                       'Project', 'PF', 'Item', 'Source', 'KOx', 'Memo', 'CPS', 
                       'EUR:USD', 'EUR:KRW', 'Business Type', 'Curr.', 'Con.']
         
+        # BIZ Type 정제
+        df['BIZ Type'] = df['BIZ Type'].fillna('Unknown')
+        
         sop_dict = {}
         if len(sheets) > 1:
             df_sop = pd.read_excel(xl, sheet_name=sheets[1])
@@ -189,7 +192,6 @@ if uploaded_file:
         for phase_name, data in zip(phases, [p_curr, p_ytd, p_ttl]):
             for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data[c].reindex(idx).fillna(0) if not data.empty and c in data.columns else pd.Series(0, index=idx)
             
-            # Safe Division (ACHI %)
             num = pd.Series(combined_dict[(phase_name, 'ACT')])
             den = pd.Series(combined_dict[(phase_name, '26 FC1')])
             combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
@@ -200,15 +202,19 @@ if uploaded_file:
         
         final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
         
+        # 정렬: Biz Type이 있다면 DIRECT가 위로 오도록 정렬
         if 'BIZ Type' in final_df.index.names:
-            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMMERCIAL'], ordered=True)
-            final_df.index = final_df.index.set_levels(final_df.index.levels[0].astype(cats), level=0)
-            final_df = final_df.sort_index(level=0)
+            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMMERCIAL', 'Unknown'], ordered=True)
+            # 인덱스 레벨 0(BIZ Type)에 카테고리 적용하여 정렬
+            try:
+                final_df.index = final_df.index.set_levels(final_df.index.levels[0].astype(cats), level=0)
+                final_df = final_df.sort_index(level=0)
+            except:
+                pass
         elif (phase_curr, 'ACT') in final_df.columns:
             final_df = final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
             
         total_row = final_df.sum(numeric_only=True)
-        # 총계 행도 안전하게 계산
         for phase_name in phases:
             num = total_row.get((phase_name, 'ACT'), 0)
             den = total_row.get((phase_name, '26 FC1'), 0)
@@ -250,7 +256,6 @@ if uploaded_file:
             for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
                 for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data.get(c, 0)
                 
-                # Safe Division
                 num = pd.Series(data.get('ACT', 0))
                 den = pd.Series(data.get('26 FC1', 0))
                 combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
