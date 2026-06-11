@@ -65,11 +65,11 @@ st.markdown("""
     
     .table-container {
         overflow-x: auto;
-        overflow-y: auto;
-        max-height: 750px;
+        /* 세로 스크롤 방지를 위해 max-height 및 overflow-y 제거 */
         border: 2px solid #002060;
         box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
         margin-bottom: 2rem;
+        width: 100%;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -130,9 +130,8 @@ if uploaded_file:
                       'Project', 'PF', 'Item', 'Source', 'KOx', 'Memo', 'CPS', 
                       'EUR:USD', 'EUR:KRW', 'Business Type', 'Curr.', 'Con.']
         
-        # BIZ Type 정제 (COMM -> COMM, 결측치 처리)
         if 'BIZ Type' in df.columns:
-            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMM')
+            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMMERCIAL')
             df['BIZ Type'] = df['BIZ Type'].fillna('Unknown')
         
         sop_dict = {}
@@ -181,6 +180,7 @@ if uploaded_file:
         all_indices = set()
         for p in [s_prev, p_curr, p_ytd, p_ttl]:
             if not p.empty: all_indices.update(p.index.tolist() if isinstance(p.index, pd.MultiIndex) else [(x,) for x in p.index.tolist()])
+        if not all_indices: return pd.DataFrame(), col_prev, phase_curr
         
         all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
         idx = pd.MultiIndex.from_tuples(all_indices, names=index_names or index_cols) if len(index_cols) > 1 else pd.Index([x[0] for x in all_indices], name=(index_names[0] if index_names else index_cols[0]))
@@ -203,10 +203,8 @@ if uploaded_file:
         
         final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
         
-        # 정렬: Biz Type이 있다면 DIRECT가 위로 오도록 정렬
         if 'BIZ Type' in final_df.index.names:
-            # 카테고리 타입으로 변환하여 순서 보장 (level 0)
-            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMM', 'Unknown'], ordered=True)
+            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMMERCIAL', 'Unknown'], ordered=True)
             try:
                 final_df.index = final_df.index.set_levels(final_df.index.levels[0].astype(cats), level=0)
                 final_df = final_df.sort_index(level=0)
