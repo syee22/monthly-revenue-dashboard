@@ -244,9 +244,16 @@ if uploaded_file:
         if check_cols:
             final_df = final_df.loc[(final_df[check_cols] != 0).any(axis=1)]
 
-        # 정렬 (당월 ACT 기준 내림차순)
+        # 정렬 (다중 인덱스일 경우 상위 인덱스 기준 그룹핑 및 당월 ACT 기준 내림차순 정렬)
         if (phase_curr, 'ACT') in final_df.columns:
-            final_df = final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
+            if len(index_cols) > 1:
+                # pandas MultiIndex column 이슈 우려 방지를 위해 임시 컬럼 생성 활용
+                temp_level0 = final_df.index.get_level_values(0)
+                final_df[('__temp__', 'level0')] = temp_level0
+                final_df = final_df.sort_values(by=[('__temp__', 'level0'), (phase_curr, 'ACT')], ascending=[True, False])
+                final_df = final_df.drop(columns=[('__temp__', 'level0')])
+            else:
+                final_df = final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
 
         # Grand Total (소계/합계) 추가
         total_row = final_df.sum(numeric_only=True)
@@ -310,12 +317,15 @@ if uploaded_file:
         reports_to_download["CPS_Summary"] = df_cps
 
     st.subheader("📌 2. 매출 요약 (Item 기준)")
-    df_item, p_col, c_col = build_summary_report(raw_df, ['Item'], selected_year, selected_month, 'TTL (K.€)')
+    # 요구사항 1 반영: ICCU1, ICCU2, VCMS 정보만 필요
+    df_item_raw = raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])]
+    df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)')
     if not df_item.empty:
         st.markdown(render_html_view(df_item, c_col), unsafe_allow_html=True)
         reports_to_download["Item_Summary"] = df_item
 
     st.subheader("📌 3. 비즈니스 타입별 매출 요약 (DIRECT / COMM.)")
+    # 요구사항 2 반영: Biz Type 상위 정렬 + 내부 KOx는 당월 ACT 기준 내림차순 정렬 (build_summary_report 함수 내부에 로직 추가 완료)
     df_biz, p_col, c_col = build_summary_report(raw_df, ['BIZ Type', 'KOx'], selected_year, selected_month, 'Sales Rev. TTL (K.€)', index_names=['Biz Type', 'KOx'])
     if not df_biz.empty:
         st.markdown(render_html_view(df_biz, c_col), unsafe_allow_html=True)
@@ -323,7 +333,8 @@ if uploaded_file:
 
     st.subheader("📌 4. Power Electronics 비즈니스 (고객사/프로젝트별)")
     df_pe_raw = raw_df[raw_df['Business Type'].str.contains('Power', case=False, na=False)]
-    # Ctry, SOP 제외하고 Group 1, Project만 반영
+    # 요구사항 3 반영: Group 1(Cust. GR)이 HYU, KIA로만 구분됨
+    df_pe_raw = df_pe_raw[df_pe_raw['Group 1'].isin(['HYU', 'KIA'])]
     df_pe, p_col, c_col = build_summary_report(df_pe_raw, ['Group 1', 'Project'], selected_year, selected_month, 'PE Biz Rev. TTL (K.€)', index_names=['Cust. GR', 'Project'])
     if not df_pe.empty:
         st.markdown(render_html_view(df_pe, c_col), unsafe_allow_html=True)
@@ -331,7 +342,8 @@ if uploaded_file:
 
     st.subheader("📌 5. Core 비즈니스 (고객사/프로젝트별)")
     df_core_raw = raw_df[raw_df['Business Type'].str.contains('Core', case=False, na=False)]
-    # Ctry, SOP 제외하고 Group 1, Project만 반영
+    # 요구사항 4 반영: Group 1(Cust. GR)이 HYU, KIA, GM으로만 구분됨
+    df_core_raw = df_core_raw[df_core_raw['Group 1'].isin(['HYU', 'KIA', 'GM'])]
     df_core, p_col, c_col = build_summary_report(df_core_raw, ['Group 1', 'Project'], selected_year, selected_month, 'Core Biz Rev. TTL (K.€)', index_names=['Cust. GR', 'Project'])
     if not df_core.empty:
         st.markdown(render_html_view(df_core, c_col), unsafe_allow_html=True)
