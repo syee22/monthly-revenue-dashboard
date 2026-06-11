@@ -298,8 +298,8 @@ if uploaded_file:
                                (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)].copy()
             p_prev = brand_df_prev.pivot_table(index=['Project', 'Con.'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
 
-            # Core 혹은 Power 비즈니스의 주요 프로젝트 필터링(10K 기준)
-            if brand in ['HYU', 'KIA']:
+            # Core 비즈니스일 경우에만 주요 프로젝트 필터링(10K 기준) 적용
+            if "Core" in biz_type and brand in ['HYU', 'KIA']:
                 if not p_m.empty and 'ACT' in p_m.columns:
                     top = p_m[p_m['ACT'] >= 10000].index
                 else:
