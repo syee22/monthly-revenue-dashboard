@@ -872,72 +872,42 @@ if uploaded_file:
 
 
     def render_html_view(df, phase_curr):
-
-
-
         df_display = df.replace(0, '')
-
-
-
-        format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
-
-
-
+        
+        # 포맷 지정
+        format_dict = {col: format_percentage_html if 'ACHI' in str(col) else format_k_val for col in df.columns}
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
-        styler.set_table_styles([
-        {'selector': 'th, td', 'props': [('border-collapse', 'separate')]},
-        {'selector': 'tr', 'props': [('display', 'table-row')]}
-        ])
-
-
+        
+        # 정렬
         numeric_cols = get_numeric_cols(df)
-
-
-
         styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
-
-
-
-        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row) if 'TTL (K.€)' in str(row.name) or 'Total' in str(row.name) or 'Subtotal' in str(row.name) else [''] * len(row), axis=1)
-
-
-
+        
+        # 합계 행 스타일 적용 (!important 추가하여 모든 열에 강제 적용)
+        styler.apply(lambda row: [
+            'background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;' 
+            if any(k in str(row.name) for k in ['TTL', 'Total', 'Subtotal', '소계']) 
+            else '' for _ in row
+        ], axis=1)
+        
         return f'<div class="table-container">{styler.to_html()}</div>'
 
-
-
-
-
-
-
     def render_biz_html_table(df):
-
-
-
         df_display = df.replace(0, '')
-
-
-
-        format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
-
-
-
+        
+        format_dict = {col: format_percentage_html if 'ACHI' in str(col) else format_k_val for col in df.columns}
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
-
-
-
+        
+        # 정렬
         numeric_cols = get_numeric_cols(df)
-
-
-
         styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
-
-
-
-        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' if '소계' in str(row.name) or 'Total' in str(row.name) else '' for _ in row], axis=1)
-
-
-
+        
+        # 합계 행 스타일 적용 (!important 추가하여 모든 열에 강제 적용)
+        styler.apply(lambda row: [
+            'background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;' 
+            if any(k in str(row.name) for k in ['소계', 'Total']) 
+            else '' for _ in row
+        ], axis=1)
+        
         return f'<div class="table-container">{styler.to_html()}</div>'
 
 
