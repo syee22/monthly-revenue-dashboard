@@ -16,7 +16,7 @@ st.markdown("""
     h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0.5rem !important; color: #002060 !important; }
     
     .report-table {
-        border-collapse: collapse;
+        border-collapse: collapse !important;
         font-family: 'Malgun Gothic', sans-serif;
         font-size: 12px;
         width: 100%;
@@ -67,7 +67,8 @@ st.markdown("""
         overflow-x: auto;
         border: 2px solid #002060;
         box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
-        margin-bottom: 0px !important; /* 여백 제거 */
+        margin-bottom: 0px !important;
+        padding: 0px !important;
         width: 100%;
     }
     </style>
@@ -130,7 +131,7 @@ if uploaded_file:
                       'EUR:USD', 'EUR:KRW', 'Business Type', 'Curr.', 'Con.']
         
         if 'BIZ Type' in df.columns:
-            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMM')
+            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMMERCIAL')
             df['BIZ Type'] = df['BIZ Type'].fillna('Unknown')
         
         sop_dict = {}
@@ -179,7 +180,6 @@ if uploaded_file:
         all_indices = set()
         for p in [s_prev, p_curr, p_ytd, p_ttl]:
             if not p.empty: all_indices.update(p.index.tolist() if isinstance(p.index, pd.MultiIndex) else [(x,) for x in p.index.tolist()])
-        if not all_indices: return pd.DataFrame(), col_prev, phase_curr
         
         all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
         idx = pd.MultiIndex.from_tuples(all_indices, names=index_names or index_cols) if len(index_cols) > 1 else pd.Index([x[0] for x in all_indices], name=(index_names[0] if index_names else index_cols[0]))
@@ -202,7 +202,14 @@ if uploaded_file:
         
         final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
         
-        if (phase_curr, 'ACT') in final_df.columns:
+        if 'BIZ Type' in final_df.index.names:
+            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMMERCIAL', 'Unknown'], ordered=True)
+            try:
+                final_df.index = final_df.index.set_levels(final_df.index.levels[0].astype(cats), level=0)
+                final_df = final_df.sort_index(level=0)
+            except:
+                pass
+        elif (phase_curr, 'ACT') in final_df.columns:
             final_df = final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
             
         total_row = final_df.sum(numeric_only=True)
@@ -216,7 +223,6 @@ if uploaded_file:
         
         return pd.concat([final_df, t_df]), col_prev, phase_curr
 
-    # 3번 테이블 전용 함수
     def get_biz_type_detailed_report(df, year, month):
         if month == 1: prev_year, prev_month = year - 1, 12
         else: prev_year, prev_month = year, month - 1
@@ -227,8 +233,7 @@ if uploaded_file:
         prev_phase_name = f'{pm_str}. {prev_year}'
         
         results = []
-        # 카테고리 순서 정의
-        biz_categories = ['DIRECT', 'COMM', 'Unknown']
+        biz_categories = ['DIRECT', 'COMMERCIAL', 'Unknown']
         
         for biz in biz_categories:
             biz_df = df[(df['BIZ Type'] == biz) & (df['Year'] == year)]
@@ -256,8 +261,7 @@ if uploaded_file:
             results.append(combined)
             results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(biz, 'Subtotal')], names=['BIZ Type', 'KOx'])))
             
-        final_df = pd.concat(results)
-        return final_df
+        return pd.concat(results)
 
     def get_biz_report(df, biz_type, year, month):
         if month == 1: prev_year, prev_month = year - 1, 12
