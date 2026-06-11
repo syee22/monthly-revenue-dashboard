@@ -2,9 +2,10 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import io
+import re
 
 # ==========================================
-# 1. 페이지 설정 및 전역 CSS
+# 1. 페이지 설정 및 CSS (스타일 유지)
 # ==========================================
 st.set_page_config(page_title="월간 매출 보고서", layout="wide")
 st.markdown("""
@@ -12,13 +13,11 @@ st.markdown("""
     .block-container { padding: 2rem 3rem; }
     .report-table { border-collapse: collapse !important; font-family: 'Malgun Gothic', sans-serif; font-size: 12px; width: 100%; background-color: white; }
     .table-container { overflow-x: auto; border: 2px solid #002060; box-shadow: 2px 2px 10px rgba(0,0,0,0.1); margin-bottom: 1rem !important; padding: 0px !important; display: inline-block; width: auto; min-width: 100%; box-sizing: border-box; }
-    .report-table td, .report-table th { border: 1px solid #d9d9d9; padding: 4px; text-align: center; }
-    .report-table thead th { background-color: #002060 !important; color: white !important; }
     </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 유틸리티 함수
+# 2. 필수 함수 (NameError 방지: 최상단 정의)
 # ==========================================
 def format_k_val(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
@@ -37,9 +36,6 @@ def format_percentage_html(val):
 def get_numeric_cols(df):
     return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
 
-# ==========================================
-# 3. 로직 함수 (전체)
-# ==========================================
 def load_and_preprocess(file):
     xl = pd.ExcelFile(file); sheets = xl.sheet_names
     df = pd.read_excel(xl, sheet_name=sheets[0], header=4).iloc[:, :26]
@@ -50,101 +46,75 @@ def load_and_preprocess(file):
     df['Rev. (€)'] = pd.to_numeric(df['Rev. (€)'], errors='coerce').fillna(0)
     return df
 
-def build_summary_report(df_sub, index_cols, year, month, total_label):
-    if df_sub.empty: return pd.DataFrame(), "", ""
-    prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
-    month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
-    col_curr = f'{month_names.get(month, f"{month}")}. {year}'
-    phases = [col_curr, f'YTD {month_names.get(month, f"{month}")}. {year}', f'{year} TTL']
-    
-    def get_pivot(d): return d.pivot_table(index=index_cols, columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-    p_curr = get_pivot(df_sub[(df_sub['Year'] == year) & (df_sub['Month'] == month)])
-    p_ytd = get_pivot(df_sub[(df_sub['Year'] == year) & (df_sub['Month'] <= month)])
-    p_ttl = get_pivot(df_sub[(df_sub['Year'] == year)])
-    
-    combined_dict = {}
-    for phase, data in zip(phases, [p_curr, p_ytd, p_ttl]):
-        for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase, c)] = data.get(c, 0)
-        combined_dict[(phase, 'ACHI %')] = data.get('ACT', 0) / data.get('26 FC1', 1)
-    
-    df_res = pd.DataFrame(combined_dict, index=p_curr.index if not p_curr.empty else p_ttl.index)
-    return df_res, col_curr
-
-def get_biz_type_detailed_report(df, year, month):
-    month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
-    col_curr = f'{month_names.get(month, f"{month}")}. {year}'
-    phases = [col_curr, f'YTD {month_names.get(month, f"{month}")}. {year}', f'{year} TTL']
-    results = []
-    for biz in ['DIRECT', 'COMM', 'Unknown']:
-        biz_df = df[(df['BIZ Type'] == biz) & (df['Year'] == year)]
-        if biz_df.empty: continue
-        # 각 biz 내에서 당월 ACT 계산
-        p_m = biz_df[biz_df['Month'] == month].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-        p_y = biz_df[biz_df['Month'] <= month].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-        p_fy = biz_df.pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-        
-        combined_dict = {}
-        for phase, data in zip(phases, [p_m, p_y, p_fy]):
-            for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase, c)] = data.get(c, 0)
-            combined_dict[(phase, 'ACHI %')] = data.get('ACT', 0) / data.get('26 FC1', 1)
-        
-        df_biz = pd.DataFrame(combined_dict, index=p_m.index)
-        # KOx 기준 당월 ACT 내림차순 정렬
-        df_biz = df_biz.sort_values(by=(col_curr, 'ACT'), ascending=False)
-        subtotal = pd.DataFrame([df_biz.sum()], index=pd.MultiIndex.from_tuples([(biz, 'Subtotal')], names=['BIZ Type', 'KOx']))
-        results.append(pd.concat([df_biz, subtotal]))
-    return pd.concat(results)
-
-def get_biz_report(df, biz_type, year, month):
-    df_biz = df[(df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == year)].copy()
-    results = []
-    for brand in ['HYU', 'KIA', 'GM']:
-        b_df = df_biz[df_biz['Group 2'] == brand]
-        if b_df.empty: continue
-        # 단순화된 피벗팅
-        p_m = b_df[b_df['Month'] == month].pivot_table(index=['Project'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-        # ... (중략) ...
-        combined = p_m.copy() 
-        combined.index = pd.MultiIndex.from_product([[brand], combined.index], names=['Cust. GR', 'Project'])
-        results.append(combined)
-    return pd.concat(results) if results else pd.DataFrame()
-
 def render_html_table(df):
-    # 포맷팅 적용
-    format_dict = {col: format_percentage_html if 'ACHI' in str(col) else format_k_val for col in df.columns}
-    styler = df.style.format(format_dict).set_table_attributes('class="report-table"')
-    return f'<div class="table-container">{styler.to_html()}</div>'
+    # 헤더 ACT 노란색 변환 및 스타일링
+    df_d = df.replace(0, '')
+    new_cols = []
+    for col in df_d.columns:
+        c_name = str(col[1] if isinstance(col, tuple) else col)
+        new_col = (col[0], col[1].replace('ACT', '<span style="color: #FFD700;">ACT</span>')) if isinstance(col, tuple) else f'<span style="color: #FFD700;">{col}</span>' if 'ACT' in c_name else col
+        new_cols.append(new_col)
+    df_d.columns = pd.MultiIndex.from_tuples(new_cols) if isinstance(df.columns, pd.MultiIndex) else new_cols
+    
+    format_dict = {col: format_percentage_html if 'ACHI' in str(col) else format_k_val for col in df_d.columns}
+    styler = df_d.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
+    # 합계 행 노란색 강조
+    styler.apply(lambda row: ['background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;'] * len(row) 
+                 if any(k in str(row.name) for k in ['TTL', 'Total', 'Subtotal', '소계']) else [''] * len(row), axis=1)
+    return f'<div class="table-container">{styler.to_html(escape=False)}</div>'
 
 # ==========================================
-# 4. 메인 실행부
+# 3. 메인 실행부
 # ==========================================
-st.title("📊 통합 월간 매출 보고서")
-uploaded_file = st.sidebar.file_uploader("엑셀 파일 업로드", type=['xlsx', 'xls'])
+st.title("📊 통합 월간 매출 보고서 (FC vs ACT 자동 집계)")
+uploaded_file = st.sidebar.file_uploader("SAP/엑셀 데이터를 업로드하세요.", type=['xlsx', 'xls'])
 
 if uploaded_file:
     raw_df = load_and_preprocess(uploaded_file)
-    year = st.sidebar.selectbox("연도", sorted(raw_df['Year'].unique()))
-    month = st.sidebar.selectbox("월", sorted(raw_df['Month'].unique()))
+    selected_year = st.sidebar.selectbox("연도", sorted(raw_df['Year'].unique()))
+    selected_month = st.sidebar.selectbox("월", sorted(raw_df['Month'].unique()))
 
-    # 1. CPS
-    df_cps, col_curr = build_summary_report(raw_df, ['CPS'], year, month, 'Total')
-    st.subheader("📌 1. CPS 매출")
-    st.markdown(render_html_table(df_cps), unsafe_allow_html=True)
+    # 1. CPS 보고서 (ACT 내림차순 정렬 & 소계 유지)
+    df_cps, p_col, c_col = build_summary_report(raw_df, ['CPS'], selected_year, selected_month, 'TTL (K.€)')
+    if not df_cps.empty:
+        # 소계 행 분리 후 데이터 정렬
+        total_row = df_cps.loc[[df_cps.index[-1]]] if 'TTL' in str(df_cps.index[-1]) else pd.DataFrame()
+        data_rows = df_cps.iloc[:-1]
+        df_cps = pd.concat([data_rows.sort_values(by=(c_col, 'ACT'), ascending=False), total_row])
+        st.subheader("📌 1. 매출 요약 (CPS 기준)")
+        st.markdown(render_html_table(df_cps), unsafe_allow_html=True)
 
-    # 2. Item (당월 ACT 기준 내림차순)
-    df_item, col_curr = build_summary_report(raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])], ['Item'], year, month, 'Total')
-    df_item = df_item.sort_values(by=(col_curr, 'ACT'), ascending=False)
-    st.subheader("📌 2. Item별 매출 (당월 ACT 정렬)")
-    st.markdown(render_html_table(df_item), unsafe_allow_html=True)
+    # 2. Item 보고서 (ACT 내림차순 정렬 & 소계 유지)
+    df_item, p_col, c_col = build_summary_report(raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])], ['Item'], selected_year, selected_month, 'TTL (K.€)')
+    if not df_item.empty:
+        total_row = df_item.loc[[df_item.index[-1]]]
+        data_rows = df_item.iloc[:-1]
+        df_item = pd.concat([data_rows.sort_values(by=(c_col, 'ACT'), ascending=False), total_row])
+        st.subheader("📌 2. 매출 요약 (Item 기준)")
+        st.markdown(render_html_table(df_item), unsafe_allow_html=True)
 
-    # 3. Biz Type (그룹 내 KOx 정렬)
-    df_biz = get_biz_type_detailed_report(raw_df, year, month)
-    st.subheader("📌 3. BIZ Type별 매출 (KOx별 정렬)")
-    st.markdown(render_html_table(df_biz), unsafe_allow_html=True)
+    # 3. Biz Type 보고서 (함수 내부에서 KOx별 정렬 처리됨)
+    df_biz = get_biz_type_detailed_report(raw_df, selected_year, selected_month)
+    if not df_biz.empty:
+        st.subheader("📌 3. 비즈니스 타입별 매출 요약")
+        st.markdown(render_html_table(df_biz), unsafe_allow_html=True)
 
-    # 4 & 5. 추가 비즈니스 보고서
+    # 4 & 5. PE/Core 보고서 (기존 함수 그대로)
     st.subheader("📌 4. Power Electronics 비즈니스")
-    st.markdown(render_html_table(get_biz_report(raw_df, "Power", year, month)), unsafe_allow_html=True)
+    st.markdown(render_html_table(get_biz_report(raw_df, "Power", selected_year, selected_month)[0]), unsafe_allow_html=True)
     
     st.subheader("📌 5. Core 비즈니스")
-    st.markdown(render_html_table(get_biz_report(raw_df, "Core", year, month)), unsafe_allow_html=True)
+    st.markdown(render_html_table(get_biz_report(raw_df, "Core", selected_year, selected_month)[0]), unsafe_allow_html=True)
+
+    # 6. HKMC 요약 (추가)
+    st.subheader("📌 6. HKMC 매출 요약 (KEM-KR/CN)")
+    mask = (raw_df['Group 1'] == 'HKMC') & (raw_df['KOx'].isin(['KEM-KR', 'KEM-CN']))
+    df_hkmc, p_col, c_col = build_summary_report(raw_df[mask], ['KOx'], selected_year, selected_month, 'TTL (K.€)')
+    if not df_hkmc.empty:
+        total_row = df_hkmc.loc[[df_hkmc.index[-1]]]
+        data_rows = df_hkmc.iloc[:-1]
+        df_hkmc = pd.concat([data_rows.sort_values(by=(c_col, 'ACT'), ascending=False), total_row])
+        st.markdown(render_html_table(df_hkmc), unsafe_allow_html=True)
+
+else:
+    st.info("👈 좌측 사이드바에서 파일을 업로드하세요.")
