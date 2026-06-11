@@ -23,7 +23,6 @@ st.markdown("""
         background-color: white;
     }
     
-    /* 행 사이 구분선 제거 */
     .report-table tr { border-bottom: none !important; }
     .report-table td, .report-table th { border-bottom: none !important; border-top: none !important; }
 
@@ -177,6 +176,7 @@ if uploaded_file:
         all_indices = set()
         for p in [s_prev, p_curr, p_ytd, p_ttl]:
             if not p.empty: all_indices.update(p.index.tolist() if isinstance(p.index, pd.MultiIndex) else [(x,) for x in p.index.tolist()])
+        if not all_indices: return pd.DataFrame(), col_prev, phase_curr
         
         all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
         idx = pd.MultiIndex.from_tuples(all_indices, names=index_names or index_cols) if len(index_cols) > 1 else pd.Index([x[0] for x in all_indices], name=(index_names[0] if index_names else index_cols[0]))
@@ -190,8 +190,8 @@ if uploaded_file:
             for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data[c].reindex(idx).fillna(0) if not data.empty and c in data.columns else pd.Series(0, index=idx)
             
             # Safe Division (ACHI %)
-            num = combined_dict[(phase_name, 'ACT')]
-            den = combined_dict[(phase_name, '26 FC1')]
+            num = pd.Series(combined_dict[(phase_name, 'ACT')])
+            den = pd.Series(combined_dict[(phase_name, '26 FC1')])
             combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
         
         final_df = pd.DataFrame(combined_dict)
@@ -210,8 +210,8 @@ if uploaded_file:
         total_row = final_df.sum(numeric_only=True)
         # 총계 행도 안전하게 계산
         for phase_name in phases:
-            num = total_row[(phase_name, 'ACT')]
-            den = total_row[(phase_name, '26 FC1')]
+            num = total_row.get((phase_name, 'ACT'), 0)
+            den = total_row.get((phase_name, '26 FC1'), 0)
             total_row[(phase_name, 'ACHI %')] = num / den if den != 0 else 0
         
         t_index = tuple([''] * (len(final_df.index.names)-1) + [total_label]) if isinstance(final_df.index, pd.MultiIndex) else total_label
@@ -251,8 +251,8 @@ if uploaded_file:
                 for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data.get(c, 0)
                 
                 # Safe Division
-                num = data.get('ACT', 0)
-                den = data.get('26 FC1', 0)
+                num = pd.Series(data.get('ACT', 0))
+                den = pd.Series(data.get('26 FC1', 0))
                 combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
             
             combined = pd.DataFrame(combined_dict, index=p_m.index)
