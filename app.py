@@ -491,12 +491,17 @@ def to_excel_multiple(df_dict):
             # 렌더링 함수 내 적용
 
             styler.apply(apply_row_style, axis=1)
+            # 기존 styler.apply 부분을 아래 코드로 교체하세요
+            styler.apply(lambda row: [
+                'background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' 
+                if any(keyword in str(row.name) for keyword in ['TTL', 'Total', 'Subtotal', '소계']) 
+                else '' 
+                for _ in row
+            ], axis=1)
 
 
 
-            
-
-
+        
 
             # 3. 엑셀로 내보내기
 
