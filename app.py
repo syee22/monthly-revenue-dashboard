@@ -131,7 +131,7 @@ if uploaded_file:
                       'EUR:USD', 'EUR:KRW', 'Business Type', 'Curr.', 'Con.']
         
         if 'BIZ Type' in df.columns:
-            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMMERCIAL')
+            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMM')
             df['BIZ Type'] = df['BIZ Type'].fillna('Unknown')
         
         sop_dict = {}
@@ -208,7 +208,7 @@ if uploaded_file:
         final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
         
         if 'BIZ Type' in final_df.index.names:
-            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMMERCIAL', 'Unknown'], ordered=True)
+            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMM', 'Unknown'], ordered=True)
             try:
                 final_df.index = final_df.index.set_levels(final_df.index.levels[0].astype(cats), level=0)
                 final_df = final_df.sort_index(level=0)
@@ -238,7 +238,7 @@ if uploaded_file:
         prev_phase_name = f'{pm_str}. {prev_year}'
         
         results = []
-        biz_categories = ['DIRECT', 'COMMERCIAL', 'Unknown']
+        biz_categories = ['DIRECT', 'COMM', 'Unknown']
         
         for biz in biz_categories:
             biz_df = df[(df['BIZ Type'] == biz) & (df['Year'] == year)]
