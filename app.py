@@ -317,7 +317,6 @@ if uploaded_file:
             grand_total[(p_name, 'ACHI %')] = num / den if den != 0 else 0
         grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('', f'{biz_type} Total', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
         return pd.concat([final_df, grand_row]), phase_names
-
 # ==========================================
 # 스타일링 및 렌더링 함수 수정
 # ==========================================
@@ -354,29 +353,29 @@ def render_html_view(df, phase_curr):
     
     return f'<div class="table-container">{styler.to_html(escape=False)}</div>'
 
-    def render_biz_html_table(df):
-        # 비즈니스 타입 표도 동일하게 적용
-        df_display = df.replace(0, '')
-        
-        def style_act_yellow(val):
-            return f'<span style="color: #FFC000; font-weight: bold;">{format_k_val(val)}</span>'
+def render_biz_html_table(df):
+    # 비즈니스 타입 표도 동일하게 적용
+    df_display = df.replace(0, '')
     
-        format_dict = {}
-        for col in df.columns:
-            if 'ACT' in col[1]:
-                format_dict[col] = style_act_yellow
-            elif 'ACHI' in col[1]:
-                format_dict[col] = format_percentage_html
-            else:
-                format_dict[col] = format_k_val
+    def style_act_yellow(val):
+        return f'<span style="color: #FFC000; font-weight: bold;">{format_k_val(val)}</span>'
+
+    format_dict = {}
+    for col in df.columns:
+        if 'ACT' in col[1]:
+            format_dict[col] = style_act_yellow
+        elif 'ACHI' in col[1]:
+            format_dict[col] = format_percentage_html
+        else:
+            format_dict[col] = format_k_val
+
+    styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
+    styler.set_properties(subset=get_numeric_cols(df), **{'text-align': 'right'})
     
-        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
-        styler.set_properties(subset=get_numeric_cols(df), **{'text-align': 'right'})
-        
-        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' 
-                                  if '소계' in str(row.name) or 'Total' in str(row.name) else '' for _ in row], axis=1)
-        
-        return f'<div class="table-container">{styler.to_html(escape=False)}</div>'
+    styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' 
+                              if '소계' in str(row.name) or 'Total' in str(row.name) else '' for _ in row], axis=1)
+    
+    return f'<div class="table-container">{styler.to_html(escape=False)}</div>'
     # ==========================================
     # 6. 화면 출력
     # ==========================================
