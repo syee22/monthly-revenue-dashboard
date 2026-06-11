@@ -85,10 +85,9 @@ def format_k_val(val):
     rounded_int = int(round(v, 0))
     if rounded_int == 0:
         v_rounded = round(v, 2)
-        if v_rounded == 0: return "0"
-        return f"{v_rounded:,.1f}" if round(v_rounded, 1) == v_rounded else f"{v_rounded:,.2f}"
+        return str(v_rounded) if v_rounded != 0 else "0"
     return f"{rounded_int:,}"
-
+    
 def format_percentage_html(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
     pct_str = f"{val:.0%}"
@@ -98,34 +97,27 @@ def format_percentage_html(val):
 
 def to_excel_multiple(df_dict):
     output = io.BytesIO()
-    writer = pd.ExcelWriter(output, engine='xlsxwriter')
-    workbook = writer.book
-    
-    header_fmt = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#002060', 'font_color': 'white', 'border': 1})
-    center_fmt = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
-    num_fmt = workbook.add_format({'align': 'right', 'valign': 'vcenter', 'num_format': '#,##0', 'border': 1})
-    pct_fmt = workbook.add_format({'align': 'right', 'valign': 'vcenter', 'num_format': '0%', 'border': 1})
-    total_fmt = workbook.add_format({'bold': True, 'align': 'right', 'valign': 'vcenter', 'bg_color': '#ffffe0', 'border': 1, 'num_format': '#,##0'})
-    
-    for sheet_name, df in df_dict.items():
-        if df.empty: continue
-        df.to_excel(writer, index=True, sheet_name=sheet_name[:31])
-        worksheet = writer.sheets[sheet_name[:31]]
-        for col_num, value in enumerate(df.columns.values):
-            worksheet.write(0, col_num + df.index.nlevels, str(value), header_fmt)
-        for row_idx in range(len(df)):
-            for col_idx in range(len(df.columns) + df.index.nlevels):
-                val = df.iloc[row_idx, col_idx - df.index.nlevels] if col_idx >= df.index.nlevels else df.index[row_idx][col_idx]
-                is_num = isinstance(val, (int, float)) and col_idx >= df.index.nlevels
-                is_pct = 'ACHI' in str(df.columns[col_idx - df.index.nlevels]) if col_idx >= df.index.nlevels else False
-                is_total = 'TTL (K.€)' in str(df.index[row_idx]) or 'Total' in str(df.index[row_idx]) or 'Subtotal' in str(df.index[row_idx])
-                if is_pct: worksheet.write(row_idx + 1, col_idx, val, pct_fmt)
-                elif is_num:
-                    if is_total: worksheet.write(row_idx + 1, col_idx, val, total_fmt)
-                    else: worksheet.write(row_idx + 1, col_idx, val, num_fmt)
-                else: worksheet.write(row_idx + 1, col_idx, val, center_fmt)
-        worksheet.set_column(0, len(df.columns) + df.index.nlevels, 15)
-    writer.close()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        for sheet_name, df in df_dict.items():
+            # 1. 스타일링을 위한 Styler 생성
+            styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
+            
+            # 2. 배경색/테두리 조건부 서식 적용 (화면과 동일하게)
+            def apply_row_style(row):
+                if 'TTL (K.€)' in str(row.name) or 'Total' in str(row.name) or 'Subtotal' in str(row.name):
+                    return ['background-color: #ffffe0; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
+                return [''] * len(row)
+            
+            styler.apply(apply_row_style, axis=1)
+            
+            # 3. 엑셀로 내보내기
+            styler.to_excel(writer, sheet_name=sheet_name[:31])
+            
+            # 4. 열 너비 자동 조정
+            worksheet = writer.sheets[sheet_name[:31]]
+            for i, col in enumerate(df.columns):
+                worksheet.set_column(i+1, i+1, 15)
+                
     return output.getvalue()
 
 # ==========================================
