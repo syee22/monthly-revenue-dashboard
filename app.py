@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import io
+import re
 
 # ==========================================
 # 1. 페이지 설정 및 전역 CSS 주입
@@ -106,14 +107,16 @@ def to_excel_multiple(df_dict):
     pct_fmt = workbook.add_format({'num_format': '0%'})
     
     for sheet_name, df in df_dict.items():
-        df_formatted = df.copy().fillna(0)
-        df_formatted.to_excel(writer, index=True, sheet_name=sheet_name)
-        worksheet = writer.sheets[sheet_name]
-        
-        start_col = len(df.index.names)
-        for i, col in enumerate(df_formatted.columns):
-            fmt = pct_fmt if 'ACHI' in str(col) else num_fmt
-            worksheet.set_column(start_col + i, start_col + i, 12, fmt)
+        if not df.empty:
+            df_formatted = df.copy().fillna(0)
+            df_formatted.to_excel(writer, index=True, sheet_name=sheet_name[:31])
+            worksheet = writer.sheets[sheet_name[:31]]
+            
+            start_col = len(df.index.names)
+            for i, col in enumerate(df_formatted.columns):
+                # 컬럼명에 ACHI가 포함되어 있으면 퍼센트 포맷, 아니면 숫자 포맷 적용
+                fmt = pct_fmt if 'ACHI' in str(col) else num_fmt
+                worksheet.set_column(start_col + i, start_col + i, 12, fmt)
             
     writer.close()
     return output.getvalue()
@@ -156,7 +159,7 @@ if uploaded_file:
     selected_month = st.sidebar.selectbox("월", sorted(raw_df['Month'].unique()))
 
     # ==========================================
-    # 5. 핵심 비즈니스 로직 (다목적 피벗 빌더)
+    # 5-1. 핵심 비즈니스 로직 (1~3번 범용 리포트용)
     # ==========================================
     def build_summary_report(df_sub, index_cols, year, month, total_label, index_names=None):
         if df_sub.empty:
@@ -181,7 +184,6 @@ if uploaded_file:
             if d.empty: return pd.DataFrame()
             return d.pivot_table(index=index_cols, columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
 
-        # 각 시기별 데이터 분리
         df_prev = df_sub[(df_sub['Year'] == prev_year) & (df_sub['Month'] == prev_month) & (df_sub['Desc.'] == 'ACT')]
         s_prev = df_prev.groupby(index_cols)['Rev. (€)'].sum() if not df_prev.empty else pd.Series(dtype=float)
 
@@ -193,7 +195,6 @@ if uploaded_file:
         p_ytd = get_pivot(df_ytd)
         p_ttl = get_pivot(df_ttl)
 
-        # 존재하는 모든 인덱스 취합
         all_indices = set()
         for p in [s_prev, p_curr, p_ytd, p_ttl]:
             if not p.empty:
@@ -205,7 +206,6 @@ if uploaded_file:
         if not all_indices:
             return pd.DataFrame(), col_prev, phase_curr
 
-        # [오류 해결 부분] 타입 에러 방지를 위한 인덱스 문자열 변환 정렬
         all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
         
         if len(index_cols) > 1:
@@ -240,12 +240,10 @@ if uploaded_file:
         final_df = pd.DataFrame(combined_dict)
         final_df.columns = pd.MultiIndex.from_tuples(col_tuples)
 
-        # 25 FC3, 26 FC1, ACT가 모두 0인 무의미한 행 제거
         check_cols = [c for c in final_df.columns if c[1] in ['25 FC3', '26 FC1', 'ACT']]
         if check_cols:
             final_df = final_df.loc[(final_df[check_cols] != 0).any(axis=1)]
 
-        # 정렬 (다중 인덱스일 경우 상위 인덱스 기준 그룹핑 및 당월 ACT 기준 내림차순 정렬)
         if (phase_curr, 'ACT') in final_df.columns:
             if len(index_cols) > 1:
                 temp_level0 = final_df.index.get_level_values(0)
@@ -255,7 +253,6 @@ if uploaded_file:
             else:
                 final_df = final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
 
-        # Grand Total (소계/합계) 추가
         total_row = final_df.sum(numeric_only=True)
         for phase_name in phases:
             t_fc1 = total_row[(phase_name, '26 FC1')]
@@ -271,9 +268,112 @@ if uploaded_file:
         final_df = pd.concat([final_df, t_df])
         return final_df, col_prev, phase_curr
 
+    # ==========================================
+    # 5-2. 핵심 비즈니스 로직 (4~5번 Core/Power 전용 그룹핑 로직)
+    # ==========================================
+    def get_biz_report(df, biz_type, year, month):
+        if month == 1:
+            prev_year, prev_month = year - 1, 12
+        else:
+            prev_year, prev_month = year, month - 1
+
+        df_biz = df[(df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == year)].copy()
+        
+        month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
+        m_str, pm_str = month_names.get(month, f'{month}'), month_names.get(prev_month, f'{prev_month}')
+        
+        phase_names = [f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL']
+        prev_phase_name = f'{pm_str}. {prev_year}'
+        
+        results = []
+        for brand in ['HYU', 'KIA', 'GM']:
+            brand_df = df_biz[df_biz['Group 2'] == brand].copy()
+            if brand_df.empty: continue
+
+            p_m = brand_df[brand_df['Month'] == month].pivot_table(index=['Project', 'Con.'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+            p_y = brand_df[brand_df['Month'] <= month].pivot_table(index=['Project', 'Con.'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+            p_fy = brand_df.pivot_table(index=['Project', 'Con.'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+
+            brand_df_prev = df[(df['Business Type'].str.contains(biz_type, case=False, na=False)) & 
+                               (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)].copy()
+            p_prev = brand_df_prev.pivot_table(index=['Project', 'Con.'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+
+            # Core 혹은 Power 비즈니스의 주요 프로젝트 필터링(10K 기준)
+            if brand in ['HYU', 'KIA']:
+                if not p_m.empty and 'ACT' in p_m.columns:
+                    top = p_m[p_m['ACT'] >= 10000].index
+                else:
+                    top = p_m.index
+                
+                def group_others(p):
+                    if p.empty: return pd.DataFrame(columns=['25 FC3', '26 FC1', 'ACT']).reindex(pd.MultiIndex.from_tuples([], names=['Project', 'Con.']))
+                    main = p.loc[p.index.isin(top)]
+                    oth = p.loc[~p.index.isin(top)].sum().to_frame().T
+                    oth.index = pd.MultiIndex.from_tuples([('Others', '')], names=['Project', 'Con.'])
+                    return pd.concat([main, oth])
+                
+                p_m, p_y, p_fy, p_prev = group_others(p_m), group_others(p_y), group_others(p_fy), group_others(p_prev)
+
+            p_prev = p_prev.reindex(p_m.index, fill_value=0)
+            p_y = p_y.reindex(p_m.index, fill_value=0)
+            p_fy = p_fy.reindex(p_m.index, fill_value=0)
+
+            combined_dict = {}
+            combined_dict[(prev_phase_name, 'ACT')] = p_prev.get('ACT', 0)
+            
+            phases = [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]
+            for phase_name, data in phases:
+                for c in ['25 FC3', '26 FC1', 'ACT']:
+                    combined_dict[(phase_name, c)] = data.get(c, 0)
+                
+                fc1_vals = data.get('26 FC1', 0)
+                act_vals = data.get('ACT', 0)
+                achi_vals = np.where(fc1_vals != 0, act_vals / fc1_vals, 0)
+                combined_dict[(phase_name, 'ACHI %')] = pd.Series(achi_vals, index=data.index)
+
+            combined = pd.DataFrame(combined_dict, index=p_m.index)
+            
+            if ('Others', '') in combined.index:
+                oth_row = combined.loc[[('Others', '')]]
+                main_rows = combined.drop(index=('Others', ''))
+                main_rows = main_rows.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
+                combined = pd.concat([main_rows, oth_row])
+            else:
+                combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
+            
+            subtotal = combined.sum(numeric_only=True)
+            for p_name in phase_names:
+                sum_fc1 = subtotal.get((p_name, '26 FC1'), 0)
+                sum_act = subtotal.get((p_name, 'ACT'), 0)
+                subtotal[(p_name, 'ACHI %')] = sum_act / sum_fc1 if sum_fc1 != 0 else 0
+            
+            combined.index = pd.MultiIndex.from_tuples([(brand, p, c) for p, c in combined.index], names=['Cust. GR', 'Project', 'Con.'])
+            results.append(combined)
+            
+            if brand != 'GM':
+                sub_row = pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, '소계', '')], names=['Cust. GR', 'Project', 'Con.']))
+                results.append(sub_row)
+            
+        if not results: return pd.DataFrame(), []
+        
+        final_df = pd.concat(results)
+        
+        grand_total = final_df[final_df.index.get_level_values(1) != '소계'].sum(numeric_only=True)
+        for p_name in phase_names:
+            total_fc1 = grand_total.get((p_name, '26 FC1'), 0)
+            total_act = grand_total.get((p_name, 'ACT'), 0)
+            grand_total[(p_name, 'ACHI %')] = total_act / total_fc1 if total_fc1 != 0 else 0
+            
+        if "Core" in biz_type:
+            grand_total_label = 'Core Business Sales Revenue (K.€)'
+        else:
+            grand_total_label = 'Power Electronics Business Sales Revenue (K.€)'
+            
+        grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('', grand_total_label, '')], names=['Cust. GR', 'Project', 'Con.']))
+        return pd.concat([final_df, grand_row]), phase_names
 
     # ==========================================
-    # 6. 스타일링 및 렌더링
+    # 6-1. 스타일링 및 렌더링 (1~3번 범용 리포트용)
     # ==========================================
     def render_html_view(df, phase_curr):
         df = df.replace(0, '') 
@@ -282,7 +382,6 @@ if uploaded_file:
         styler = df.style.format(format_dict, na_rep='')
         styler.set_table_attributes('class="report-table"')
         
-        # 합계(TTL) 행 배경색 (연노랑색)
         def highlight_totals(row):
             row_name = str(row.name[-1]) if isinstance(row.name, tuple) else str(row.name)
             if 'TTL' in row_name:
@@ -296,7 +395,6 @@ if uploaded_file:
             {'selector': 'td', 'props': [('vertical-align', 'middle')]}
         ]
         
-        # 현재 월 컬럼 그룹에 빨간색 테두리 강조 적용
         for i, col in enumerate(df.columns):
             if col[0] == phase_curr and col[1] == '25 FC3':
                 border_styles.append({'selector': f'.col{i}', 'props': [('border-left', '2px solid #c00000')]})
@@ -307,6 +405,27 @@ if uploaded_file:
 
         styler.set_table_styles(border_styles, overwrite=False)
         return f'<div class="table-container">{styler.to_html()}</div>'
+
+    # ==========================================
+    # 6-2. 스타일링 및 렌더링 (4~5번 Core/Power 전용 리포트용)
+    # ==========================================
+    def render_biz_html_table(df):
+        df = df.replace(0, '') 
+        format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
+        styler = df.style.format(format_dict, na_rep='')
+        styler.set_table_attributes('class="report-table"')
+        
+        styler.apply(lambda row: [
+            'background-color: #f2f2f2; color: #333; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' if row.name[1] == '소계' 
+            else 'background-color: #e2efda; color: black; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' if 'Sales Revenue' in str(row.name[1]) 
+            else '' for _ in row
+        ], axis=1)
+        
+        # 합계 행의 컬럼 인덱스를 병합(colspan)하여 깔끔하게 보여주기 위한 정규식 처리
+        html = re.sub(r'<th[^>]*level0[^>]*>.*?</th>\s*<th[^>]*level1[^>]*>(.*?)</th>\s*<th[^>]*level2[^>]*>.*?</th>', 
+                      lambda m: m.group(0).replace('<th', '<th colspan="3"') if "Sales Revenue" in m.group(1) else m.group(0), 
+                      styler.to_html())
+        return f'<div class="table-container">{html}</div>'
 
     # ==========================================
     # 7. 화면 출력 (5가지 View) 및 통합 다운로드
@@ -320,7 +439,6 @@ if uploaded_file:
         reports_to_download["CPS_Summary"] = df_cps
 
     st.subheader("📌 2. 매출 요약 (Item 기준)")
-    # 요구사항 1 반영 유지: ICCU1, ICCU2, VCMS 정보만 필요
     df_item_raw = raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])]
     df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)')
     if not df_item.empty:
@@ -333,24 +451,17 @@ if uploaded_file:
         st.markdown(render_html_view(df_biz, c_col), unsafe_allow_html=True)
         reports_to_download["Biz_Type_Summary"] = df_biz
 
+    # --- 여기서부터 기존 로직 적용 (Core / Power) ---
     st.subheader("📌 4. Power Electronics 비즈니스 (고객사별)")
-    df_pe_raw = raw_df[raw_df['Business Type'].str.contains('Power', case=False, na=False)]
-    # 요구사항 3 반영 유지: Group 1(Cust. GR)이 HYU, KIA로만 구분됨
-    df_pe_raw = df_pe_raw[df_pe_raw['Group 1'].isin(['HYU', 'KIA'])]
-    # 참고 파일 로직 반영: Project -> KOx 변경
-    df_pe, p_col, c_col = build_summary_report(df_pe_raw, ['Group 1', 'KOx'], selected_year, selected_month, 'PE Biz Rev. TTL (K.€)', index_names=['Cust. GR', 'KOx'])
+    df_pe, phase_names_pe = get_biz_report(raw_df, "Power", selected_year, selected_month)
     if not df_pe.empty:
-        st.markdown(render_html_view(df_pe, c_col), unsafe_allow_html=True)
+        st.markdown(render_biz_html_table(df_pe), unsafe_allow_html=True)
         reports_to_download["PE_Biz"] = df_pe
 
     st.subheader("📌 5. Core 비즈니스 (고객사별)")
-    df_core_raw = raw_df[raw_df['Business Type'].str.contains('Core', case=False, na=False)]
-    # 요구사항 4 반영 유지: Group 1(Cust. GR)이 HYU, KIA, GM으로만 구분됨
-    df_core_raw = df_core_raw[df_core_raw['Group 1'].isin(['HYU', 'KIA', 'GM'])]
-    # 참고 파일 로직 반영: Project -> KOx 변경
-    df_core, p_col, c_col = build_summary_report(df_core_raw, ['Group 1', 'KOx'], selected_year, selected_month, 'Core Biz Rev. TTL (K.€)', index_names=['Cust. GR', 'KOx'])
+    df_core, phase_names_core = get_biz_report(raw_df, "Core", selected_year, selected_month)
     if not df_core.empty:
-        st.markdown(render_html_view(df_core, c_col), unsafe_allow_html=True)
+        st.markdown(render_biz_html_table(df_core), unsafe_allow_html=True)
         reports_to_download["Core_Biz"] = df_core
 
     # 통합 다운로드 버튼
