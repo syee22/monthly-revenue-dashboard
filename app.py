@@ -5,14 +5,16 @@ import io
 import re
 
 # ==========================================
-# 1. 페이지 설정 및 전역 CSS 주입
+# 1. 페이지 설정 및 전역 CSS
 # ==========================================
 st.set_page_config(page_title="월간 매출 보고서", layout="wide")
 st.markdown("""
     <style>
     .block-container { padding: 2rem 3rem; }
-    .report-table { border-collapse: collapse !important; font-family: 'Malgun Gothic', sans-serif; font-size: 12px; width: 100%; background-color: white; }
     .table-container { overflow-x: auto; border: 2px solid #002060; box-shadow: 2px 2px 10px rgba(0,0,0,0.1); margin-bottom: 1rem !important; padding: 0px !important; display: inline-block; width: auto; min-width: 100%; box-sizing: border-box; }
+    .report-table { border-collapse: separate !important; border-spacing: 0 !important; font-family: 'Malgun Gothic', sans-serif; font-size: 12px; width: 100%; margin: 0 !important; background-color: white; }
+    .report-table thead th { background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; text-align: center !important; padding: 4px 3px !important; }
+    .report-table td { border: 1px solid #d9d9d9; text-align: center; padding: 4px; vertical-align: middle; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -22,7 +24,9 @@ st.markdown("""
 def format_k_val(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
     v = val / 1_000.0
-    return f"{int(round(v, 0)):,}" if round(v, 0) != 0 else str(round(v, 2))
+    rounded_int = int(round(v, 0))
+    if rounded_int == 0: return str(round(v, 2)) if round(v, 2) != 0 else "0"
+    return f"{rounded_int:,}"
 
 def format_percentage_html(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
@@ -44,25 +48,25 @@ def load_and_preprocess(file):
     df['Rev. (€)'] = pd.to_numeric(df['Rev. (€)'], errors='coerce').fillna(0)
     return df
 
-# [사용자님의 build_summary_report, get_biz_type_detailed_report, get_biz_report, to_excel_multiple 함수들을 여기에 모두 복사해서 붙여넣으세요]
-
 def render_html_table(df):
-    df_d = df.replace(0, '')
+    # 컬럼 헤더 ACT 노란색 강조
     new_cols = []
-    for col in df_d.columns:
+    for col in df.columns:
         c_name = str(col[1] if isinstance(col, tuple) else col)
         new_col = (col[0], col[1].replace('ACT', '<span style="color: #FFD700;">ACT</span>')) if isinstance(col, tuple) else (f'<span style="color: #FFD700;">{col}</span>' if 'ACT' in c_name else col)
         new_cols.append(new_col)
-    df_d.columns = pd.MultiIndex.from_tuples(new_cols) if isinstance(df.columns, pd.MultiIndex) else new_cols
+    df.columns = pd.MultiIndex.from_tuples(new_cols) if isinstance(df.columns, pd.MultiIndex) else new_cols
     
-    format_dict = {col: format_percentage_html if 'ACHI' in str(col) else format_k_val for col in df_d.columns}
-    styler = df_d.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
+    styler = df.replace(0, '').style.format({col: format_percentage_html if 'ACHI' in str(col) else format_k_val for col in df.columns})
+    styler.set_table_attributes('class="report-table"')
     styler.apply(lambda row: ['background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;'] * len(row) 
                  if any(k in str(row.name) for k in ['TTL', 'Total', 'Subtotal', '소계']) else [''] * len(row), axis=1)
     return f'<div class="table-container">{styler.to_html(escape=False)}</div>'
 
+# (기존 build_summary_report, get_biz_type_detailed_report, get_biz_report, to_excel_multiple 함수를 아래에 붙여넣으세요)
+
 # ==========================================
-# 4. 메인 실행부
+# 3. 메인 실행부
 # ==========================================
 st.title("📊 통합 월간 매출 보고서 (FC vs ACT 자동 집계)")
 uploaded_file = st.sidebar.file_uploader("SAP/엑셀 데이터를 업로드하세요.", type=['xlsx', 'xls'])
@@ -72,16 +76,15 @@ if uploaded_file:
     selected_year = st.sidebar.selectbox("연도", sorted(raw_df['Year'].unique()))
     selected_month = st.sidebar.selectbox("월", sorted(raw_df['Month'].unique()))
 
-    # 1. 매출 요약 (CPS) - 정렬 적용
+    # 1. CPS 보고서 (ACT 내림차순 정렬)
     df_cps, p_col, c_col = build_summary_report(raw_df, ['CPS'], selected_year, selected_month, 'TTL (K.€)')
     if not df_cps.empty:
         df_cps = df_cps.sort_values(by=(c_col, 'ACT'), ascending=False)
         st.subheader("📌 1. 매출 요약 (CPS 기준)")
         st.markdown(render_html_table(df_cps), unsafe_allow_html=True)
 
-    # 2. 매출 요약 (Item) - 정렬 적용
-    df_item_raw = raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])]
-    df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)')
+    # 2. Item 보고서 (ACT 내림차순 정렬)
+    df_item, p_col, c_col = build_summary_report(raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])], ['Item'], selected_year, selected_month, 'TTL (K.€)')
     if not df_item.empty:
         df_item = df_item.sort_values(by=(c_col, 'ACT'), ascending=False)
         st.subheader("📌 2. 매출 요약 (Item 기준)")
@@ -93,7 +96,7 @@ if uploaded_file:
         st.subheader("📌 3. 비즈니스 타입별 매출 요약")
         st.markdown(render_html_table(df_biz), unsafe_allow_html=True)
 
-    # 6. HKMC 요약 (신규 추가)
+    # 6. HKMC 보고서 (신규 추가)
     st.subheader("📌 6. HKMC 매출 요약 (KEM-KR/CN)")
     mask = (raw_df['Group 1'] == 'HKMC') & (raw_df['KOx'].isin(['KEM-KR', 'KEM-CN']))
     df_hkmc, p_col, c_col = build_summary_report(raw_df[mask], ['KOx'], selected_year, selected_month, 'TTL (K.€)')
