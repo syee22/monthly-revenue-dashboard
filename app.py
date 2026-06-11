@@ -45,7 +45,7 @@ st.markdown("""
         vertical-align: middle;
     }
     
-    /* 좌측 인덱스(Row Heading) 스타일 - 글자 안 보이는 현상 수정 */
+    /* 좌측 인덱스(Row Heading) 스타일 */
     .report-table tbody th.row_heading {
         background-color: white !important;
         color: #333 !important;
@@ -239,7 +239,7 @@ if uploaded_file:
         final_df = pd.DataFrame(combined_dict)
         final_df.columns = pd.MultiIndex.from_tuples(col_tuples)
 
-        # 🚀 추가된 로직: 25 FC3, 26 FC1, ACT가 모두 0인 무의미한 행 제거
+        # 25 FC3, 26 FC1, ACT가 모두 0인 무의미한 행 제거
         check_cols = [c for c in final_df.columns if c[1] in ['25 FC3', '26 FC1', 'ACT']]
         if check_cols:
             final_df = final_df.loc[(final_df[check_cols] != 0).any(axis=1)]
@@ -323,16 +323,16 @@ if uploaded_file:
 
     st.subheader("📌 4. Power Electronics 비즈니스 (고객사/프로젝트별)")
     df_pe_raw = raw_df[raw_df['Business Type'].str.contains('Power', case=False, na=False)]
-    # 첨부 이미지와 동일한 인덱스 구조 (Cust. GR, Project, Ctry., SOP)
-    df_pe, p_col, c_col = build_summary_report(df_pe_raw, ['Group 1', 'Project', 'STP', 'Date'], selected_year, selected_month, 'PE Biz Rev. TTL (K.€)', index_names=['Cust. GR', 'Project', 'Ctry.', 'SOP'])
+    # Ctry, SOP 제외하고 Group 1, Project만 반영
+    df_pe, p_col, c_col = build_summary_report(df_pe_raw, ['Group 1', 'Project'], selected_year, selected_month, 'PE Biz Rev. TTL (K.€)', index_names=['Cust. GR', 'Project'])
     if not df_pe.empty:
         st.markdown(render_html_view(df_pe, c_col), unsafe_allow_html=True)
         reports_to_download["PE_Biz"] = df_pe
 
     st.subheader("📌 5. Core 비즈니스 (고객사/프로젝트별)")
     df_core_raw = raw_df[raw_df['Business Type'].str.contains('Core', case=False, na=False)]
-    # 첨부 이미지와 동일한 인덱스 구조 (Cust. GR, Project, Ctry., SOP)
-    df_core, p_col, c_col = build_summary_report(df_core_raw, ['Group 1', 'Project', 'STP', 'Date'], selected_year, selected_month, 'Core Biz Rev. TTL (K.€)', index_names=['Cust. GR', 'Project', 'Ctry.', 'SOP'])
+    # Ctry, SOP 제외하고 Group 1, Project만 반영
+    df_core, p_col, c_col = build_summary_report(df_core_raw, ['Group 1', 'Project'], selected_year, selected_month, 'Core Biz Rev. TTL (K.€)', index_names=['Cust. GR', 'Project'])
     if not df_core.empty:
         st.markdown(render_html_view(df_core, c_col), unsafe_allow_html=True)
         reports_to_download["Core_Biz"] = df_core
