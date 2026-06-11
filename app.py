@@ -5,7 +5,7 @@ import io
 import re
 
 # ==========================================
-# 1. 페이지 설정 및 전역 CSS 주입 (제목 크기 축소 반영)
+# 1. 페이지 설정 및 전역 CSS 주입
 # ==========================================
 st.set_page_config(page_title="월간 매출 보고서", layout="wide")
 
@@ -13,19 +13,17 @@ st.markdown("""
     <style>
     .block-container { padding: 2rem 3rem; }
     
-    /* 💡 메인 타이틀 및 서브 타이틀 텍스트 크기 대폭 축소 */
     h1 { font-size: 1.6rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
     h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0.5rem !important; color: #002060 !important; }
     
     .report-table {
         border-collapse: collapse;
         font-family: 'Malgun Gothic', sans-serif;
-        font-size: 12px; /* 기본 표 글꼴 크기도 13px -> 12px로 소폭 축소 */
+        font-size: 12px;
         width: 100%;
         background-color: white;
     }
     
-    /* 💡 표 제목(헤더) 텍스트 크기 및 여백 축소 */
     .report-table th {
         background-color: #002060 !important;
         color: white !important;
@@ -33,7 +31,7 @@ st.markdown("""
         text-align: center !important;
         padding: 4px 3px !important;
         font-weight: 600 !important;
-        font-size: 11.5px !important; /* 표 헤더 글꼴 크기 축소 */
+        font-size: 11.5px !important;
     }
     
     .report-table td {
@@ -70,7 +68,7 @@ st.markdown("""
 st.title("📊 월간 매출 보고서 (Core & Power Electronics)")
 
 # ==========================================
-# 2. 포맷팅 함수 (화면용)
+# 2. 포맷팅 함수 (화면용 - K단위 유지)
 # ==========================================
 def format_k_val(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
@@ -93,26 +91,27 @@ def format_percentage_html(val):
         return pct_str
 
 # ==========================================
-# 3. 엑셀 다운로드 
+# 3. 엑셀 통합 다운로드 함수 (다중 시트 지원)
 # ==========================================
-def to_excel(df, title="Report"):
+def to_excel_multiple(df_dict):
     output = io.BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     
-    df_formatted = df.copy().fillna(0)
-            
-    df_formatted.to_excel(writer, index=True, sheet_name='Sheet1')
     workbook = writer.book
-    worksheet = writer.sheets['Sheet1']
-    
     num_fmt = workbook.add_format({'num_format': '#,##0'})
     pct_fmt = workbook.add_format({'num_format': '0%'})
     
-    start_col = 3
-    for i, col in enumerate(df_formatted.columns):
-        fmt = pct_fmt if 'ACHI' in col[1] else num_fmt
-        worksheet.set_column(start_col + i, start_col + i, 12, fmt)
+    # 딕셔너리로 받은 데이터프레임들을 각각의 시트에 저장
+    for sheet_name, df in df_dict.items():
+        df_formatted = df.copy().fillna(0)
+        df_formatted.to_excel(writer, index=True, sheet_name=sheet_name)
+        worksheet = writer.sheets[sheet_name]
         
+        start_col = 3
+        for i, col in enumerate(df_formatted.columns):
+            fmt = pct_fmt if 'ACHI' in col[1] else num_fmt
+            worksheet.set_column(start_col + i, start_col + i, 12, fmt)
+            
     writer.close()
     return output.getvalue()
 
@@ -298,8 +297,12 @@ if uploaded_file:
         return f'<div class="table-container">{html}</div>'
 
     # ==========================================
-    # 7. 화면 출력 (HTML) 및 다운로드
+    # 7. 화면 출력 (HTML) 및 통합 다운로드
     # ==========================================
+    
+    # 엑셀로 다운로드할 데이터프레임들을 모아둘 딕셔너리
+    reports_to_download = {}
+    
     for b_type in ["Core", "Power"]:
         st.subheader(f"📊 {b_type} Business")
         report, phase_names = get_biz_report(raw_df, b_type, selected_year, selected_month)
@@ -307,14 +310,18 @@ if uploaded_file:
         if not report.empty:
             html_table = render_html_table(report, phase_names)
             st.markdown(html_table, unsafe_allow_html=True)
-            
-            st.write("") 
-            st.download_button(
-                f"📥 {b_type} 리포트 엑셀 다운로드", 
-                to_excel(report, title=b_type), 
-                f"{b_type}_Report_{selected_year}_{selected_month}.xlsx"
-            )
+            # 다운로드 목록에 추가 (시트 이름으로 사용)
+            reports_to_download[b_type] = report
         else:
             st.write("조회된 데이터가 없습니다.")
+
+    # 두 표의 렌더링이 모두 끝나면 화면 하단에 통합 다운로드 버튼 1개만 생성
+    if reports_to_download:
+        st.write("---") # 구분선 추가
+        st.download_button(
+            label="📥 통합 리포트 엑셀 다운로드 (Core & Power 시트 분리)", 
+            data=to_excel_multiple(reports_to_download), 
+            file_name=f"Integrated_Report_{selected_year}_{selected_month}.xlsx"
+        )
 else:
     st.info("파일을 업로드하면 보고서가 생성됩니다.")
