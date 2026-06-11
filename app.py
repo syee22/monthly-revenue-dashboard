@@ -6,7 +6,23 @@ import streamlit as st
 
 
 
+
+
+
+
+
+
+
+
 import pandas as pd
+
+
+
+
+
+
+
+
 
 
 
@@ -22,7 +38,23 @@ import numpy as np
 
 
 
+
+
+
+
+
+
+
+
 import io
+
+
+
+
+
+
+
+
 
 
 
@@ -54,7 +86,39 @@ import re
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # ==========================================
+
+
+
+
+
+
+
+
 
 
 
@@ -70,7 +134,31 @@ import re
 
 
 
+
+
+
+
+
+
+
+
 # ==========================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -102,6 +190,22 @@ st.set_page_config(page_title="월간 매출 보고서", layout="wide")
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 st.markdown("""
 
 
@@ -118,7 +222,6 @@ st.markdown("""
 
 
 
-    <style>
 
 
 
@@ -134,8 +237,8 @@ st.markdown("""
 
 
 
-    .block-container { padding: 2rem 3rem; }
 
+    <style>
 
 
 
@@ -150,7 +253,6 @@ st.markdown("""
 
 
 
-    h1 { font-size: 1.6rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
 
 
 
@@ -166,9 +268,9 @@ st.markdown("""
 
 
 
-    h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0.5rem !important; color: #002060 !important; }
 
 
+    .block-container { padding: 2rem 3rem; }
 
 
 
@@ -182,7 +284,6 @@ st.markdown("""
 
 
 
-    .report-table {
 
 
 
@@ -198,10 +299,10 @@ st.markdown("""
 
 
 
-        border-collapse: collapse !important;
 
 
 
+    h1 { font-size: 1.6rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
 
 
 
@@ -214,7 +315,6 @@ st.markdown("""
 
 
 
-        font-family: 'Malgun Gothic', sans-serif;
 
 
 
@@ -230,11 +330,11 @@ st.markdown("""
 
 
 
-        font-size: 12px;
 
 
 
 
+    h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0.5rem !important; color: #002060 !important; }
 
 
 
@@ -246,7 +346,6 @@ st.markdown("""
 
 
 
-        width: 100%;
 
 
 
@@ -262,12 +361,12 @@ st.markdown("""
 
 
 
-        background-color: white;
 
 
 
 
 
+    .report-table {
 
 
 
@@ -278,7 +377,6 @@ st.markdown("""
 
 
 
-    }
 
 
 
@@ -300,6 +398,7 @@ st.markdown("""
 
 
 
+        border-collapse: collapse !important;
 
 
 
@@ -310,7 +409,6 @@ st.markdown("""
 
 
 
-    .report-table tr { border-bottom: none !important; }
 
 
 
@@ -326,13 +424,13 @@ st.markdown("""
 
 
 
-    .report-table td, .report-table th { border-bottom: none !important; border-top: none !important; }
 
 
 
 
 
 
+        font-family: 'Malgun Gothic', sans-serif;
 
 
 
@@ -342,7 +440,6 @@ st.markdown("""
 
 
 
-    .report-table th, .report-table td {
 
 
 
@@ -358,7 +455,6 @@ st.markdown("""
 
 
 
-        max-width: 250px;
 
 
 
@@ -366,6 +462,7 @@ st.markdown("""
 
 
 
+        font-size: 12px;
 
 
 
@@ -374,7 +471,6 @@ st.markdown("""
 
 
 
-        white-space: nowrap;
 
 
 
@@ -390,7 +486,6 @@ st.markdown("""
 
 
 
-        overflow: hidden;
 
 
 
@@ -399,6 +494,7 @@ st.markdown("""
 
 
 
+        width: 100%;
 
 
 
@@ -406,7 +502,6 @@ st.markdown("""
 
 
 
-        text-overflow: ellipsis;
 
 
 
@@ -422,7 +517,6 @@ st.markdown("""
 
 
 
-    }
 
 
 
@@ -432,13 +526,13 @@ st.markdown("""
 
 
 
+        background-color: white;
 
 
 
 
 
 
-    .report-table thead th {
 
 
 
@@ -454,7 +548,6 @@ st.markdown("""
 
 
 
-        background-color: #002060 !important;
 
 
 
@@ -465,12 +558,12 @@ st.markdown("""
 
 
 
+    }
 
 
 
 
 
-        color: white !important;
 
 
 
@@ -486,7 +579,6 @@ st.markdown("""
 
 
 
-        border: 1px solid #8ea9db !important;
 
 
 
@@ -502,7 +594,6 @@ st.markdown("""
 
 
 
-        text-align: center !important;
 
 
 
@@ -518,7 +609,6 @@ st.markdown("""
 
 
 
-        padding: 4px 3px !important;
 
 
 
@@ -532,9 +622,9 @@ st.markdown("""
 
 
 
+    .report-table tr { border-bottom: none !important; }
 
 
-        font-weight: 600 !important;
 
 
 
@@ -550,7 +640,6 @@ st.markdown("""
 
 
 
-        font-size: 11.5px !important;
 
 
 
@@ -565,8 +654,8 @@ st.markdown("""
 
 
 
+    .report-table td, .report-table th { border-bottom: none !important; border-top: none !important; }
 
-        position: sticky;
 
 
 
@@ -582,7 +671,6 @@ st.markdown("""
 
 
 
-        top: 0;
 
 
 
@@ -598,7 +686,7 @@ st.markdown("""
 
 
 
-        z-index: 10;
+    .report-table th, .report-table td {
 
 
 
@@ -614,7 +702,6 @@ st.markdown("""
 
 
 
-    }
 
 
 
@@ -630,8 +717,8 @@ st.markdown("""
 
 
 
-    .report-table td {
 
+        max-width: 250px;
 
 
 
@@ -646,7 +733,6 @@ st.markdown("""
 
 
 
-        border: 1px solid #d9d9d9;
 
 
 
@@ -662,9 +748,9 @@ st.markdown("""
 
 
 
-        text-align: center;
 
 
+        white-space: nowrap;
 
 
 
@@ -678,7 +764,6 @@ st.markdown("""
 
 
 
-        padding: 4px;
 
 
 
@@ -694,10 +779,10 @@ st.markdown("""
 
 
 
-        vertical-align: middle;
 
 
 
+        overflow: hidden;
 
 
 
@@ -710,7 +795,6 @@ st.markdown("""
 
 
 
-    }
 
 
 
@@ -726,11 +810,11 @@ st.markdown("""
 
 
 
-    .report-table .row_heading {
 
 
 
 
+        text-overflow: ellipsis;
 
 
 
@@ -742,7 +826,6 @@ st.markdown("""
 
 
 
-        background-color: #f8f9fa !important;
 
 
 
@@ -758,12 +841,12 @@ st.markdown("""
 
 
 
-        color: #333 !important;
 
 
 
 
 
+    }
 
 
 
@@ -774,7 +857,6 @@ st.markdown("""
 
 
 
-        text-align: left !important;
 
 
 
@@ -790,13 +872,13 @@ st.markdown("""
 
 
 
-        padding-left: 10px !important;
 
 
 
 
 
 
+    .report-table thead th {
 
 
 
@@ -806,7 +888,6 @@ st.markdown("""
 
 
 
-        border: 1px solid #d9d9d9 !important;
 
 
 
@@ -822,7 +903,6 @@ st.markdown("""
 
 
 
-        vertical-align: middle !important;
 
 
 
@@ -830,6 +910,7 @@ st.markdown("""
 
 
 
+        background-color: #002060 !important;
 
 
 
@@ -838,7 +919,6 @@ st.markdown("""
 
 
 
-        font-weight: bold !important;
 
 
 
@@ -854,7 +934,6 @@ st.markdown("""
 
 
 
-    }
 
 
 
@@ -863,6 +942,7 @@ st.markdown("""
 
 
 
+        color: white !important;
 
 
 
@@ -878,7 +958,6 @@ st.markdown("""
 
 
 
-    .table-container {
 
 
 
@@ -894,8 +973,8 @@ st.markdown("""
 
 
 
-        overflow-x: auto;
 
+        border: 1px solid #8ea9db !important;
 
 
 
@@ -910,7 +989,6 @@ st.markdown("""
 
 
 
-        border: 2px solid #002060;
 
 
 
@@ -926,9 +1004,9 @@ st.markdown("""
 
 
 
-        box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
 
 
+        text-align: center !important;
 
 
 
@@ -942,7 +1020,6 @@ st.markdown("""
 
 
 
-        /* 여기서 여백을 조절합니다 */
 
 
 
@@ -958,10 +1035,10 @@ st.markdown("""
 
 
 
-        margin-bottom: 1rem !important; 
 
 
 
+        padding: 4px 3px !important;
 
 
 
@@ -974,7 +1051,6 @@ st.markdown("""
 
 
 
-        padding: 0px !important;
 
 
 
@@ -994,11 +1070,11 @@ st.markdown("""
 
 
 
+        font-weight: 600 !important;
 
 
 
 
-        /* 테이블 크기에 딱 맞게 설정 */
 
 
 
@@ -1014,7 +1090,6 @@ st.markdown("""
 
 
 
-        display: inline-block; 
 
 
 
@@ -1027,10 +1102,10 @@ st.markdown("""
 
 
 
+        font-size: 11.5px !important;
 
 
 
-        width: auto;
 
 
 
@@ -1046,7 +1121,6 @@ st.markdown("""
 
 
 
-        min-width: 100%; /* 너비는 최소 100%를 유지하되 */
 
 
 
@@ -1060,9 +1134,9 @@ st.markdown("""
 
 
 
+        position: sticky;
 
 
-        box-sizing: border-box;
 
 
 
@@ -1078,7 +1152,6 @@ st.markdown("""
 
 
 
-    }
 
 
 
@@ -1093,8 +1166,8 @@ st.markdown("""
 
 
 
+        top: 0;
 
-    /* 테이블의 불필요한 기본 margin 제거 */
 
 
 
@@ -1110,7 +1183,6 @@ st.markdown("""
 
 
 
-    .report-table {
 
 
 
@@ -1126,7 +1198,7 @@ st.markdown("""
 
 
 
-        margin: 0 !important;
+        z-index: 10;
 
 
 
@@ -1142,7 +1214,6 @@ st.markdown("""
 
 
 
-        border-collapse: collapse !important;
 
 
 
@@ -1158,8 +1229,8 @@ st.markdown("""
 
 
 
-    }
 
+    }
 
 
 
@@ -1174,7 +1245,1128 @@ st.markdown("""
 
 
 
-    </style>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    .report-table td {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        border: 1px solid #d9d9d9;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        text-align: center;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        padding: 4px;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        vertical-align: middle;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    .report-table .row_heading {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        background-color: #f8f9fa !important;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        color: #333 !important;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        text-align: left !important;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        padding-left: 10px !important;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        border: 1px solid #d9d9d9 !important;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        vertical-align: middle !important;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        font-weight: bold !important;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    .table-container {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        overflow-x: auto;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        border: 2px solid #002060;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        /* 여기서 여백을 조절합니다 */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        margin-bottom: 1rem !important; 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        padding: 0px !important;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        /* 테이블 크기에 딱 맞게 설정 */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        display: inline-block; 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        width: auto;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        min-width: 100%; /* 너비는 최소 100%를 유지하되 */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        box-sizing: border-box;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    /* 테이블의 불필요한 기본 margin 제거 */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    .report-table {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        margin: 0 !important;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        border-collapse: collapse !important;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    </style>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1206,6 +2398,22 @@ st.markdown("""
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 st.title("📊 통합 월간 매출 보고서 (FC vs ACT 자동 집계)")
 
 
@@ -1222,7 +2430,39 @@ st.title("📊 통합 월간 매출 보고서 (FC vs ACT 자동 집계)")
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # ==========================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1254,7 +2494,39 @@ st.title("📊 통합 월간 매출 보고서 (FC vs ACT 자동 집계)")
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # ==========================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1286,7 +2558,6 @@ def format_k_val(val):
 
 
 
-    if pd.isna(val) or isinstance(val, str) or val == '': return val
 
 
 
@@ -1302,8 +2573,8 @@ def format_k_val(val):
 
 
 
-    v = val / 1_000.0
 
+    if pd.isna(val) or isinstance(val, str) or val == '': return val
 
 
 
@@ -1318,7 +2589,6 @@ def format_k_val(val):
 
 
 
-    rounded_int = int(round(v, 0))
 
 
 
@@ -1334,9 +2604,9 @@ def format_k_val(val):
 
 
 
-    if rounded_int == 0:
 
 
+    v = val / 1_000.0
 
 
 
@@ -1350,7 +2620,6 @@ def format_k_val(val):
 
 
 
-        v_rounded = round(v, 2)
 
 
 
@@ -1366,10 +2635,10 @@ def format_k_val(val):
 
 
 
-        return str(v_rounded) if v_rounded != 0 else "0"
 
 
 
+    rounded_int = int(round(v, 0))
 
 
 
@@ -1382,7 +2651,154 @@ def format_k_val(val):
 
 
 
-    return f"{rounded_int:,}"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    if rounded_int == 0:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        v_rounded = round(v, 2)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        return str(v_rounded) if v_rounded != 0 else "0"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    return f"{rounded_int:,}"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1430,7 +2846,6 @@ def format_percentage_html(val):
 
 
 
-    if pd.isna(val) or isinstance(val, str) or val == '': return val
 
 
 
@@ -1438,7 +2853,6 @@ def format_percentage_html(val):
 
 
 
-    pct_str = f"{val:.0%}"
 
 
 
@@ -1446,7 +2860,9 @@ def format_percentage_html(val):
 
 
 
-    if val >= 1.0: return f'<span style="color: #00b050; font-weight: bold;">{pct_str} ▲</span>'
+
+
+    if pd.isna(val) or isinstance(val, str) or val == '': return val
 
 
 
@@ -1454,7 +2870,6 @@ def format_percentage_html(val):
 
 
 
-    elif val > 0: return f'<span style="color: #c00000; font-weight: bold;">{pct_str} ▼</span>'
 
 
 
@@ -1462,7 +2877,80 @@ def format_percentage_html(val):
 
 
 
-    else: return pct_str
+
+    pct_str = f"{val:.0%}"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    if val >= 1.0: return f'<span style="color: #00b050; font-weight: bold;">{pct_str} ▲</span>'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    elif val > 0: return f'<span style="color: #c00000; font-weight: bold;">{pct_str} ▼</span>'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    else: return pct_str
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1494,7 +2982,6 @@ def to_excel_multiple(df_dict):
 
 
 
-    output = io.BytesIO()
 
 
 
@@ -1502,15 +2989,14 @@ def to_excel_multiple(df_dict):
 
 
 
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
 
+    output = io.BytesIO()
 
 
 
 
 
 
-        for sheet_name, df in df_dict.items():
 
 
 
@@ -1518,9 +3004,9 @@ def to_excel_multiple(df_dict):
 
 
 
-            # 1. 스타일링을 위한 Styler 생성
 
 
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
 
 
 
@@ -1534,9 +3020,9 @@ def to_excel_multiple(df_dict):
 
 
 
-            styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
 
 
+        for sheet_name, df in df_dict.items():
 
 
 
@@ -1550,9 +3036,9 @@ def to_excel_multiple(df_dict):
 
 
 
-            # 2. 배경색/테두리 조건부 서식 적용 (화면과 동일하게)
 
 
+            # 1. 스타일링을 위한 Styler 생성
 
 
 
@@ -1566,7 +3052,6 @@ def to_excel_multiple(df_dict):
 
 
 
-            def apply_row_style(row):
 
 
 
@@ -1582,10 +3067,10 @@ def to_excel_multiple(df_dict):
 
 
 
-                # row.name이 튜플(MultiIndex)일 수 있으므로 문자열로 변환 후 모든 요소를 확인
 
 
 
+            styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
 
 
 
@@ -1598,7 +3083,6 @@ def to_excel_multiple(df_dict):
 
 
 
-                row_name_str = str(row.name)
 
 
 
@@ -1614,11 +3098,11 @@ def to_excel_multiple(df_dict):
 
 
 
-                # 합계나 소계 키워드가 인덱스의 어느 위치에 있든 상관없이 노란색 적용
 
 
 
 
+            # 2. 배경색/테두리 조건부 서식 적용 (화면과 동일하게)
 
 
 
@@ -1630,7 +3114,6 @@ def to_excel_multiple(df_dict):
 
 
 
-                if any(k in row_name_str for k in ['TTL', 'Total', 'Subtotal', '소계']):
 
 
 
@@ -1646,12 +3129,12 @@ def to_excel_multiple(df_dict):
 
 
 
-                    return ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
 
 
 
 
 
+            def apply_row_style(row):
 
 
 
@@ -1662,7 +3145,6 @@ def to_excel_multiple(df_dict):
 
 
 
-                return [''] * len(row)
 
 
 
@@ -1678,13 +3160,13 @@ def to_excel_multiple(df_dict):
 
 
 
-            # 렌더링 함수 내 적용
 
 
 
 
 
 
+                # row.name이 튜플(MultiIndex)일 수 있으므로 문자열로 변환 후 모든 요소를 확인
 
 
 
@@ -1694,7 +3176,6 @@ def to_excel_multiple(df_dict):
 
 
 
-            styler.apply(apply_row_style, axis=1)
 
 
 
@@ -1702,7 +3183,6 @@ def to_excel_multiple(df_dict):
 
 
 
-            # 기존 styler.apply 부분을 아래 코드로 교체하세요
 
 
 
@@ -1710,7 +3190,6 @@ def to_excel_multiple(df_dict):
 
 
 
-            styler.apply(lambda row: [
 
 
 
@@ -1718,15 +3197,14 @@ def to_excel_multiple(df_dict):
 
 
 
-                'background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' 
 
+                row_name_str = str(row.name)
 
 
 
 
 
 
-                if any(keyword in str(row.name) for keyword in ['TTL', 'Total', 'Subtotal', '소계']) 
 
 
 
@@ -1734,7 +3212,6 @@ def to_excel_multiple(df_dict):
 
 
 
-                else '' 
 
 
 
@@ -1742,7 +3219,6 @@ def to_excel_multiple(df_dict):
 
 
 
-                for _ in row
 
 
 
@@ -1750,11 +3226,11 @@ def to_excel_multiple(df_dict):
 
 
 
-            ], axis=1)
 
 
 
 
+                # 합계나 소계 키워드가 인덱스의 어느 위치에 있든 상관없이 노란색 적용
 
 
 
@@ -1766,7 +3242,6 @@ def to_excel_multiple(df_dict):
 
 
 
-            # 3. 엑셀로 내보내기
 
 
 
@@ -1787,6 +3262,7 @@ def to_excel_multiple(df_dict):
 
 
 
+                if any(k in row_name_str for k in ['TTL', 'Total', 'Subtotal', '소계']):
 
 
 
@@ -1798,7 +3274,6 @@ def to_excel_multiple(df_dict):
 
 
 
-            styler.to_excel(writer, sheet_name=sheet_name[:31])
 
 
 
@@ -1814,12 +3289,12 @@ def to_excel_multiple(df_dict):
 
 
 
-            # 4. 열 너비 자동 조정
 
 
 
 
 
+                    return ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
 
 
 
@@ -1830,7 +3305,6 @@ def to_excel_multiple(df_dict):
 
 
 
-            worksheet = writer.sheets[sheet_name[:31]]
 
 
 
@@ -1838,7 +3312,6 @@ def to_excel_multiple(df_dict):
 
 
 
-            for i, col in enumerate(df.columns):
 
 
 
@@ -1853,8 +3326,8 @@ def to_excel_multiple(df_dict):
 
 
 
+                return [''] * len(row)
 
-                worksheet.set_column(i+1, i+1, 15)
 
 
 
@@ -1862,7 +3335,414 @@ def to_excel_multiple(df_dict):
 
 
 
-    return output.getvalue()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            # 렌더링 함수 내 적용
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            styler.apply(apply_row_style, axis=1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            # 기존 styler.apply 부분을 아래 코드로 교체하세요
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            styler.apply(lambda row: [
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                'background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                if any(keyword in str(row.name) for keyword in ['TTL', 'Total', 'Subtotal', '소계']) 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                else '' 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                for _ in row
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            ], axis=1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            # 3. 엑셀로 내보내기
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            styler.to_excel(writer, sheet_name=sheet_name[:31])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            # 4. 열 너비 자동 조정
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            worksheet = writer.sheets[sheet_name[:31]]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            for i, col in enumerate(df.columns):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                worksheet.set_column(i+1, i+1, 15)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    return output.getvalue()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1879,6 +3759,22 @@ def to_excel_multiple(df_dict):
 
 
 # ==========================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1910,7 +3806,39 @@ def to_excel_multiple(df_dict):
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # ==========================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1942,6 +3870,22 @@ uploaded_file = st.sidebar.file_uploader("SAP/엑셀 데이터를 업로드하�
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 if uploaded_file:
 
 
@@ -1958,7 +3902,6 @@ if uploaded_file:
 
 
 
-    @st.cache_data
 
 
 
@@ -1974,8 +3917,8 @@ if uploaded_file:
 
 
 
-    def load_and_preprocess(file):
 
+    @st.cache_data
 
 
 
@@ -1990,7 +3933,6 @@ if uploaded_file:
 
 
 
-        xl = pd.ExcelFile(file)
 
 
 
@@ -2006,9 +3948,9 @@ if uploaded_file:
 
 
 
-        sheets = xl.sheet_names
 
 
+    def load_and_preprocess(file):
 
 
 
@@ -2022,7 +3964,6 @@ if uploaded_file:
 
 
 
-        df = pd.read_excel(xl, sheet_name=sheets[0], header=4).iloc[:, :26]
 
 
 
@@ -2038,10 +3979,10 @@ if uploaded_file:
 
 
 
-        df.columns = ['Year', 'Month', 'Desc.', 'Date', 'STP', 'Customer', 'LK No.', "Q'ty", 
 
 
 
+        xl = pd.ExcelFile(file)
 
 
 
@@ -2054,7 +3995,6 @@ if uploaded_file:
 
 
 
-                      'Rev. ($)', 'Rev. (€)', 'Rev. ₩', 'BIZ Type', 'Group 1', 'Group 2', 
 
 
 
@@ -2070,11 +4010,11 @@ if uploaded_file:
 
 
 
-                      'Project', 'PF', 'Item', 'Source', 'KOx', 'Memo', 'CPS', 
 
 
 
 
+        sheets = xl.sheet_names
 
 
 
@@ -2086,7 +4026,6 @@ if uploaded_file:
 
 
 
-                      'EUR:USD', 'EUR:KRW', 'Business Type', 'Curr.', 'Con.']
 
 
 
@@ -2102,12 +4041,12 @@ if uploaded_file:
 
 
 
-        if 'BIZ Type' in df.columns:
 
 
 
 
 
+        df = pd.read_excel(xl, sheet_name=sheets[0], header=4).iloc[:, :26]
 
 
 
@@ -2118,7 +4057,6 @@ if uploaded_file:
 
 
 
-            # COMMERCIAL -> COMM으로 변경
 
 
 
@@ -2134,13 +4072,13 @@ if uploaded_file:
 
 
 
-            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm', 'COMMERCIAL', 'commercial'], 'COMM')
 
 
 
 
 
 
+        df.columns = ['Year', 'Month', 'Desc.', 'Date', 'STP', 'Customer', 'LK No.', "Q'ty", 
 
 
 
@@ -2150,7 +4088,6 @@ if uploaded_file:
 
 
 
-            df['BIZ Type'] = df['BIZ Type'].fillna('Unknown')
 
 
 
@@ -2166,7 +4103,6 @@ if uploaded_file:
 
 
 
-        sop_dict = {}
 
 
 
@@ -2174,6 +4110,7 @@ if uploaded_file:
 
 
 
+                      'Rev. ($)', 'Rev. (€)', 'Rev. ₩', 'BIZ Type', 'Group 1', 'Group 2', 
 
 
 
@@ -2182,7 +4119,6 @@ if uploaded_file:
 
 
 
-        if len(sheets) > 1:
 
 
 
@@ -2198,7 +4134,6 @@ if uploaded_file:
 
 
 
-            df_sop = pd.read_excel(xl, sheet_name=sheets[1])
 
 
 
@@ -2207,6 +4142,7 @@ if uploaded_file:
 
 
 
+                      'Project', 'PF', 'Item', 'Source', 'KOx', 'Memo', 'CPS', 
 
 
 
@@ -2214,7 +4150,6 @@ if uploaded_file:
 
 
 
-            sop_dict = dict(zip(df_sop.iloc[:, 0], df_sop.iloc[:, 3]))
 
 
 
@@ -2230,7 +4165,6 @@ if uploaded_file:
 
 
 
-        df['SOP'] = df['Project'].map(sop_dict)
 
 
 
@@ -2240,13 +4174,13 @@ if uploaded_file:
 
 
 
+                      'EUR:USD', 'EUR:KRW', 'Business Type', 'Curr.', 'Con.']
 
 
 
 
 
 
-        df['SOP'] = pd.to_datetime(df['SOP'], errors='coerce').dt.strftime('%Y.%m').fillna(df['SOP'].astype(str))
 
 
 
@@ -2262,7 +4196,6 @@ if uploaded_file:
 
 
 
-        df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
 
 
 
@@ -2273,12 +4206,12 @@ if uploaded_file:
 
 
 
+        if 'BIZ Type' in df.columns:
 
 
 
 
 
-        df['Month'] = pd.to_numeric(df['Month'], errors='coerce')
 
 
 
@@ -2294,7 +4227,6 @@ if uploaded_file:
 
 
 
-        df = df.dropna(subset=['Year', 'Month'])
 
 
 
@@ -2306,11 +4238,11 @@ if uploaded_file:
 
 
 
+            # COMMERCIAL -> COMM으로 변경
 
 
 
 
-        df['Rev. (€)'] = pd.to_numeric(df['Rev. (€)'], errors='coerce').fillna(0)
 
 
 
@@ -2326,7 +4258,6 @@ if uploaded_file:
 
 
 
-        df.loc[(df['Item'] == 'VCMS') & (df['Source'] == 'KEM-KR'), 'Business Type'] = 'Power electronics'
 
 
 
@@ -2339,10 +4270,10 @@ if uploaded_file:
 
 
 
+            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm', 'COMMERCIAL', 'commercial'], 'COMM')
 
 
 
-        df.loc[(df['Item'] == 'VCMS') & (df['Source'] == 'KOASIA'), 'Business Type'] = 'Core Business'
 
 
 
@@ -2358,7 +4289,6 @@ if uploaded_file:
 
 
 
-        df.loc[df['Group 1'] == 'GM', 'Group 2'] = 'GM'
 
 
 
@@ -2372,9 +4302,9 @@ if uploaded_file:
 
 
 
+            df['BIZ Type'] = df['BIZ Type'].fillna('Unknown')
 
 
-        df = df.replace([np.inf, -np.inf], 0)
 
 
 
@@ -2390,7 +4320,6 @@ if uploaded_file:
 
 
 
-        df['Year'] = df['Year'].astype(int)
 
 
 
@@ -2405,6 +4334,7 @@ if uploaded_file:
 
 
 
+        sop_dict = {}
 
 
 
@@ -2422,7 +4352,6 @@ if uploaded_file:
 
 
 
-        df['Month'] = df['Month'].astype(int)
 
 
 
@@ -2437,8 +4366,8 @@ if uploaded_file:
 
 
 
+        if len(sheets) > 1:
 
-        df['Date'] = df['Date'].astype(str).str.replace('00:00:00', '').str.strip()
 
 
 
@@ -2469,8 +4398,8 @@ if uploaded_file:
 
 
 
+            df_sop = pd.read_excel(xl, sheet_name=sheets[1])
 
-        return df
 
 
 
@@ -2494,7 +4423,6 @@ if uploaded_file:
 
 
 
-    raw_df = load_and_preprocess(uploaded_file)
 
 
 
@@ -2502,6 +4430,7 @@ if uploaded_file:
 
 
 
+            sop_dict = dict(zip(df_sop.iloc[:, 0], df_sop.iloc[:, 3]))
 
 
 
@@ -2510,7 +4439,6 @@ if uploaded_file:
 
 
 
-    years = sorted(raw_df['Year'].unique())
 
 
 
@@ -2526,7 +4454,6 @@ if uploaded_file:
 
 
 
-    selected_year = st.sidebar.selectbox("연도", years, index=len(years)-1 if years else 0)
 
 
 
@@ -2535,6 +4462,7 @@ if uploaded_file:
 
 
 
+        df['SOP'] = df['Project'].map(sop_dict)
 
 
 
@@ -2542,7 +4470,6 @@ if uploaded_file:
 
 
 
-    selected_month = st.sidebar.selectbox("월", sorted(raw_df['Month'].unique()))
 
 
 
@@ -2566,8 +4493,8 @@ if uploaded_file:
 
 
 
-    # ==========================================
 
+        df['SOP'] = pd.to_datetime(df['SOP'], errors='coerce').dt.strftime('%Y.%m').fillna(df['SOP'].astype(str))
 
 
 
@@ -2582,7 +4509,6 @@ if uploaded_file:
 
 
 
-    # 4. 핵심 비즈니스 로직
 
 
 
@@ -2598,9 +4524,9 @@ if uploaded_file:
 
 
 
-    # ==========================================
 
 
+        df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
 
 
 
@@ -2622,7 +4548,6 @@ if uploaded_file:
 
 
 
-    def get_numeric_cols(df):
 
 
 
@@ -2633,12 +4558,12 @@ if uploaded_file:
 
 
 
+        df['Month'] = pd.to_numeric(df['Month'], errors='coerce')
 
 
 
 
 
-        return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
 
 
 
@@ -2654,7 +4579,6 @@ if uploaded_file:
 
 
 
-    def build_summary_report(df_sub, index_cols, year, month, total_label, index_names=None):
 
 
 
@@ -2666,11 +4590,11 @@ if uploaded_file:
 
 
 
+        df = df.dropna(subset=['Year', 'Month'])
 
 
 
 
-        if df_sub.empty: return pd.DataFrame(), "", ""
 
 
 
@@ -2686,7 +4610,6 @@ if uploaded_file:
 
 
 
-        if month == 1: prev_year, prev_month = year - 1, 12
 
 
 
@@ -2699,10 +4622,10 @@ if uploaded_file:
 
 
 
+        df['Rev. (€)'] = pd.to_numeric(df['Rev. (€)'], errors='coerce').fillna(0)
 
 
 
-        else: prev_year, prev_month = year, month - 1
 
 
 
@@ -2718,7 +4641,6 @@ if uploaded_file:
 
 
 
-        month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
 
 
 
@@ -2732,9 +4654,9 @@ if uploaded_file:
 
 
 
+        df.loc[(df['Item'] == 'VCMS') & (df['Source'] == 'KEM-KR'), 'Business Type'] = 'Power electronics'
 
 
-        m_str, pm_str = month_names.get(month, f'{month}'), month_names.get(prev_month, f'{prev_month}')
 
 
 
@@ -2750,7 +4672,6 @@ if uploaded_file:
 
 
 
-        col_prev, phase_curr, phase_ytd, phase_ttl = f'{pm_str}. {year if month != 1 else prev_year}', f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL'
 
 
 
@@ -2765,8 +4686,8 @@ if uploaded_file:
 
 
 
+        df.loc[(df['Item'] == 'VCMS') & (df['Source'] == 'KOASIA'), 'Business Type'] = 'Core Business'
 
-        phases = [phase_curr, phase_ytd, phase_ttl]
 
 
 
@@ -2790,7 +4711,6 @@ if uploaded_file:
 
 
 
-        def get_pivot(d): return d.pivot_table(index=index_cols, columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not d.empty else pd.DataFrame()
 
 
 
@@ -2798,6 +4718,7 @@ if uploaded_file:
 
 
 
+        df.loc[df['Group 1'] == 'GM', 'Group 2'] = 'GM'
 
 
 
@@ -2806,7 +4727,6 @@ if uploaded_file:
 
 
 
-        s_prev = df_sub[(df_sub['Year'] == prev_year) & (df_sub['Month'] == prev_month) & (df_sub['Desc.'] == 'ACT')].groupby(index_cols)['Rev. (€)'].sum()
 
 
 
@@ -2830,6 +4750,7 @@ if uploaded_file:
 
 
 
+        df = df.replace([np.inf, -np.inf], 0)
 
 
 
@@ -2838,7 +4759,6 @@ if uploaded_file:
 
 
 
-        p_curr, p_ytd, p_ttl = get_pivot(df_sub[(df_sub['Year'] == year) & (df_sub['Month'] == month)]), get_pivot(df_sub[(df_sub['Year'] == year) & (df_sub['Month'] <= month)]), get_pivot(df_sub[(df_sub['Year'] == year)])
 
 
 
@@ -2862,7 +4782,7 @@ if uploaded_file:
 
 
 
-        all_indices = set()
+        df['Year'] = df['Year'].astype(int)
 
 
 
@@ -2894,7 +4814,6 @@ if uploaded_file:
 
 
 
-        for p in [s_prev, p_curr, p_ytd, p_ttl]:
 
 
 
@@ -2926,8 +4845,8 @@ if uploaded_file:
 
 
 
-            if not p.empty: all_indices.update(p.index.tolist() if isinstance(p.index, pd.MultiIndex) else [(x,) for x in p.index.tolist()])
 
+        df['Month'] = df['Month'].astype(int)
 
 
 
@@ -2950,7 +4869,6 @@ if uploaded_file:
 
 
 
-        if not all_indices: return pd.DataFrame(), col_prev, phase_curr
 
 
 
@@ -2960,6 +4878,7 @@ if uploaded_file:
 
 
 
+        df['Date'] = df['Date'].astype(str).str.replace('00:00:00', '').str.strip()
 
 
 
@@ -2982,7 +4901,6 @@ if uploaded_file:
 
 
 
-        all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
 
 
 
@@ -3014,7 +4932,6 @@ if uploaded_file:
 
 
 
-        
 
 
 
@@ -3025,6 +4942,7 @@ if uploaded_file:
 
 
 
+        return df
 
 
 
@@ -3046,7 +4964,6 @@ if uploaded_file:
 
 
 
-        current_index_names = index_names if index_names else (['CPS'] if index_cols == ['CPS'] else index_cols)
 
 
 
@@ -3073,12 +4990,12 @@ if uploaded_file:
 
 
 
+    raw_df = load_and_preprocess(uploaded_file)
 
 
 
 
 
-        idx = pd.MultiIndex.from_tuples(all_indices, names=current_index_names) if len(index_cols) > 1 else pd.Index([x[0] for x in all_indices], name=current_index_names[0])
 
 
 
@@ -3105,12 +5022,12 @@ if uploaded_file:
 
 
 
+    years = sorted(raw_df['Year'].unique())
 
 
 
 
 
-        
 
 
 
@@ -3137,12 +5054,12 @@ if uploaded_file:
 
 
 
+    selected_year = st.sidebar.selectbox("연도", years, index=len(years)-1 if years else 0)
 
 
 
 
 
-        combined_dict, col_tuples = {}, [('', col_prev)]
 
 
 
@@ -3169,12 +5086,12 @@ if uploaded_file:
 
 
 
+    selected_month = st.sidebar.selectbox("월", sorted(raw_df['Month'].unique()))
 
 
 
 
 
-        for p in phases:
 
 
 
@@ -3206,7 +5123,6 @@ if uploaded_file:
 
 
 
-            for c in ['25 FC3', '26 FC1', 'ACT', 'ACHI %']: col_tuples.append((p, c))
 
 
 
@@ -3218,6 +5134,7 @@ if uploaded_file:
 
 
 
+    # ==========================================
 
 
 
@@ -3238,7 +5155,6 @@ if uploaded_file:
 
 
 
-        
 
 
 
@@ -3250,6 +5166,7 @@ if uploaded_file:
 
 
 
+    # 4. 핵심 비즈니스 로직
 
 
 
@@ -3270,7 +5187,6 @@ if uploaded_file:
 
 
 
-        combined_dict[('', col_prev)] = s_prev.reindex(idx).fillna(0) if not s_prev.empty else pd.Series(0, index=idx)
 
 
 
@@ -3282,6 +5198,7 @@ if uploaded_file:
 
 
 
+    # ==========================================
 
 
 
@@ -3302,7 +5219,6 @@ if uploaded_file:
 
 
 
-        for phase_name, data in zip(phases, [p_curr, p_ytd, p_ttl]):
 
 
 
@@ -3330,11 +5246,11 @@ if uploaded_file:
 
 
 
+    def get_numeric_cols(df):
 
 
 
 
-            for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data[c].reindex(idx).fillna(0) if not data.empty and c in data.columns else pd.Series(0, index=idx)
 
 
 
@@ -3362,11 +5278,11 @@ if uploaded_file:
 
 
 
+        return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
 
 
 
 
-            num = pd.Series(combined_dict[(phase_name, 'ACT')])
 
 
 
@@ -3394,11 +5310,11 @@ if uploaded_file:
 
 
 
+    def build_summary_report(df_sub, index_cols, year, month, total_label, index_names=None):
 
 
 
 
-            den = pd.Series(combined_dict[(phase_name, '26 FC1')])
 
 
 
@@ -3426,11 +5342,11 @@ if uploaded_file:
 
 
 
+        if df_sub.empty: return pd.DataFrame(), "", ""
 
 
 
 
-            combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
 
 
 
@@ -3458,11 +5374,11 @@ if uploaded_file:
 
 
 
+        if month == 1: prev_year, prev_month = year - 1, 12
 
 
 
 
-        
 
 
 
@@ -3490,11 +5406,11 @@ if uploaded_file:
 
 
 
+        else: prev_year, prev_month = year, month - 1
 
 
 
 
-        final_df = pd.DataFrame(combined_dict)
 
 
 
@@ -3522,11 +5438,11 @@ if uploaded_file:
 
 
 
+        month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
 
 
 
 
-        final_df.columns = pd.MultiIndex.from_tuples(col_tuples)
 
 
 
@@ -3554,11 +5470,11 @@ if uploaded_file:
 
 
 
+        m_str, pm_str = month_names.get(month, f'{month}'), month_names.get(prev_month, f'{prev_month}')
 
 
 
 
-        final_df.index.names = current_index_names
 
 
 
@@ -3586,11 +5502,11 @@ if uploaded_file:
 
 
 
+        col_prev, phase_curr, phase_ytd, phase_ttl = f'{pm_str}. {year if month != 1 else prev_year}', f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL'
 
 
 
 
-        final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
 
 
 
@@ -3618,11 +5534,11 @@ if uploaded_file:
 
 
 
+        phases = [phase_curr, phase_ytd, phase_ttl]
 
 
 
 
-        
 
 
 
@@ -3654,7 +5570,6 @@ if uploaded_file:
 
 
 
-        # BIZ Type 카테고리 업데이트 (COMMERCIAL -> COMM)
 
 
 
@@ -3667,6 +5582,7 @@ if uploaded_file:
 
 
 
+        def get_pivot(d): return d.pivot_table(index=index_cols, columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not d.empty else pd.DataFrame()
 
 
 
@@ -3686,7 +5602,6 @@ if uploaded_file:
 
 
 
-        if 'BIZ Type' in final_df.index.names:
 
 
 
@@ -3699,6 +5614,7 @@ if uploaded_file:
 
 
 
+        s_prev = df_sub[(df_sub['Year'] == prev_year) & (df_sub['Month'] == prev_month) & (df_sub['Desc.'] == 'ACT')].groupby(index_cols)['Rev. (€)'].sum()
 
 
 
@@ -3718,7 +5634,6 @@ if uploaded_file:
 
 
 
-            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMM', 'Unknown'], ordered=True)
 
 
 
@@ -3750,7 +5665,6 @@ if uploaded_file:
 
 
 
-            try:
 
 
 
@@ -3764,6 +5678,7 @@ if uploaded_file:
 
 
 
+        p_curr, p_ytd, p_ttl = get_pivot(df_sub[(df_sub['Year'] == year) & (df_sub['Month'] == month)]), get_pivot(df_sub[(df_sub['Year'] == year) & (df_sub['Month'] <= month)]), get_pivot(df_sub[(df_sub['Year'] == year)])
 
 
 
@@ -3782,7 +5697,6 @@ if uploaded_file:
 
 
 
-                final_df.index = final_df.index.set_levels(final_df.index.levels[0].astype(cats), level=0)
 
 
 
@@ -3812,9 +5726,9 @@ if uploaded_file:
 
 
 
+        all_indices = set()
 
 
-                final_df = final_df.sort_index(level=0)
 
 
 
@@ -3846,7 +5760,6 @@ if uploaded_file:
 
 
 
-            except: pass
 
 
 
@@ -3877,8 +5790,8 @@ if uploaded_file:
 
 
 
+        for p in [s_prev, p_curr, p_ytd, p_ttl]:
 
-        
 
 
 
@@ -3910,7 +5823,6 @@ if uploaded_file:
 
 
 
-        total_row = final_df.sum(numeric_only=True)
 
 
 
@@ -3942,7 +5854,7 @@ if uploaded_file:
 
 
 
-        for phase_name in phases:
+            if not p.empty: all_indices.update(p.index.tolist() if isinstance(p.index, pd.MultiIndex) else [(x,) for x in p.index.tolist()])
 
 
 
@@ -3974,7 +5886,6 @@ if uploaded_file:
 
 
 
-            num = total_row.get((phase_name, 'ACT'), 0)
 
 
 
@@ -3991,6 +5902,7 @@ if uploaded_file:
 
 
 
+        if not all_indices: return pd.DataFrame(), col_prev, phase_curr
 
 
 
@@ -4006,7 +5918,6 @@ if uploaded_file:
 
 
 
-            den = total_row.get((phase_name, '26 FC1'), 0)
 
 
 
@@ -4038,7 +5949,6 @@ if uploaded_file:
 
 
 
-            total_row[(phase_name, 'ACHI %')] = num / den if den != 0 else 0
 
 
 
@@ -4056,6 +5966,7 @@ if uploaded_file:
 
 
 
+        all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
 
 
 
@@ -4070,7 +5981,6 @@ if uploaded_file:
 
 
 
-        
 
 
 
@@ -4102,7 +6012,6 @@ if uploaded_file:
 
 
 
-        t_label = "TTL (K.€)"
 
 
 
@@ -4121,6 +6030,7 @@ if uploaded_file:
 
 
 
+        
 
 
 
@@ -4134,7 +6044,6 @@ if uploaded_file:
 
 
 
-        t_index = tuple([''] * (len(final_df.index.names)-1) + [t_label]) if isinstance(final_df.index, pd.MultiIndex) else t_label
 
 
 
@@ -4166,7 +6075,6 @@ if uploaded_file:
 
 
 
-        t_df = pd.DataFrame([total_row], index=[t_index] if not isinstance(final_df.index, pd.MultiIndex) else pd.MultiIndex.from_tuples([t_index], names=final_df.index.names))
 
 
 
@@ -4186,6 +6094,7 @@ if uploaded_file:
 
 
 
+        current_index_names = index_names if index_names else (['CPS'] if index_cols == ['CPS'] else index_cols)
 
 
 
@@ -4198,7 +6107,6 @@ if uploaded_file:
 
 
 
-        return pd.concat([final_df, t_df]), col_prev, phase_curr
 
 
 
@@ -4250,6 +6158,7 @@ if uploaded_file:
 
 
 
+        idx = pd.MultiIndex.from_tuples(all_indices, names=current_index_names) if len(index_cols) > 1 else pd.Index([x[0] for x in all_indices], name=current_index_names[0])
 
 
 
@@ -4262,7 +6171,6 @@ if uploaded_file:
 
 
 
-    def get_biz_type_detailed_report(df, year, month):
 
 
 
@@ -4294,7 +6202,6 @@ if uploaded_file:
 
 
 
-        if month == 1: prev_year, prev_month = year - 1, 12
 
 
 
@@ -4315,6 +6222,7 @@ if uploaded_file:
 
 
 
+        
 
 
 
@@ -4326,7 +6234,6 @@ if uploaded_file:
 
 
 
-        else: prev_year, prev_month = year, month - 1
 
 
 
@@ -4358,7 +6265,6 @@ if uploaded_file:
 
 
 
-        month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
 
 
 
@@ -4380,6 +6286,7 @@ if uploaded_file:
 
 
 
+        combined_dict, col_tuples = {}, [('', col_prev)]
 
 
 
@@ -4390,7 +6297,6 @@ if uploaded_file:
 
 
 
-        m_str, pm_str = month_names.get(month, f'{month}'), month_names.get(prev_month, f'{prev_month}')
 
 
 
@@ -4422,7 +6328,6 @@ if uploaded_file:
 
 
 
-        phase_names = [f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL']
 
 
 
@@ -4445,6 +6350,7 @@ if uploaded_file:
 
 
 
+        for p in phases:
 
 
 
@@ -4454,7 +6360,6 @@ if uploaded_file:
 
 
 
-        prev_phase_name = f'{pm_str}. {prev_year}'
 
 
 
@@ -4486,7 +6391,6 @@ if uploaded_file:
 
 
 
-        results = []
 
 
 
@@ -4510,6 +6414,7 @@ if uploaded_file:
 
 
 
+            for c in ['25 FC3', '26 FC1', 'ACT', 'ACHI %']: col_tuples.append((p, c))
 
 
 
@@ -4518,7 +6423,6 @@ if uploaded_file:
 
 
 
-        biz_categories = ['DIRECT', 'COMM', 'Unknown'] # 카테고리 업데이트
 
 
 
@@ -4550,7 +6454,6 @@ if uploaded_file:
 
 
 
-        for biz in biz_categories:
 
 
 
@@ -4575,6 +6478,7 @@ if uploaded_file:
 
 
 
+        
 
 
 
@@ -4582,7 +6486,6 @@ if uploaded_file:
 
 
 
-            biz_df = df[(df['BIZ Type'] == biz) & (df['Year'] == year)]
 
 
 
@@ -4614,7 +6517,6 @@ if uploaded_file:
 
 
 
-            if biz_df.empty: continue
 
 
 
@@ -4640,13 +6542,13 @@ if uploaded_file:
 
 
 
+        combined_dict[('', col_prev)] = s_prev.reindex(idx).fillna(0) if not s_prev.empty else pd.Series(0, index=idx)
 
 
 
 
 
 
-            p_m = biz_df[biz_df['Month'] == month].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
 
 
 
@@ -4678,7 +6580,6 @@ if uploaded_file:
 
 
 
-            p_y = biz_df[biz_df['Month'] <= month].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
 
 
 
@@ -4705,12 +6606,12 @@ if uploaded_file:
 
 
 
+        for phase_name, data in zip(phases, [p_curr, p_ytd, p_ttl]):
 
 
 
 
 
-            p_fy = biz_df.pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
 
 
 
@@ -4742,7 +6643,6 @@ if uploaded_file:
 
 
 
-            p_prev = df[(df['BIZ Type'] == biz) & (df['Year'] == prev_year) & (df['Month'] == prev_month)].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
 
 
 
@@ -4770,11 +6670,11 @@ if uploaded_file:
 
 
 
+            for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data[c].reindex(idx).fillna(0) if not data.empty and c in data.columns else pd.Series(0, index=idx)
 
 
 
 
-            combined_dict = {(prev_phase_name, 'ACT'): p_prev.get('ACT', 0)}
 
 
 
@@ -4806,7 +6706,6 @@ if uploaded_file:
 
 
 
-            for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
 
 
 
@@ -4835,10 +6734,10 @@ if uploaded_file:
 
 
 
+            num = pd.Series(combined_dict[(phase_name, 'ACT')])
 
 
 
-                for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data.get(c, 0)
 
 
 
@@ -4870,7 +6769,6 @@ if uploaded_file:
 
 
 
-                num = pd.Series(data.get('ACT', 0))
 
 
 
@@ -4900,9 +6798,9 @@ if uploaded_file:
 
 
 
+            den = pd.Series(combined_dict[(phase_name, '26 FC1')])
 
 
-                den = pd.Series(data.get('26 FC1', 0))
 
 
 
@@ -4934,7 +6832,6 @@ if uploaded_file:
 
 
 
-                combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
 
 
 
@@ -4965,8 +6862,8 @@ if uploaded_file:
 
 
 
+            combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
 
-            combined = pd.DataFrame(combined_dict, index=p_m.index)
 
 
 
@@ -4998,7 +6895,6 @@ if uploaded_file:
 
 
 
-            subtotal = combined.sum(numeric_only=True)
 
 
 
@@ -5030,7 +6926,7 @@ if uploaded_file:
 
 
 
-            for p_name in phase_names:
+        
 
 
 
@@ -5062,7 +6958,6 @@ if uploaded_file:
 
 
 
-                num = subtotal.get((p_name, 'ACT'), 0)
 
 
 
@@ -5094,8 +6989,8 @@ if uploaded_file:
 
 
 
-                den = subtotal.get((p_name, '26 FC1'), 0)
 
+        final_df = pd.DataFrame(combined_dict)
 
 
 
@@ -5126,7 +7021,6 @@ if uploaded_file:
 
 
 
-                subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
 
 
 
@@ -5158,9 +7052,9 @@ if uploaded_file:
 
 
 
-            results.append(combined)
 
 
+        final_df.columns = pd.MultiIndex.from_tuples(col_tuples)
 
 
 
@@ -5190,7 +7084,6 @@ if uploaded_file:
 
 
 
-            results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(biz, 'Subtotal')], names=['BIZ Type', 'KOx'])))
 
 
 
@@ -5222,10 +7115,10 @@ if uploaded_file:
 
 
 
-        return pd.concat(results)
 
 
 
+        final_df.index.names = current_index_names
 
 
 
@@ -5286,10 +7179,10 @@ if uploaded_file:
 
 
 
-    def get_biz_report(df, biz_type, year, month):
 
 
 
+        final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
 
 
 
@@ -5318,7 +7211,6 @@ if uploaded_file:
 
 
 
-        if month == 1: prev_year, prev_month = year - 1, 12
 
 
 
@@ -5350,11 +7242,11 @@ if uploaded_file:
 
 
 
-        else: prev_year, prev_month = year, month - 1
 
 
 
 
+        
 
 
 
@@ -5382,7 +7274,6 @@ if uploaded_file:
 
 
 
-        df_biz = df[(df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == year)].copy()
 
 
 
@@ -5414,12 +7305,12 @@ if uploaded_file:
 
 
 
-        month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
 
 
 
 
 
+        # BIZ Type 카테고리 업데이트 (COMMERCIAL -> COMM)
 
 
 
@@ -5446,7 +7337,6 @@ if uploaded_file:
 
 
 
-        m_str, pm_str = month_names.get(month, f'{month}'), month_names.get(prev_month, f'{prev_month}')
 
 
 
@@ -5478,13 +7368,13 @@ if uploaded_file:
 
 
 
-        phase_names = [f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL']
 
 
 
 
 
 
+        if 'BIZ Type' in final_df.index.names:
 
 
 
@@ -5510,7 +7400,6 @@ if uploaded_file:
 
 
 
-        prev_phase_name = f'{pm_str}. {prev_year}'
 
 
 
@@ -5542,7 +7431,6 @@ if uploaded_file:
 
 
 
-        results = []
 
 
 
@@ -5550,6 +7438,7 @@ if uploaded_file:
 
 
 
+            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMM', 'Unknown'], ordered=True)
 
 
 
@@ -5574,7 +7463,6 @@ if uploaded_file:
 
 
 
-        for brand in ['HYU', 'KIA', 'GM']:
 
 
 
@@ -5606,7 +7494,6 @@ if uploaded_file:
 
 
 
-            brand_df = df_biz[df_biz['Group 2'] == brand].copy()
 
 
 
@@ -5615,6 +7502,7 @@ if uploaded_file:
 
 
 
+            try:
 
 
 
@@ -5638,7 +7526,6 @@ if uploaded_file:
 
 
 
-            if brand_df.empty: continue
 
 
 
@@ -5670,7 +7557,6 @@ if uploaded_file:
 
 
 
-            p_m = brand_df[brand_df['Month'] == month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
 
 
 
@@ -5680,6 +7566,7 @@ if uploaded_file:
 
 
 
+                final_df.index = final_df.index.set_levels(final_df.index.levels[0].astype(cats), level=0)
 
 
 
@@ -5702,7 +7589,6 @@ if uploaded_file:
 
 
 
-            p_y = brand_df[brand_df['Month'] <= month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
 
 
 
@@ -5734,7 +7620,6 @@ if uploaded_file:
 
 
 
-            p_fy = brand_df.pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
 
 
 
@@ -5745,6 +7630,7 @@ if uploaded_file:
 
 
 
+                final_df = final_df.sort_index(level=0)
 
 
 
@@ -5766,7 +7652,6 @@ if uploaded_file:
 
 
 
-            p_prev = df[(df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
 
 
 
@@ -5798,7 +7683,6 @@ if uploaded_file:
 
 
 
-            if "Core" in biz_type and brand in ['HYU', 'KIA']:
 
 
 
@@ -5810,6 +7694,7 @@ if uploaded_file:
 
 
 
+            except: pass
 
 
 
@@ -5830,7 +7715,6 @@ if uploaded_file:
 
 
 
-                top = p_m[p_m['ACT'] >= 10000].index if not p_m.empty and 'ACT' in p_m.columns else p_m.index
 
 
 
@@ -5862,7 +7746,6 @@ if uploaded_file:
 
 
 
-                def group_others(p):
 
 
 
@@ -5875,6 +7758,7 @@ if uploaded_file:
 
 
 
+        
 
 
 
@@ -5894,7 +7778,6 @@ if uploaded_file:
 
 
 
-                    if p.empty: return pd.DataFrame(columns=['25 FC3', '26 FC1', 'ACT']).reindex(pd.MultiIndex.from_tuples([], names=['Project', 'Con.', 'SOP']))
 
 
 
@@ -5926,7 +7809,6 @@ if uploaded_file:
 
 
 
-                    main = p.loc[p.index.isin(top)]; oth = p.loc[~p.index.isin(top)].sum().to_frame().T; oth.index = pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP'])
 
 
 
@@ -5940,6 +7822,7 @@ if uploaded_file:
 
 
 
+        total_row = final_df.sum(numeric_only=True)
 
 
 
@@ -5958,7 +7841,6 @@ if uploaded_file:
 
 
 
-                    return pd.concat([main, oth])
 
 
 
@@ -5990,7 +7872,6 @@ if uploaded_file:
 
 
 
-                p_m, p_y, p_fy, p_prev = group_others(p_m), group_others(p_y), group_others(p_fy), group_others(p_prev)
 
 
 
@@ -6005,6 +7886,7 @@ if uploaded_file:
 
 
 
+        for phase_name in phases:
 
 
 
@@ -6022,7 +7904,6 @@ if uploaded_file:
 
 
 
-            p_prev, p_y, p_fy = p_prev.reindex(p_m.index, fill_value=0), p_y.reindex(p_m.index, fill_value=0), p_fy.reindex(p_m.index, fill_value=0)
 
 
 
@@ -6054,7 +7935,6 @@ if uploaded_file:
 
 
 
-            combined_dict = {(prev_phase_name, 'ACT'): p_prev.get('ACT', 0)}
 
 
 
@@ -6070,6 +7950,7 @@ if uploaded_file:
 
 
 
+            num = total_row.get((phase_name, 'ACT'), 0)
 
 
 
@@ -6086,7 +7967,6 @@ if uploaded_file:
 
 
 
-            for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
 
 
 
@@ -6118,7 +7998,6 @@ if uploaded_file:
 
 
 
-                for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data.get(c, 0)
 
 
 
@@ -6135,6 +8014,7 @@ if uploaded_file:
 
 
 
+            den = total_row.get((phase_name, '26 FC1'), 0)
 
 
 
@@ -6150,7 +8030,6 @@ if uploaded_file:
 
 
 
-                num = pd.Series(data.get('ACT', 0))
 
 
 
@@ -6182,7 +8061,6 @@ if uploaded_file:
 
 
 
-                den = pd.Series(data.get('26 FC1', 0))
 
 
 
@@ -6200,6 +8078,7 @@ if uploaded_file:
 
 
 
+            total_row[(phase_name, 'ACHI %')] = num / den if den != 0 else 0
 
 
 
@@ -6214,7 +8093,6 @@ if uploaded_file:
 
 
 
-                combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
 
 
 
@@ -6246,7 +8124,6 @@ if uploaded_file:
 
 
 
-            combined = pd.DataFrame(combined_dict, index=p_m.index)
 
 
 
@@ -6265,6 +8142,7 @@ if uploaded_file:
 
 
 
+        
 
 
 
@@ -6278,7 +8156,6 @@ if uploaded_file:
 
 
 
-            if ('Others', '', '') in combined.index: combined = pd.concat([combined.drop(index=('Others', '', '')).sort_values(by=(phase_names[0], 'ACT'), ascending=False), combined.loc[[('Others', '', '')]]])
 
 
 
@@ -6310,7 +8187,6 @@ if uploaded_file:
 
 
 
-            else: combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
 
 
 
@@ -6330,6 +8206,7 @@ if uploaded_file:
 
 
 
+        t_label = "TTL (K.€)"
 
 
 
@@ -6342,7 +8219,6 @@ if uploaded_file:
 
 
 
-            subtotal = combined.sum(numeric_only=True)
 
 
 
@@ -6374,7 +8250,6 @@ if uploaded_file:
 
 
 
-            for p_name in phase_names:
 
 
 
@@ -6395,6 +8270,7 @@ if uploaded_file:
 
 
 
+        t_index = tuple([''] * (len(final_df.index.names)-1) + [t_label]) if isinstance(final_df.index, pd.MultiIndex) else t_label
 
 
 
@@ -6406,7 +8282,6 @@ if uploaded_file:
 
 
 
-                num = subtotal.get((p_name, 'ACT'), 0)
 
 
 
@@ -6438,7 +8313,6 @@ if uploaded_file:
 
 
 
-                den = subtotal.get((p_name, '26 FC1'), 0)
 
 
 
@@ -6460,6 +8334,7 @@ if uploaded_file:
 
 
 
+        t_df = pd.DataFrame([total_row], index=[t_index] if not isinstance(final_df.index, pd.MultiIndex) else pd.MultiIndex.from_tuples([t_index], names=final_df.index.names))
 
 
 
@@ -6470,7 +8345,6 @@ if uploaded_file:
 
 
 
-                subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
 
 
 
@@ -6502,7 +8376,6 @@ if uploaded_file:
 
 
 
-            combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
 
 
 
@@ -6525,6 +8398,7 @@ if uploaded_file:
 
 
 
+        return pd.concat([final_df, t_df]), col_prev, phase_curr
 
 
 
@@ -6534,7 +8408,6 @@ if uploaded_file:
 
 
 
-            results.append(combined)
 
 
 
@@ -6566,7 +8439,6 @@ if uploaded_file:
 
 
 
-            if brand != 'GM': results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, '소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
 
 
 
@@ -6598,7 +8470,6 @@ if uploaded_file:
 
 
 
-        final_df = pd.concat(results)
 
 
 
@@ -6630,7 +8501,6 @@ if uploaded_file:
 
 
 
-        grand_total = final_df[final_df.index.get_level_values(1) != '소계'].sum(numeric_only=True)
 
 
 
@@ -6656,13 +8526,13 @@ if uploaded_file:
 
 
 
+    def get_biz_type_detailed_report(df, year, month):
 
 
 
 
 
 
-        for p_name in phase_names:
 
 
 
@@ -6694,7 +8564,6 @@ if uploaded_file:
 
 
 
-            num = grand_total.get((p_name, 'ACT'), 0)
 
 
 
@@ -6721,12 +8590,12 @@ if uploaded_file:
 
 
 
+        if month == 1: prev_year, prev_month = year - 1, 12
 
 
 
 
 
-            den = grand_total.get((p_name, '26 FC1'), 0)
 
 
 
@@ -6758,7 +8627,6 @@ if uploaded_file:
 
 
 
-            grand_total[(p_name, 'ACHI %')] = num / den if den != 0 else 0
 
 
 
@@ -6786,11 +8654,11 @@ if uploaded_file:
 
 
 
+        else: prev_year, prev_month = year, month - 1
 
 
 
 
-        grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('', f'{biz_type} Total', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
 
 
 
@@ -6822,7 +8690,6 @@ if uploaded_file:
 
 
 
-        return pd.concat([final_df, grand_row]), phase_names
 
 
 
@@ -6851,6 +8718,7 @@ if uploaded_file:
 
 
 
+        month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
 
 
 
@@ -6886,7 +8754,6 @@ if uploaded_file:
 
 
 
-    # ==========================================
 
 
 
@@ -6915,10 +8782,10 @@ if uploaded_file:
 
 
 
+        m_str, pm_str = month_names.get(month, f'{month}'), month_names.get(prev_month, f'{prev_month}')
 
 
 
-    # 5. 스타일링 및 렌더링
 
 
 
@@ -6950,7 +8817,6 @@ if uploaded_file:
 
 
 
-    # ==========================================
 
 
 
@@ -6980,9 +8846,9 @@ if uploaded_file:
 
 
 
+        phase_names = [f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL']
 
 
-    def render_html_view(df, phase_curr):
 
 
 
@@ -7014,7 +8880,6 @@ if uploaded_file:
 
 
 
-        df_display = df.replace(0, '')
 
 
 
@@ -7045,8 +8910,8 @@ if uploaded_file:
 
 
 
+        prev_phase_name = f'{pm_str}. {prev_year}'
 
-        format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
 
 
 
@@ -7078,7 +8943,6 @@ if uploaded_file:
 
 
 
-        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
 
 
 
@@ -7086,7 +8950,6 @@ if uploaded_file:
 
 
 
-        styler.set_table_styles([
 
 
 
@@ -7094,7 +8957,6 @@ if uploaded_file:
 
 
 
-        {'selector': 'th, td', 'props': [('border-collapse', 'separate')]},
 
 
 
@@ -7102,7 +8964,6 @@ if uploaded_file:
 
 
 
-        {'selector': 'tr', 'props': [('display', 'table-row')]}
 
 
 
@@ -7110,10 +8971,10 @@ if uploaded_file:
 
 
 
-        ])
 
 
 
+        results = []
 
 
 
@@ -7134,7 +8995,6 @@ if uploaded_file:
 
 
 
-        numeric_cols = get_numeric_cols(df)
 
 
 
@@ -7166,7 +9026,6 @@ if uploaded_file:
 
 
 
-        styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
 
 
 
@@ -7179,6 +9038,7 @@ if uploaded_file:
 
 
 
+        biz_categories = ['DIRECT', 'COMM', 'Unknown'] # 카테고리 업데이트
 
 
 
@@ -7198,7 +9058,6 @@ if uploaded_file:
 
 
 
-        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row) if 'TTL (K.€)' in str(row.name) or 'Total' in str(row.name) or 'Subtotal' in str(row.name) else [''] * len(row), axis=1)
 
 
 
@@ -7230,7 +9089,6 @@ if uploaded_file:
 
 
 
-        return f'<div class="table-container">{styler.to_html()}</div>'
 
 
 
@@ -7244,6 +9102,7 @@ if uploaded_file:
 
 
 
+        for biz in biz_categories:
 
 
 
@@ -7294,7 +9153,6 @@ if uploaded_file:
 
 
 
-    def render_biz_html_table(df):
 
 
 
@@ -7308,6 +9166,7 @@ if uploaded_file:
 
 
 
+            biz_df = df[(df['BIZ Type'] == biz) & (df['Year'] == year)]
 
 
 
@@ -7326,7 +9185,6 @@ if uploaded_file:
 
 
 
-        df_display = df.replace(0, '')
 
 
 
@@ -7358,7 +9216,6 @@ if uploaded_file:
 
 
 
-        format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
 
 
 
@@ -7373,6 +9230,7 @@ if uploaded_file:
 
 
 
+            if biz_df.empty: continue
 
 
 
@@ -7390,7 +9248,6 @@ if uploaded_file:
 
 
 
-        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
 
 
 
@@ -7422,7 +9279,6 @@ if uploaded_file:
 
 
 
-        numeric_cols = get_numeric_cols(df)
 
 
 
@@ -7438,6 +9294,7 @@ if uploaded_file:
 
 
 
+            p_m = biz_df[biz_df['Month'] == month].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
 
 
 
@@ -7454,7 +9311,6 @@ if uploaded_file:
 
 
 
-        styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
 
 
 
@@ -7486,7 +9342,6 @@ if uploaded_file:
 
 
 
-        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' if '소계' in str(row.name) or 'Total' in str(row.name) else '' for _ in row], axis=1)
 
 
 
@@ -7503,6 +9358,7 @@ if uploaded_file:
 
 
 
+            p_y = biz_df[biz_df['Month'] <= month].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
 
 
 
@@ -7518,7 +9374,6 @@ if uploaded_file:
 
 
 
-        return f'<div class="table-container">{styler.to_html()}</div>'
 
 
 
@@ -7567,6 +9422,7 @@ if uploaded_file:
 
 
 
+            p_fy = biz_df.pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
 
 
 
@@ -7582,7 +9438,6 @@ if uploaded_file:
 
 
 
-    # ==========================================
 
 
 
@@ -7614,7 +9469,6 @@ if uploaded_file:
 
 
 
-    # 6. 화면 출력
 
 
 
@@ -7632,6 +9486,7 @@ if uploaded_file:
 
 
 
+            p_prev = df[(df['BIZ Type'] == biz) & (df['Year'] == prev_year) & (df['Month'] == prev_month)].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
 
 
 
@@ -7646,7 +9501,6 @@ if uploaded_file:
 
 
 
-    # ==========================================
 
 
 
@@ -7678,7 +9532,6 @@ if uploaded_file:
 
 
 
-    reports_to_download = {}
 
 
 
@@ -7697,6 +9550,7 @@ if uploaded_file:
 
 
 
+            combined_dict = {(prev_phase_name, 'ACT'): p_prev.get('ACT', 0)}
 
 
 
@@ -7718,7 +9572,6 @@ if uploaded_file:
 
 
 
-    st.subheader("📌 1. 매출 요약 (CPS 기준)")
 
 
 
@@ -7750,7 +9603,6 @@ if uploaded_file:
 
 
 
-    df_cps, p_col, c_col = build_summary_report(raw_df, ['CPS'], selected_year, selected_month, 'TTL (K.€)')
 
 
 
@@ -7762,6 +9614,7 @@ if uploaded_file:
 
 
 
+            for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
 
 
 
@@ -7782,7 +9635,6 @@ if uploaded_file:
 
 
 
-    if not df_cps.empty: st.markdown(render_html_view(df_cps, c_col), unsafe_allow_html=True); reports_to_download["CPS_Summary"] = df_cps
 
 
 
@@ -7826,6 +9678,7 @@ if uploaded_file:
 
 
 
+                for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data.get(c, 0)
 
 
 
@@ -7846,7 +9699,6 @@ if uploaded_file:
 
 
 
-    st.subheader("📌 2. 매출 요약 (Item 기준)")
 
 
 
@@ -7878,7 +9730,6 @@ if uploaded_file:
 
 
 
-    df_item_raw = raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])]
 
 
 
@@ -7891,6 +9742,7 @@ if uploaded_file:
 
 
 
+                num = pd.Series(data.get('ACT', 0))
 
 
 
@@ -7910,7 +9762,6 @@ if uploaded_file:
 
 
 
-    df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)')
 
 
 
@@ -7942,7 +9793,6 @@ if uploaded_file:
 
 
 
-    if not df_item.empty: st.markdown(render_html_view(df_item, c_col), unsafe_allow_html=True); reports_to_download["Item_Summary"] = df_item
 
 
 
@@ -7956,6 +9806,7 @@ if uploaded_file:
 
 
 
+                den = pd.Series(data.get('26 FC1', 0))
 
 
 
@@ -8006,7 +9857,6 @@ if uploaded_file:
 
 
 
-    st.subheader("📌 3. 비즈니스 타입별 매출 요약 (DIRECT / COMM.)")
 
 
 
@@ -8020,6 +9870,7 @@ if uploaded_file:
 
 
 
+                combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
 
 
 
@@ -8038,7 +9889,6 @@ if uploaded_file:
 
 
 
-    df_biz = get_biz_type_detailed_report(raw_df, selected_year, selected_month)
 
 
 
@@ -8070,7 +9920,6 @@ if uploaded_file:
 
 
 
-    if not df_biz.empty: st.markdown(render_html_view(df_biz, ""), unsafe_allow_html=True); reports_to_download["Biz_Type_Summary"] = df_biz
 
 
 
@@ -8085,6 +9934,7 @@ if uploaded_file:
 
 
 
+            combined = pd.DataFrame(combined_dict, index=p_m.index)
 
 
 
@@ -8134,7 +9984,6 @@ if uploaded_file:
 
 
 
-    st.subheader("📌 4. Power Electronics 비즈니스")
 
 
 
@@ -8149,6 +9998,7 @@ if uploaded_file:
 
 
 
+            subtotal = combined.sum(numeric_only=True)
 
 
 
@@ -8166,7 +10016,6 @@ if uploaded_file:
 
 
 
-    df_pe, phase_names_pe = get_biz_report(raw_df, "Power", selected_year, selected_month)
 
 
 
@@ -8198,7 +10047,6 @@ if uploaded_file:
 
 
 
-    if not df_pe.empty: st.markdown(render_biz_html_table(df_pe), unsafe_allow_html=True); reports_to_download["PE_Biz"] = df_pe
 
 
 
@@ -8214,6 +10062,7 @@ if uploaded_file:
 
 
 
+            for p_name in phase_names:
 
 
 
@@ -8262,7 +10111,6 @@ if uploaded_file:
 
 
 
-    st.subheader("📌 5. Core 비즈니스")
 
 
 
@@ -8278,6 +10126,7 @@ if uploaded_file:
 
 
 
+                num = subtotal.get((p_name, 'ACT'), 0)
 
 
 
@@ -8294,7 +10143,6 @@ if uploaded_file:
 
 
 
-    df_core, phase_names_core = get_biz_report(raw_df, "Core", selected_year, selected_month)
 
 
 
@@ -8326,7 +10174,6 @@ if uploaded_file:
 
 
 
-    if not df_core.empty: st.markdown(render_biz_html_table(df_core), unsafe_allow_html=True); reports_to_download["Core_Biz"] = df_core
 
 
 
@@ -8343,6 +10190,7 @@ if uploaded_file:
 
 
 
+                den = subtotal.get((p_name, '26 FC1'), 0)
 
 
 
@@ -8390,7 +10238,6 @@ if uploaded_file:
 
 
 
-    if reports_to_download:
 
 
 
@@ -8407,6 +10254,7 @@ if uploaded_file:
 
 
 
+                subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
 
 
 
@@ -8422,7 +10270,6 @@ if uploaded_file:
 
 
 
-        st.write("---")
 
 
 
@@ -8454,7 +10301,6648 @@ if uploaded_file:
 
 
 
-        st.download_button("📥 전체 5개 요약 리포트 엑셀 다운로드 (시트별 분리)", data=to_excel_multiple(reports_to_download), file_name=f"Monthly_Closing_Report_{selected_year}_{selected_month:02d}.xlsx", use_container_width=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            results.append(combined)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(biz, 'Subtotal')], names=['BIZ Type', 'KOx'])))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        return pd.concat(results)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    def get_biz_report(df, biz_type, year, month):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        if month == 1: prev_year, prev_month = year - 1, 12
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        else: prev_year, prev_month = year, month - 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        df_biz = df[(df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == year)].copy()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        m_str, pm_str = month_names.get(month, f'{month}'), month_names.get(prev_month, f'{prev_month}')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        phase_names = [f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL']
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        prev_phase_name = f'{pm_str}. {prev_year}'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        results = []
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        for brand in ['HYU', 'KIA', 'GM']:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            brand_df = df_biz[df_biz['Group 2'] == brand].copy()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            if brand_df.empty: continue
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            p_m = brand_df[brand_df['Month'] == month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            p_y = brand_df[brand_df['Month'] <= month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            p_fy = brand_df.pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            p_prev = df[(df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            if "Core" in biz_type and brand in ['HYU', 'KIA']:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                top = p_m[p_m['ACT'] >= 10000].index if not p_m.empty and 'ACT' in p_m.columns else p_m.index
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                def group_others(p):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    if p.empty: return pd.DataFrame(columns=['25 FC3', '26 FC1', 'ACT']).reindex(pd.MultiIndex.from_tuples([], names=['Project', 'Con.', 'SOP']))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    main = p.loc[p.index.isin(top)]; oth = p.loc[~p.index.isin(top)].sum().to_frame().T; oth.index = pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP'])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    return pd.concat([main, oth])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                p_m, p_y, p_fy, p_prev = group_others(p_m), group_others(p_y), group_others(p_fy), group_others(p_prev)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            p_prev, p_y, p_fy = p_prev.reindex(p_m.index, fill_value=0), p_y.reindex(p_m.index, fill_value=0), p_fy.reindex(p_m.index, fill_value=0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            combined_dict = {(prev_phase_name, 'ACT'): p_prev.get('ACT', 0)}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data.get(c, 0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                num = pd.Series(data.get('ACT', 0))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                den = pd.Series(data.get('26 FC1', 0))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            combined = pd.DataFrame(combined_dict, index=p_m.index)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            if ('Others', '', '') in combined.index: combined = pd.concat([combined.drop(index=('Others', '', '')).sort_values(by=(phase_names[0], 'ACT'), ascending=False), combined.loc[[('Others', '', '')]]])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            else: combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            subtotal = combined.sum(numeric_only=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            for p_name in phase_names:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                num = subtotal.get((p_name, 'ACT'), 0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                den = subtotal.get((p_name, '26 FC1'), 0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            results.append(combined)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            if brand != 'GM': results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, '소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        final_df = pd.concat(results)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        grand_total = final_df[final_df.index.get_level_values(1) != '소계'].sum(numeric_only=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        for p_name in phase_names:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            num = grand_total.get((p_name, 'ACT'), 0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            den = grand_total.get((p_name, '26 FC1'), 0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            grand_total[(p_name, 'ACHI %')] = num / den if den != 0 else 0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('', f'{biz_type} Total', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        return pd.concat([final_df, grand_row]), phase_names
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # ==========================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # 5. 스타일링 및 렌더링
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # ==========================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    def render_html_view(df, phase_curr):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        df_display = df.replace(0, '')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        styler.set_table_styles([
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        {'selector': 'th, td', 'props': [('border-collapse', 'separate')]},
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        {'selector': 'tr', 'props': [('display', 'table-row')]}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        ])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        numeric_cols = get_numeric_cols(df)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row) if 'TTL (K.€)' in str(row.name) or 'Total' in str(row.name) or 'Subtotal' in str(row.name) else [''] * len(row), axis=1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        return f'<div class="table-container">{styler.to_html()}</div>'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    def render_biz_html_table(df):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        df_display = df.replace(0, '')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        numeric_cols = get_numeric_cols(df)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' if '소계' in str(row.name) or 'Total' in str(row.name) else '' for _ in row], axis=1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        return f'<div class="table-container">{styler.to_html()}</div>'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # ==========================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # 6. 화면 출력
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # ==========================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    reports_to_download = {}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    st.subheader("📌 1. 매출 요약 (CPS 기준)")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    df_cps, p_col, c_col = build_summary_report(raw_df, ['CPS'], selected_year, selected_month, 'TTL (K.€)')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    if not df_cps.empty: st.markdown(render_html_view(df_cps, c_col), unsafe_allow_html=True); reports_to_download["CPS_Summary"] = df_cps
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    st.subheader("📌 2. 매출 요약 (Item 기준)")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    df_item_raw = raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    if not df_item.empty: st.markdown(render_html_view(df_item, c_col), unsafe_allow_html=True); reports_to_download["Item_Summary"] = df_item
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    st.subheader("📌 3. 비즈니스 타입별 매출 요약 (DIRECT / COMM.)")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    df_biz = get_biz_type_detailed_report(raw_df, selected_year, selected_month)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    if not df_biz.empty: st.markdown(render_html_view(df_biz, ""), unsafe_allow_html=True); reports_to_download["Biz_Type_Summary"] = df_biz
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    st.subheader("📌 4. Power Electronics 비즈니스")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    df_pe, phase_names_pe = get_biz_report(raw_df, "Power", selected_year, selected_month)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    if not df_pe.empty: st.markdown(render_biz_html_table(df_pe), unsafe_allow_html=True); reports_to_download["PE_Biz"] = df_pe
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    st.subheader("📌 5. Core 비즈니스")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    df_core, phase_names_core = get_biz_report(raw_df, "Core", selected_year, selected_month)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    if not df_core.empty: st.markdown(render_biz_html_table(df_core), unsafe_allow_html=True); reports_to_download["Core_Biz"] = df_core
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    if reports_to_download:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        st.write("---")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        st.download_button("📥 전체 5개 요약 리포트 엑셀 다운로드 (시트별 분리)", data=to_excel_multiple(reports_to_download), file_name=f"Monthly_Closing_Report_{selected_year}_{selected_month:02d}.xlsx", use_container_width=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -8518,4 +17006,36 @@ else:
 
 
 
-    st.info("👈 좌측 사이드바에서 엑셀 파일을 업로드하시면 5가지 요약 리포트가 자동 생성됩니다.") ----> 여기서 표시되는 표 순서만 바꿀수 있게 수정해주세요 번, 3번, 5번, 4번, 2번 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    st.info("👈 좌측 사이드바에서 엑셀 파일을 업로드하시면 5가지 요약 리포트가 자동 생성됩니다.") 
