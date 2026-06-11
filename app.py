@@ -64,7 +64,7 @@ st.markdown("""
 st.title("📊 월간 매출 보고서 (Core & Power Electronics)")
 
 # ==========================================
-# 2. 포맷팅 함수 (화면용)
+# 2. 포맷팅 함수 (화면용 - K단위 유지)
 # ==========================================
 def format_k_val(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
@@ -87,28 +87,25 @@ def format_percentage_html(val):
         return pct_str
 
 # ==========================================
-# 3. 엑셀 다운로드
+# 3. 엑셀 다운로드 (실제 값 저장 로직으로 변경)
 # ==========================================
-def format_k_val_for_excel(val):
-    if not isinstance(val, (int, float, np.number)) or pd.isna(val): return val
-    return val / 1_000.0
-
 def to_excel(df, title="Report"):
     output = io.BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     
     df_formatted = df.copy().fillna(0)
+    
+    # [수정 2] / 1000.0 나누기 로직을 제거하여 엑셀에는 실제 값(Raw Value) 그대로 저장
     for col in df_formatted.columns:
         if 'ACHI' not in col[1]:
-            df_formatted[col] = df_formatted[col].apply(
-                lambda x: format_k_val_for_excel(x) if isinstance(x, (int, float, np.number)) else x
-            )
+            df_formatted[col] = pd.to_numeric(df_formatted[col], errors='ignore')
             
     df_formatted.to_excel(writer, index=True, sheet_name='Sheet1')
     workbook = writer.book
     worksheet = writer.sheets['Sheet1']
     
-    num_fmt = workbook.add_format({'num_format': '#,##0.##'})
+    # 엑셀 서식: 정수로 콤마 찍기 (실제 값 표시)
+    num_fmt = workbook.add_format({'num_format': '#,##0'})
     pct_fmt = workbook.add_format({'num_format': '0%'})
     
     start_col = 3
@@ -183,8 +180,11 @@ if uploaded_file:
             p_prev = brand_df_prev.pivot_table(index=['Project', 'Con.'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
 
             if biz_type == "Core" and brand in ['HYU', 'KIA']:
-                act_col = 'ACT' if 'ACT' in p_m.columns else (p_m.columns[0] if not p_m.empty else 'ACT')
-                top = p_m.nlargest(10, act_col).index if not p_m.empty else p_m.index
+                # [수정 1] 상위 10개가 아닌, 당월 ACT 10K(10,000유로) 이상 조건 적용
+                if not p_m.empty and 'ACT' in p_m.columns:
+                    top = p_m[p_m['ACT'] >= 10000].index
+                else:
+                    top = p_m.index
                 
                 def group_others(p):
                     if p.empty: return pd.DataFrame(columns=['25 FC3', '26 FC1', 'ACT']).reindex(pd.MultiIndex.from_tuples([], names=['Project', 'Con.']))
@@ -212,7 +212,6 @@ if uploaded_file:
                 achi_vals = np.where(fc1_vals != 0, act_vals / fc1_vals, 0)
                 combined_dict[(phase_name, 'ACHI %')] = pd.Series(achi_vals, index=data.index)
 
-            # [핵심 수정 부분] index=p_m.index를 명시하여 데이터가 비어있을 때 발생하는 스칼라 오류 방지
             combined = pd.DataFrame(combined_dict, index=p_m.index)
             
             if ('Others', '') in combined.index:
