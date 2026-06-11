@@ -12,7 +12,6 @@ st.set_page_config(page_title="월간 매출 보고서", layout="wide")
 st.markdown("""
     <style>
     .block-container { padding: 2rem 3rem; }
-    
     h1 { font-size: 1.6rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
     h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0.5rem !important; color: #002060 !important; }
     
@@ -24,6 +23,9 @@ st.markdown("""
         background-color: white;
     }
     
+    .report-table tr { border-bottom: none !important; }
+    .report-table td, .report-table th { border-bottom: none !important; border-top: none !important; }
+
     .report-table th, .report-table td {
         max-width: 250px;
         white-space: nowrap;
@@ -54,10 +56,11 @@ st.markdown("""
     .report-table .row_heading {
         background-color: white !important;
         color: #333 !important;
-        text-align: center !important;
+        text-align: left !important;
+        padding-left: 10px !important;
         border: 1px solid #d9d9d9 !important;
-        border-right: 1px solid #8ea9db;
         vertical-align: middle !important;
+        font-weight: bold !important;
     }
     
     .table-container {
@@ -121,24 +124,18 @@ if uploaded_file:
     def load_and_preprocess(file):
         xl = pd.ExcelFile(file)
         sheets = xl.sheet_names
-        
-        # 1. 데이터 시트 로드
         df = pd.read_excel(xl, sheet_name=sheets[0], header=4).iloc[:, :26]
         df.columns = ['Year', 'Month', 'Desc.', 'Date', 'STP', 'Customer', 'LK No.', "Q'ty", 
                       'Rev. ($)', 'Rev. (€)', 'Rev. (₩)', 'BIZ Type', 'Group 1', 'Group 2', 
                       'Project', 'PF', 'Item', 'Source', 'KOx', 'Memo', 'CPS', 
                       'EUR:USD', 'EUR:KRW', 'Business Type', 'Curr.', 'Con.']
         
-        # 2. SOP 시트 로드 (두 번째 시트) 및 매핑 딕셔너리 생성
         sop_dict = {}
         if len(sheets) > 1:
             df_sop = pd.read_excel(xl, sheet_name=sheets[1])
-            # A열: Project(0), D열: SOP(3)
             sop_dict = dict(zip(df_sop.iloc[:, 0], df_sop.iloc[:, 3]))
         
-        # SOP 매핑 (없으면 '-'로 표시)
         df['SOP'] = df['Project'].map(sop_dict).fillna('-')
-        
         df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
         df['Month'] = pd.to_numeric(df['Month'], errors='coerce')
         df = df.dropna(subset=['Year', 'Month'])
@@ -195,6 +192,9 @@ if uploaded_file:
         final_df.columns = pd.MultiIndex.from_tuples(col_tuples)
         final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
         
+        if len(index_cols) > 1:
+            final_df.index = final_df.index.map(lambda x: f"{x[0]} ({x[1]})")
+        
         if (phase_curr, 'ACT') in final_df.columns:
             final_df = final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
             
@@ -217,7 +217,6 @@ if uploaded_file:
             brand_df = df_biz[df_biz['Group 2'] == brand].copy()
             if brand_df.empty: continue
             
-            # SOP 포함하여 피벗 테이블 생성
             p_m = brand_df[brand_df['Month'] == month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             p_y = brand_df[brand_df['Month'] <= month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             p_fy = brand_df.pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
@@ -244,17 +243,20 @@ if uploaded_file:
             subtotal = combined.sum(numeric_only=True)
             for p_name in phase_names: subtotal[(p_name, 'ACHI %')] = subtotal.get((p_name, 'ACT'), 0) / subtotal.get((p_name, '26 FC1'), 0) if subtotal.get((p_name, '26 FC1'), 0) != 0 else 0
             
-            # 인덱스 포맷팅: Project (Con.) / SOP
-            combined.index = combined.index.map(lambda x: f"{brand} / {x[0]} ({x[1]}) / {x[2]}")
-            results.append(combined)
+            # 멀티 인덱스 유지
+            combined.index.names = ['Project', 'Con.', 'SOP']
+            # 각 행의 식별자를 튜플 형태로 변환 (Grouping)
+            combined = combined.set_index([pd.Index([brand]*len(combined)), combined.index])
+            combined.index.names = ['Cust. GR', 'Project', 'Con.', 'SOP']
             
+            results.append(combined)
             if brand != 'GM': 
-                results.append(pd.DataFrame([subtotal], index=[f"{brand} (Subtotal)"]))
+                results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, '소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
         
         final_df = pd.concat(results)
-        grand_total = final_df.sum(numeric_only=True)
+        grand_total = final_df[final_df.index.get_level_values(1) != '소계'].sum(numeric_only=True)
         for p_name in phase_names: grand_total[(p_name, 'ACHI %')] = grand_total.get((p_name, 'ACT'), 0) / grand_total.get((p_name, '26 FC1'), 0) if grand_total.get((p_name, '26 FC1'), 0) != 0 else 0
-        grand_row = pd.DataFrame([grand_total], index=[f'{biz_type} Business Total'])
+        grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('', f'{biz_type} Total', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
         return pd.concat([final_df, grand_row]), phase_names
 
     # ==========================================
@@ -271,8 +273,12 @@ if uploaded_file:
         df = df.replace(0, '') 
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
         styler = df.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
-        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold;' if 'Subtotal' in str(row.name) or 'Total' in str(row.name) else '' for _ in row], axis=1)
-        return f'<div class="table-container">{styler.to_html()}</div>'
+        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' if row.name[1] == '소계' or 'Total' in str(row.name[1]) else '' for _ in row], axis=1)
+        html = styler.to_html()
+        # 멀티인덱스 레벨이 4개(Cust.GR, Project, Con, SOP)이므로 colspan=4 적용
+        pattern = r'(<tr[^>]*>.*?)(<td[^>]*class="[^"]*row_heading[^>]*>[^<]*Total[^<]*</td>)\s*<td[^>]*>.*?</td>\s*<td[^>]*>.*?</td>\s*<td[^>]*>.*?</td>'
+        html = re.sub(pattern, r'\1<td colspan="4" style="text-align: center; font-weight: bold; background-color: #ffffe0; color: #002060; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;">\2</td>', html)
+        return f'<div class="table-container">{html}</div>'
 
     # ==========================================
     # 6. 화면 출력
