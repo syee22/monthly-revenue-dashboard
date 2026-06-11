@@ -136,7 +136,6 @@ if uploaded_file:
             sop_dict = dict(zip(df_sop.iloc[:, 0], df_sop.iloc[:, 3]))
         
         df['SOP'] = df['Project'].map(sop_dict)
-        # SOP 포맷 고정
         df['SOP'] = pd.to_datetime(df['SOP'], errors='coerce').dt.strftime('%Y.%m').fillna(df['SOP'].astype(str))
         
         df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
@@ -177,6 +176,7 @@ if uploaded_file:
         all_indices = set()
         for p in [s_prev, p_curr, p_ytd, p_ttl]:
             if not p.empty: all_indices.update(p.index.tolist() if isinstance(p.index, pd.MultiIndex) else [(x,) for x in p.index.tolist()])
+        if not all_indices: return pd.DataFrame(), col_prev, phase_curr
         
         all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
         idx = pd.MultiIndex.from_tuples(all_indices, names=index_names or index_cols) if len(index_cols) > 1 else pd.Index([x[0] for x in all_indices], name=(index_names[0] if index_names else index_cols[0]))
@@ -196,9 +196,12 @@ if uploaded_file:
         
         final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
         
-        # 정렬
+        # 정렬 로직: DIRECT 우선 정렬
         if 'BIZ Type' in final_df.index.names:
-            final_df = final_df.sort_index(level='BIZ Type', key=lambda x: x == 'COMMERCIAL')
+            # 카테고리 타입으로 변환하여 순서 보장 (level=0)
+            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMMERCIAL'], ordered=True)
+            final_df.index = final_df.index.set_levels(final_df.index.levels[0].astype(cats), level=0)
+            final_df = final_df.sort_index(level=0)
         elif (phase_curr, 'ACT') in final_df.columns:
             final_df = final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
             
@@ -249,7 +252,6 @@ if uploaded_file:
             subtotal = combined.sum(numeric_only=True)
             for p_name in phase_names: subtotal[(p_name, 'ACHI %')] = subtotal.get((p_name, 'ACT'), 0) / subtotal.get((p_name, '26 FC1'), 0) if subtotal.get((p_name, '26 FC1'), 0) != 0 else 0
             
-            # 멀티 인덱스 구조 유지
             combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
             results.append(combined)
             if brand != 'GM': 
@@ -276,7 +278,10 @@ if uploaded_file:
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
         styler = df.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
         styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' if '소계' in str(row.name) or 'Total' in str(row.name) else '' for _ in row], axis=1)
-        return f'<div class="table-container">{styler.to_html()}</div>'
+        html = styler.to_html()
+        pattern = r'(<tr[^>]*>.*?)(<td[^>]*class="[^"]*row_heading[^>]*>[^<]*Total[^<]*</td>)\s*<td[^>]*>.*?</td>\s*<td[^>]*>.*?</td>\s*<td[^>]*>.*?</td>'
+        html = re.sub(pattern, r'\1<td colspan="4" style="text-align: center; font-weight: bold; background-color: #ffffe0; color: #002060; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;">\2</td>', html)
+        return f'<div class="table-container">{html}</div>'
 
     # ==========================================
     # 6. 화면 출력
