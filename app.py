@@ -136,6 +136,7 @@ if uploaded_file:
             sop_dict = dict(zip(df_sop.iloc[:, 0], df_sop.iloc[:, 3]))
         
         df['SOP'] = df['Project'].map(sop_dict)
+        # SOP 포맷 고정
         df['SOP'] = pd.to_datetime(df['SOP'], errors='coerce').dt.strftime('%Y.%m').fillna(df['SOP'].astype(str))
         
         df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
@@ -176,7 +177,6 @@ if uploaded_file:
         all_indices = set()
         for p in [s_prev, p_curr, p_ytd, p_ttl]:
             if not p.empty: all_indices.update(p.index.tolist() if isinstance(p.index, pd.MultiIndex) else [(x,) for x in p.index.tolist()])
-        if not all_indices: return pd.DataFrame(), col_prev, phase_curr
         
         all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
         idx = pd.MultiIndex.from_tuples(all_indices, names=index_names or index_cols) if len(index_cols) > 1 else pd.Index([x[0] for x in all_indices], name=(index_names[0] if index_names else index_cols[0]))
@@ -192,13 +192,11 @@ if uploaded_file:
         
         final_df = pd.DataFrame(combined_dict)
         final_df.columns = pd.MultiIndex.from_tuples(col_tuples)
-        
-        # 이름 강제 할당 (KeyError 방지)
         final_df.index.names = index_names or index_cols
         
         final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
         
-        # 3번 테이블 (BIZ Type + KOx) 정렬: DIRECT 우선
+        # 정렬
         if 'BIZ Type' in final_df.index.names:
             final_df = final_df.sort_index(level='BIZ Type', key=lambda x: x == 'COMMERCIAL')
         elif (phase_curr, 'ACT') in final_df.columns:
@@ -206,7 +204,9 @@ if uploaded_file:
             
         total_row = final_df.sum(numeric_only=True)
         for phase_name in phases: total_row[(phase_name, 'ACHI %')] = total_row[(phase_name, 'ACT')] / total_row[(phase_name, '26 FC1')] if total_row[(phase_name, '26 FC1')] != 0 else 0
-        t_df = pd.DataFrame([total_row], index=pd.MultiIndex.from_tuples([tuple([''] * (len(final_df.index.names)-1) + [total_label])], names=final_df.index.names) if isinstance(final_df.index, pd.MultiIndex) else [total_label])
+        
+        t_index = tuple([''] * (len(final_df.index.names)-1) + [total_label]) if isinstance(final_df.index, pd.MultiIndex) else total_label
+        t_df = pd.DataFrame([total_row], index=[t_index] if not isinstance(final_df.index, pd.MultiIndex) else pd.MultiIndex.from_tuples([t_index], names=final_df.index.names))
         
         return pd.concat([final_df, t_df]), col_prev, phase_curr
 
@@ -249,6 +249,7 @@ if uploaded_file:
             subtotal = combined.sum(numeric_only=True)
             for p_name in phase_names: subtotal[(p_name, 'ACHI %')] = subtotal.get((p_name, 'ACT'), 0) / subtotal.get((p_name, '26 FC1'), 0) if subtotal.get((p_name, '26 FC1'), 0) != 0 else 0
             
+            # 멀티 인덱스 구조 유지
             combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
             results.append(combined)
             if brand != 'GM': 
@@ -275,10 +276,7 @@ if uploaded_file:
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
         styler = df.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
         styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' if '소계' in str(row.name) or 'Total' in str(row.name) else '' for _ in row], axis=1)
-        html = styler.to_html()
-        pattern = r'(<tr[^>]*>.*?)(<td[^>]*class="[^"]*row_heading[^>]*>[^<]*Total[^<]*</td>)\s*<td[^>]*>.*?</td>\s*<td[^>]*>.*?</td>\s*<td[^>]*>.*?</td>'
-        html = re.sub(pattern, r'\1<td colspan="4" style="text-align: center; font-weight: bold; background-color: #ffffe0; color: #002060; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;">\2</td>', html)
-        return f'<div class="table-container">{html}</div>'
+        return f'<div class="table-container">{styler.to_html()}</div>'
 
     # ==========================================
     # 6. 화면 출력
