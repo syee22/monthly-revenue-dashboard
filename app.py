@@ -199,7 +199,9 @@ if uploaded_file:
         if not all_indices:
             return pd.DataFrame(), col_prev, phase_curr
 
-        all_indices = sorted(list(all_indices))
+        # [오류 해결 부분] 문자와 숫자가 섞여 있을 때 발생하는 TypeError 방지
+        # 튜플 내의 각 요소를 임시로 문자열로 변환하여 안전하게 정렬합니다.
+        all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
         
         # 인덱스 생성
         if len(index_cols) > 1:
