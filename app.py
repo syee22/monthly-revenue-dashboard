@@ -23,18 +23,44 @@ st.markdown("""
         background-color: white;
     }
     
+    .report-table tr { border-bottom: none !important; }
+    .report-table td, .report-table th { border-bottom: none !important; border-top: none !important; }
+
+    .report-table th, .report-table td {
+        max-width: 250px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
     .report-table thead th {
         background-color: #002060 !important;
         color: white !important;
         border: 1px solid #8ea9db !important;
         text-align: center !important;
         padding: 4px 3px !important;
+        font-weight: 600 !important;
+        font-size: 11.5px !important;
+        position: sticky;
+        top: 0;
+        z-index: 10;
     }
     
     .report-table td {
         border: 1px solid #d9d9d9;
-        text-align: center; /* 기본 가운데 정렬 */
+        text-align: center; /* 텍스트 가운데 정렬 기본 */
         padding: 4px;
+        vertical-align: middle;
+    }
+    
+    .report-table .row_heading {
+        background-color: #f8f9fa !important;
+        color: #333 !important;
+        text-align: left !important;
+        padding-left: 10px !important;
+        border: 1px solid #d9d9d9 !important;
+        vertical-align: middle !important;
+        font-weight: bold !important;
     }
     
     .table-container {
@@ -51,14 +77,32 @@ st.markdown("""
 st.title("📊 통합 월간 매출 보고서 (FC vs ACT 자동 집계)")
 
 # ==========================================
-# 2. 고품질 엑셀 스타일링 함수
+# 2. 포맷팅 및 고품질 엑셀 다운로드 함수
 # ==========================================
+# 에러 해결을 위한 핵심 함수 (K단위 변환 및 퍼센트 HTML 포맷)
+def format_k_val(val):
+    if pd.isna(val) or isinstance(val, str) or val == '': return val
+    v = val / 1_000.0
+    rounded_int = int(round(v, 0))
+    if rounded_int == 0:
+        v_rounded = round(v, 2)
+        if v_rounded == 0: return "0"
+        return f"{v_rounded:,.1f}" if round(v_rounded, 1) == v_rounded else f"{v_rounded:,.2f}"
+    return f"{rounded_int:,}"
+
+def format_percentage_html(val):
+    if pd.isna(val) or isinstance(val, str) or val == '': return val
+    pct_str = f"{val:.0%}"
+    if val >= 1.0: return f'<span style="color: #00b050; font-weight: bold;">{pct_str} ▲</span>'
+    elif val > 0: return f'<span style="color: #c00000; font-weight: bold;">{pct_str} ▼</span>'
+    else: return pct_str
+
 def to_excel_multiple(df_dict):
     output = io.BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     workbook = writer.book
     
-    # 스타일 정의
+    # 엑셀 스타일 정의
     header_fmt = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#002060', 'font_color': 'white', 'border': 1})
     center_fmt = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
     num_fmt = workbook.add_format({'align': 'right', 'valign': 'vcenter', 'num_format': '#,##0', 'border': 1})
@@ -70,27 +114,24 @@ def to_excel_multiple(df_dict):
         df.to_excel(writer, index=True, sheet_name=sheet_name[:31])
         worksheet = writer.sheets[sheet_name[:31]]
         
-        # 헤더 스타일
+        # 헤더 스타일 적용
         for col_num, value in enumerate(df.columns.values):
-            worksheet.write(0, col_num + df.index.nlevels, value, header_fmt)
+            worksheet.write(0, col_num + df.index.nlevels, str(value), header_fmt)
             
-        # 데이터 스타일
+        # 데이터 스타일 적용
         for row_idx in range(len(df)):
             for col_idx in range(len(df.columns) + df.index.nlevels):
                 val = df.iloc[row_idx, col_idx - df.index.nlevels] if col_idx >= df.index.nlevels else df.index[row_idx][col_idx]
                 
-                # 정렬 및 서식 결정
                 is_num = isinstance(val, (int, float)) and col_idx >= df.index.nlevels
                 is_pct = 'ACHI' in str(df.columns[col_idx - df.index.nlevels]) if col_idx >= df.index.nlevels else False
                 is_total = 'Total' in str(df.index[row_idx]) or 'Subtotal' in str(df.index[row_idx])
                 
-                if is_pct:
-                    worksheet.write(row_idx + 1, col_idx, val, pct_fmt)
+                if is_pct: worksheet.write(row_idx + 1, col_idx, val, pct_fmt)
                 elif is_num:
                     if is_total: worksheet.write(row_idx + 1, col_idx, val, total_fmt)
                     else: worksheet.write(row_idx + 1, col_idx, val, num_fmt)
-                else:
-                    worksheet.write(row_idx + 1, col_idx, val, center_fmt)
+                else: worksheet.write(row_idx + 1, col_idx, val, center_fmt)
                     
         worksheet.set_column(0, len(df.columns) + df.index.nlevels, 15)
             
@@ -114,7 +155,7 @@ if uploaded_file:
                       'EUR:USD', 'EUR:KRW', 'Business Type', 'Curr.', 'Con.']
         
         if 'BIZ Type' in df.columns:
-            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMM')
+            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMMERCIAL')
             df['BIZ Type'] = df['BIZ Type'].fillna('Unknown')
         
         sop_dict = {}
@@ -189,7 +230,7 @@ if uploaded_file:
         final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
         
         if 'BIZ Type' in final_df.index.names:
-            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMM', 'Unknown'], ordered=True)
+            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMMERCIAL', 'Unknown'], ordered=True)
             try:
                 final_df.index = final_df.index.set_levels(final_df.index.levels[0].astype(cats), level=0)
                 final_df = final_df.sort_index(level=0)
@@ -217,7 +258,7 @@ if uploaded_file:
         prev_phase_name = f'{pm_str}. {prev_year}'
         
         results = []
-        biz_categories = ['DIRECT', 'COMM', 'Unknown']
+        biz_categories = ['DIRECT', 'COMMERCIAL', 'Unknown']
         for biz in biz_categories:
             biz_df = df[(df['BIZ Type'] == biz) & (df['Year'] == year)]
             if biz_df.empty: continue
