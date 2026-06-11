@@ -130,7 +130,7 @@ if uploaded_file:
                       'EUR:USD', 'EUR:KRW', 'Business Type', 'Curr.', 'Con.']
         
         if 'BIZ Type' in df.columns:
-            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMM')
+            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMMERCIAL')
             df['BIZ Type'] = df['BIZ Type'].fillna('Unknown')
         
         sop_dict = {}
@@ -202,14 +202,7 @@ if uploaded_file:
         
         final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
         
-        if 'BIZ Type' in final_df.index.names:
-            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMM', 'Unknown'], ordered=True)
-            try:
-                final_df.index = final_df.index.set_levels(final_df.index.levels[0].astype(cats), level=0)
-                final_df = final_df.sort_index(level=0)
-            except:
-                pass
-        elif (phase_curr, 'ACT') in final_df.columns:
+        if (phase_curr, 'ACT') in final_df.columns:
             final_df = final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
             
         total_row = final_df.sum(numeric_only=True)
@@ -222,6 +215,49 @@ if uploaded_file:
         t_df = pd.DataFrame([total_row], index=[t_index] if not isinstance(final_df.index, pd.MultiIndex) else pd.MultiIndex.from_tuples([t_index], names=final_df.index.names))
         
         return pd.concat([final_df, t_df]), col_prev, phase_curr
+
+    # 3번 테이블 전용 함수
+    def get_biz_type_detailed_report(df, year, month):
+        if month == 1: prev_year, prev_month = year - 1, 12
+        else: prev_year, prev_month = year, month - 1
+        
+        month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
+        m_str, pm_str = month_names.get(month, f'{month}'), month_names.get(prev_month, f'{prev_month}')
+        phase_names = [f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL']
+        prev_phase_name = f'{pm_str}. {prev_year}'
+        
+        results = []
+        # 카테고리 순서 정의
+        biz_categories = ['DIRECT', 'COMMERCIAL', 'Unknown']
+        
+        for biz in biz_categories:
+            biz_df = df[(df['BIZ Type'] == biz) & (df['Year'] == year)]
+            if biz_df.empty: continue
+            
+            p_m = biz_df[biz_df['Month'] == month].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+            p_y = biz_df[biz_df['Month'] <= month].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+            p_fy = biz_df.pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+            p_prev = df[(df['BIZ Type'] == biz) & (df['Year'] == prev_year) & (df['Month'] == prev_month)].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+            
+            combined_dict = {(prev_phase_name, 'ACT'): p_prev.get('ACT', 0)}
+            for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
+                for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data.get(c, 0)
+                num = pd.Series(data.get('ACT', 0))
+                den = pd.Series(data.get('26 FC1', 0))
+                combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
+            
+            combined = pd.DataFrame(combined_dict, index=p_m.index)
+            subtotal = combined.sum(numeric_only=True)
+            for p_name in phase_names:
+                num = subtotal.get((p_name, 'ACT'), 0)
+                den = subtotal.get((p_name, '26 FC1'), 0)
+                subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
+            
+            results.append(combined)
+            results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(biz, 'Subtotal')], names=['BIZ Type', 'KOx'])))
+            
+        final_df = pd.concat(results)
+        return final_df
 
     def get_biz_report(df, biz_type, year, month):
         if month == 1: prev_year, prev_month = year - 1, 12
@@ -290,7 +326,7 @@ if uploaded_file:
         df = df.replace(0, '') 
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
         styler = df.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
-        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row) if 'Total' in str(row.name) else [''] * len(row), axis=1)
+        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row) if 'Total' in str(row.name) or 'Subtotal' in str(row.name) else [''] * len(row), axis=1)
         return f'<div class="table-container">{styler.to_html()}</div>'
 
     def render_biz_html_table(df):
@@ -318,8 +354,8 @@ if uploaded_file:
     if not df_item.empty: st.markdown(render_html_view(df_item, c_col), unsafe_allow_html=True); reports_to_download["Item_Summary"] = df_item
 
     st.subheader("📌 3. 비즈니스 타입별 매출 요약 (DIRECT / COMM.)")
-    df_biz, p_col, c_col = build_summary_report(raw_df, ['BIZ Type', 'KOx'], selected_year, selected_month, 'Total', index_names=['BIZ Type', 'KOx'])
-    if not df_biz.empty: st.markdown(render_html_view(df_biz, c_col), unsafe_allow_html=True); reports_to_download["Biz_Type_Summary"] = df_biz
+    df_biz = get_biz_type_detailed_report(raw_df, selected_year, selected_month)
+    if not df_biz.empty: st.markdown(render_html_view(df_biz, ""), unsafe_allow_html=True); reports_to_download["Biz_Type_Summary"] = df_biz
 
     st.subheader("📌 4. Power Electronics 비즈니스")
     df_pe, phase_names_pe = get_biz_report(raw_df, "Power", selected_year, selected_month)
