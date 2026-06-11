@@ -79,7 +79,6 @@ st.title("📊 통합 월간 매출 보고서 (FC vs ACT 자동 집계)")
 # ==========================================
 # 2. 포맷팅 및 고품질 엑셀 다운로드 함수
 # ==========================================
-# 에러 해결을 위한 핵심 함수 (K단위 변환 및 퍼센트 HTML 포맷)
 def format_k_val(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
     v = val / 1_000.0
@@ -102,7 +101,7 @@ def to_excel_multiple(df_dict):
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     workbook = writer.book
     
-    # 엑셀 스타일 정의
+    # 엑셀 서식 정의 (3번 개선사항 유지)
     header_fmt = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#002060', 'font_color': 'white', 'border': 1})
     center_fmt = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
     num_fmt = workbook.add_format({'align': 'right', 'valign': 'vcenter', 'num_format': '#,##0', 'border': 1})
@@ -114,11 +113,11 @@ def to_excel_multiple(df_dict):
         df.to_excel(writer, index=True, sheet_name=sheet_name[:31])
         worksheet = writer.sheets[sheet_name[:31]]
         
-        # 헤더 스타일 적용
+        # 헤더 서식 적용
         for col_num, value in enumerate(df.columns.values):
             worksheet.write(0, col_num + df.index.nlevels, str(value), header_fmt)
             
-        # 데이터 스타일 적용
+        # 데이터 서식 적용
         for row_idx in range(len(df)):
             for col_idx in range(len(df.columns) + df.index.nlevels):
                 val = df.iloc[row_idx, col_idx - df.index.nlevels] if col_idx >= df.index.nlevels else df.index[row_idx][col_idx]
@@ -155,7 +154,7 @@ if uploaded_file:
                       'EUR:USD', 'EUR:KRW', 'Business Type', 'Curr.', 'Con.']
         
         if 'BIZ Type' in df.columns:
-            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMMERCIAL')
+            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMM')
             df['BIZ Type'] = df['BIZ Type'].fillna('Unknown')
         
         sop_dict = {}
@@ -230,7 +229,7 @@ if uploaded_file:
         final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
         
         if 'BIZ Type' in final_df.index.names:
-            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMMERCIAL', 'Unknown'], ordered=True)
+            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMM', 'Unknown'], ordered=True)
             try:
                 final_df.index = final_df.index.set_levels(final_df.index.levels[0].astype(cats), level=0)
                 final_df = final_df.sort_index(level=0)
@@ -258,7 +257,7 @@ if uploaded_file:
         prev_phase_name = f'{pm_str}. {prev_year}'
         
         results = []
-        biz_categories = ['DIRECT', 'COMMERCIAL', 'Unknown']
+        biz_categories = ['DIRECT', 'COMM', 'Unknown']
         for biz in biz_categories:
             biz_df = df[(df['BIZ Type'] == biz) & (df['Year'] == year)]
             if biz_df.empty: continue
@@ -367,6 +366,7 @@ if uploaded_file:
     # 6. 화면 출력
     # ==========================================
     reports_to_download = {}
+    
     st.subheader("📌 1. 매출 요약 (CPS 기준)")
     df_cps, p_col, c_col = build_summary_report(raw_df, ['CPS'], selected_year, selected_month, 'Total')
     if not df_cps.empty: st.markdown(render_html_view(df_cps, c_col), unsafe_allow_html=True); reports_to_download["CPS_Summary"] = df_cps
