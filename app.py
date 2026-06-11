@@ -130,9 +130,9 @@ if uploaded_file:
                       'Project', 'PF', 'Item', 'Source', 'KOx', 'Memo', 'CPS', 
                       'EUR:USD', 'EUR:KRW', 'Business Type', 'Curr.', 'Con.']
         
-        # BIZ Type 정제 (COMM -> COMMERCIAL, 결측치 처리)
+        # BIZ Type 정제 (COMM -> COMM, 결측치 처리)
         if 'BIZ Type' in df.columns:
-            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMMERCIAL')
+            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMM')
             df['BIZ Type'] = df['BIZ Type'].fillna('Unknown')
         
         sop_dict = {}
@@ -206,7 +206,7 @@ if uploaded_file:
         # 정렬: Biz Type이 있다면 DIRECT가 위로 오도록 정렬
         if 'BIZ Type' in final_df.index.names:
             # 카테고리 타입으로 변환하여 순서 보장 (level 0)
-            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMMERCIAL', 'Unknown'], ordered=True)
+            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMM', 'Unknown'], ordered=True)
             try:
                 final_df.index = final_df.index.set_levels(final_df.index.levels[0].astype(cats), level=0)
                 final_df = final_df.sort_index(level=0)
