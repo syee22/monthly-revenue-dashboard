@@ -96,38 +96,44 @@ def format_percentage_html(val):
     elif val > 0: return f'<span style="color: #c00000; font-weight: bold;">{pct_str} ▼</span>'
     else: return pct_str
 
-def to_excel_multiple_fixed(df_dict):
+def to_excel_multiple(df_dict):
     output = io.BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     workbook = writer.book
     
-    # 보고서용 고정 서식
+    # 엑셀 서식 정의 (3번 개선사항 유지)
     header_fmt = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#002060', 'font_color': 'white', 'border': 1})
+    center_fmt = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
     num_fmt = workbook.add_format({'align': 'right', 'valign': 'vcenter', 'num_format': '#,##0', 'border': 1})
-    text_fmt = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
+    pct_fmt = workbook.add_format({'align': 'right', 'valign': 'vcenter', 'num_format': '0%', 'border': 1})
+    total_fmt = workbook.add_format({'bold': True, 'align': 'right', 'valign': 'vcenter', 'bg_color': '#ffffe0', 'border': 1, 'num_format': '#,##0'})
     
     for sheet_name, df in df_dict.items():
         if df.empty: continue
+        df.to_excel(writer, index=True, sheet_name=sheet_name[:31])
+        worksheet = writer.sheets[sheet_name[:31]]
         
-        # 1. 데이터 시트 저장 (값 그대로)
-        df.to_excel(writer, index=True, sheet_name=f"{sheet_name[:20]}_Data")
-        
-        # 2. 보고서용 시트 저장 (서식 고정)
-        ws = workbook.add_worksheet(f"{sheet_name[:20]}_Report")
-        
-        # 헤더 쓰기
-        headers = list(df.index.names) + list(df.columns)
-        for i, h in enumerate(headers):
-            ws.write(0, i, str(h), header_fmt)
-        
-        # 값 쓰기 (서식 고정)
-        for r_idx, row in enumerate(df.itertuples()):
-            for c_idx, val in enumerate(row):
-                fmt = num_fmt if isinstance(val, (int, float)) else text_fmt
-                ws.write(r_idx + 1, c_idx, val, fmt)
-        
-        ws.set_column(0, len(headers), 15)
-        
+        # 헤더 서식 적용
+        for col_num, value in enumerate(df.columns.values):
+            worksheet.write(0, col_num + df.index.nlevels, str(value), header_fmt)
+            
+        # 데이터 서식 적용
+        for row_idx in range(len(df)):
+            for col_idx in range(len(df.columns) + df.index.nlevels):
+                val = df.iloc[row_idx, col_idx - df.index.nlevels] if col_idx >= df.index.nlevels else df.index[row_idx][col_idx]
+                
+                is_num = isinstance(val, (int, float)) and col_idx >= df.index.nlevels
+                is_pct = 'ACHI' in str(df.columns[col_idx - df.index.nlevels]) if col_idx >= df.index.nlevels else False
+                is_total = 'Total' in str(df.index[row_idx]) or 'Subtotal' in str(df.index[row_idx])
+                
+                if is_pct: worksheet.write(row_idx + 1, col_idx, val, pct_fmt)
+                elif is_num:
+                    if is_total: worksheet.write(row_idx + 1, col_idx, val, total_fmt)
+                    else: worksheet.write(row_idx + 1, col_idx, val, num_fmt)
+                else: worksheet.write(row_idx + 1, col_idx, val, center_fmt)
+                    
+        worksheet.set_column(0, len(df.columns) + df.index.nlevels, 15)
+            
     writer.close()
     return output.getvalue()
 
@@ -148,7 +154,7 @@ if uploaded_file:
                       'EUR:USD', 'EUR:KRW', 'Business Type', 'Curr.', 'Con.']
         
         if 'BIZ Type' in df.columns:
-            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMM')
+            df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm'], 'COMMERCIAL')
             df['BIZ Type'] = df['BIZ Type'].fillna('Unknown')
         
         sop_dict = {}
@@ -223,7 +229,7 @@ if uploaded_file:
         final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
         
         if 'BIZ Type' in final_df.index.names:
-            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMM', 'Unknown'], ordered=True)
+            cats = pd.CategoricalDtype(categories=['DIRECT', 'COMMERCIAL', 'Unknown'], ordered=True)
             try:
                 final_df.index = final_df.index.set_levels(final_df.index.levels[0].astype(cats), level=0)
                 final_df = final_df.sort_index(level=0)
@@ -251,7 +257,7 @@ if uploaded_file:
         prev_phase_name = f'{pm_str}. {prev_year}'
         
         results = []
-        biz_categories = ['DIRECT', 'COMM', 'Unknown']
+        biz_categories = ['DIRECT', 'COMMERCIAL', 'Unknown']
         for biz in biz_categories:
             biz_df = df[(df['BIZ Type'] == biz) & (df['Year'] == year)]
             if biz_df.empty: continue
