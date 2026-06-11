@@ -23,7 +23,6 @@ st.markdown("""
         background-color: white;
     }
     
-    /* 행 사이 구분선 제거 */
     .report-table tr { border-bottom: none !important; }
     .report-table td, .report-table th { border-bottom: none !important; border-top: none !important; }
 
@@ -136,7 +135,6 @@ if uploaded_file:
             df_sop = pd.read_excel(xl, sheet_name=sheets[1])
             sop_dict = dict(zip(df_sop.iloc[:, 0], df_sop.iloc[:, 3]))
         
-        # SOP 포맷팅 (YYYY.MM)
         df['SOP'] = df['Project'].map(sop_dict)
         df['SOP'] = pd.to_datetime(df['SOP'], errors='coerce').dt.strftime('%Y.%m').fillna(df['SOP'].astype(str))
         
@@ -178,6 +176,7 @@ if uploaded_file:
         all_indices = set()
         for p in [s_prev, p_curr, p_ytd, p_ttl]:
             if not p.empty: all_indices.update(p.index.tolist() if isinstance(p.index, pd.MultiIndex) else [(x,) for x in p.index.tolist()])
+        if not all_indices: return pd.DataFrame(), col_prev, phase_curr
         
         all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
         idx = pd.MultiIndex.from_tuples(all_indices, names=index_names or index_cols) if len(index_cols) > 1 else pd.Index([x[0] for x in all_indices], name=(index_names[0] if index_names else index_cols[0]))
@@ -193,11 +192,15 @@ if uploaded_file:
         
         final_df = pd.DataFrame(combined_dict)
         final_df.columns = pd.MultiIndex.from_tuples(col_tuples)
+        
+        # 이름 강제 할당 (KeyError 방지)
+        final_df.index.names = index_names or index_cols
+        
         final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
         
         # 3번 테이블 (BIZ Type + KOx) 정렬: DIRECT 우선
-        if 'BIZ Type' in index_cols:
-            final_df = final_df.sort_index(level='BIZ Type', key=lambda x: x == 'COMMERCIAL') # DIRECT가 0이 되어 우선순위
+        if 'BIZ Type' in final_df.index.names:
+            final_df = final_df.sort_index(level='BIZ Type', key=lambda x: x == 'COMMERCIAL')
         elif (phase_curr, 'ACT') in final_df.columns:
             final_df = final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
             
@@ -246,10 +249,10 @@ if uploaded_file:
             subtotal = combined.sum(numeric_only=True)
             for p_name in phase_names: subtotal[(p_name, 'ACHI %')] = subtotal.get((p_name, 'ACT'), 0) / subtotal.get((p_name, '26 FC1'), 0) if subtotal.get((p_name, '26 FC1'), 0) != 0 else 0
             
-            # 멀티 인덱스 유지
             combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
             results.append(combined)
-            if brand != 'GM': results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, '소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
+            if brand != 'GM': 
+                results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, '소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
         
         final_df = pd.concat(results)
         grand_total = final_df[final_df.index.get_level_values(1) != '소계'].sum(numeric_only=True)
@@ -281,6 +284,7 @@ if uploaded_file:
     # 6. 화면 출력
     # ==========================================
     reports_to_download = {}
+    
     st.subheader("📌 1. 매출 요약 (CPS 기준)")
     df_cps, p_col, c_col = build_summary_report(raw_df, ['CPS'], selected_year, selected_month, 'Total')
     if not df_cps.empty: st.markdown(render_html_view(df_cps, c_col), unsafe_allow_html=True); reports_to_download["CPS_Summary"] = df_cps
@@ -291,7 +295,7 @@ if uploaded_file:
     if not df_item.empty: st.markdown(render_html_view(df_item, c_col), unsafe_allow_html=True); reports_to_download["Item_Summary"] = df_item
 
     st.subheader("📌 3. 비즈니스 타입별 매출 요약 (DIRECT / COMM.)")
-    df_biz, p_col, c_col = build_summary_report(raw_df, ['BIZ Type', 'KOx'], selected_year, selected_month, 'Total')
+    df_biz, p_col, c_col = build_summary_report(raw_df, ['BIZ Type', 'KOx'], selected_year, selected_month, 'Total', index_names=['BIZ Type', 'KOx'])
     if not df_biz.empty: st.markdown(render_html_view(df_biz, c_col), unsafe_allow_html=True); reports_to_download["Biz_Type_Summary"] = df_biz
 
     st.subheader("📌 4. Power Electronics 비즈니스")
