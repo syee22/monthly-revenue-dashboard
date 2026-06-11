@@ -884,7 +884,10 @@ if uploaded_file:
 
 
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
-
+        styler.set_table_styles([
+        {'selector': 'th, td', 'props': [('border-collapse', 'separate')]},
+        {'selector': 'tr', 'props': [('display', 'table-row')]}
+        ])
 
 
         numeric_cols = get_numeric_cols(df)
