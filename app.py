@@ -136,7 +136,10 @@ if uploaded_file:
             df_sop = pd.read_excel(xl, sheet_name=sheets[1])
             sop_dict = dict(zip(df_sop.iloc[:, 0], df_sop.iloc[:, 3]))
         
-        df['SOP'] = df['Project'].map(sop_dict).fillna('-')
+        # SOP 포맷팅 (YYYY.MM)
+        df['SOP'] = df['Project'].map(sop_dict)
+        df['SOP'] = pd.to_datetime(df['SOP'], errors='coerce').dt.strftime('%Y.%m').fillna(df['SOP'].astype(str))
+        
         df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
         df['Month'] = pd.to_numeric(df['Month'], errors='coerce')
         df = df.dropna(subset=['Year', 'Month'])
@@ -192,16 +195,15 @@ if uploaded_file:
         final_df.columns = pd.MultiIndex.from_tuples(col_tuples)
         final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
         
-        # 정렬
-        if (phase_curr, 'ACT') in final_df.columns:
+        # 3번 테이블 (BIZ Type + KOx) 정렬: DIRECT 우선
+        if 'BIZ Type' in index_cols:
+            final_df = final_df.sort_index(level='BIZ Type', key=lambda x: x == 'COMMERCIAL') # DIRECT가 0이 되어 우선순위
+        elif (phase_curr, 'ACT') in final_df.columns:
             final_df = final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
             
         total_row = final_df.sum(numeric_only=True)
         for phase_name in phases: total_row[(phase_name, 'ACHI %')] = total_row[(phase_name, 'ACT')] / total_row[(phase_name, '26 FC1')] if total_row[(phase_name, '26 FC1')] != 0 else 0
-        
-        # 합계 행 추가 (MultiIndex에 맞춰 이름 구성)
-        t_index = tuple([''] * (len(final_df.index.names)-1) + [total_label]) if isinstance(final_df.index, pd.MultiIndex) else total_label
-        t_df = pd.DataFrame([total_row], index=[t_index] if not isinstance(final_df.index, pd.MultiIndex) else pd.MultiIndex.from_tuples([t_index], names=final_df.index.names))
+        t_df = pd.DataFrame([total_row], index=pd.MultiIndex.from_tuples([tuple([''] * (len(final_df.index.names)-1) + [total_label])], names=final_df.index.names) if isinstance(final_df.index, pd.MultiIndex) else [total_label])
         
         return pd.concat([final_df, t_df]), col_prev, phase_curr
 
@@ -244,12 +246,10 @@ if uploaded_file:
             subtotal = combined.sum(numeric_only=True)
             for p_name in phase_names: subtotal[(p_name, 'ACHI %')] = subtotal.get((p_name, 'ACT'), 0) / subtotal.get((p_name, '26 FC1'), 0) if subtotal.get((p_name, '26 FC1'), 0) != 0 else 0
             
-            # 인덱스 유지
+            # 멀티 인덱스 유지
             combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
             results.append(combined)
-            
-            if brand != 'GM': 
-                results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, '소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
+            if brand != 'GM': results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, '소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
         
         final_df = pd.concat(results)
         grand_total = final_df[final_df.index.get_level_values(1) != '소계'].sum(numeric_only=True)
@@ -273,7 +273,6 @@ if uploaded_file:
         styler = df.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
         styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' if '소계' in str(row.name) or 'Total' in str(row.name) else '' for _ in row], axis=1)
         html = styler.to_html()
-        # Grand Total 행 병합 처리 (colspan 4: Cust.GR, Project, Con, SOP)
         pattern = r'(<tr[^>]*>.*?)(<td[^>]*class="[^"]*row_heading[^>]*>[^<]*Total[^<]*</td>)\s*<td[^>]*>.*?</td>\s*<td[^>]*>.*?</td>\s*<td[^>]*>.*?</td>'
         html = re.sub(pattern, r'\1<td colspan="4" style="text-align: center; font-weight: bold; background-color: #ffffe0; color: #002060; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;">\2</td>', html)
         return f'<div class="table-container">{html}</div>'
@@ -282,7 +281,6 @@ if uploaded_file:
     # 6. 화면 출력
     # ==========================================
     reports_to_download = {}
-    
     st.subheader("📌 1. 매출 요약 (CPS 기준)")
     df_cps, p_col, c_col = build_summary_report(raw_df, ['CPS'], selected_year, selected_month, 'Total')
     if not df_cps.empty: st.markdown(render_html_view(df_cps, c_col), unsafe_allow_html=True); reports_to_download["CPS_Summary"] = df_cps
