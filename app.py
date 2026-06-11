@@ -961,7 +961,15 @@ if uploaded_file:
     reports_to_download = {}
 
 
-
+    # 소계 행 스타일 적용 코드 수정 (명확한 개별 셀 스타일링)
+    def apply_row_style(row):
+        row_name_str = str(row.name)
+        if any(k in row_name_str for k in ['TTL', 'Total', 'Subtotal', '소계']):
+            # 개별 셀마다 스타일을 강제로 주입하여 병합 시도 자체를 무력화
+            return ['background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border: 1px solid #8ea9db !important;'] * len(row)
+        return [''] * len(row)
+    
+    styler.apply(apply_row_style, axis=1)
     
 
 
