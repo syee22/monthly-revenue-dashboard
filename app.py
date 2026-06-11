@@ -67,9 +67,22 @@ st.markdown("""
         overflow-x: auto;
         border: 2px solid #002060;
         box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
-        margin-bottom: 0px !important;
+        
+        /* 여기서 여백을 조절합니다 */
+        margin-bottom: 1rem !important; 
         padding: 0px !important;
-        width: 100%;
+        
+        /* 테이블 크기에 딱 맞게 설정 */
+        display: inline-block; 
+        width: auto;
+        min-width: 100%; /* 너비는 최소 100%를 유지하되 */
+        box-sizing: border-box;
+    }
+    
+    /* 테이블의 불필요한 기본 margin 제거 */
+    .report-table {
+        margin: 0 !important;
+        border-collapse: collapse !important;
     }
     </style>
 """, unsafe_allow_html=True)
