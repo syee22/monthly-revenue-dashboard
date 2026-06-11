@@ -1,482 +1,204 @@
 import streamlit as st
-
-
-
 import pandas as pd
-
-
-
 import numpy as np
-
-
-
 import io
-
-
-
 import re
 
 
-
-
-
-
-
 # ==========================================
-
-
-
 # 1. 페이지 설정 및 전역 CSS 주입
-
-
-
 # ==========================================
-
-
 
 st.set_page_config(page_title="월간 매출 보고서", layout="wide")
 
-
-
-
-
-
-
 st.markdown("""
-
-
 
     <style>
 
-
-
     .block-container { padding: 2rem 3rem; }
-
-
 
     h1 { font-size: 1.6rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
 
-
-
     h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0.5rem !important; color: #002060 !important; }
-
-
-
-    
-
-
 
     .report-table {
 
-
-
         border-collapse: collapse !important;
-
-
 
         font-family: 'Malgun Gothic', sans-serif;
 
-
-
         font-size: 12px;
-
-
 
         width: 100%;
 
-
-
         background-color: white;
 
-
-
     }
-
-
-
-    
 
 
 
     .report-table tr { border-bottom: none !important; }
 
-
-
     .report-table td, .report-table th { border-bottom: none !important; border-top: none !important; }
-
-
-
-
-
-
 
     .report-table th, .report-table td {
 
-
-
         max-width: 250px;
-
-
 
         white-space: nowrap;
 
-
-
         overflow: hidden;
-
-
 
         text-overflow: ellipsis;
 
-
-
     }
-
-
-
-    
-
-
 
     .report-table thead th {
 
-
-
         background-color: #002060 !important;
-
-
 
         color: white !important;
 
-
-
         border: 1px solid #8ea9db !important;
-
-
 
         text-align: center !important;
 
-
-
         padding: 4px 3px !important;
-
-
 
         font-weight: 600 !important;
 
-
-
         font-size: 11.5px !important;
-
-
 
         position: sticky;
 
-
-
         top: 0;
-
-
 
         z-index: 10;
 
-
-
     }
-
-
-
-    
-
-
 
     .report-table td {
 
-
-
         border: 1px solid #d9d9d9;
-
-
 
         text-align: center;
 
-
-
         padding: 4px;
-
-
 
         vertical-align: middle;
 
-
-
     }
-
-
-
-    
-
-
 
     .report-table .row_heading {
 
-
-
         background-color: #f8f9fa !important;
-
-
 
         color: #333 !important;
 
-
-
         text-align: left !important;
-
-
 
         padding-left: 10px !important;
 
-
-
         border: 1px solid #d9d9d9 !important;
-
-
 
         vertical-align: middle !important;
 
-
-
         font-weight: bold !important;
 
-
-
     }
-
-
-
-    
-
 
 
     .table-container {
 
-
-
         overflow-x: auto;
-
-
 
         border: 2px solid #002060;
 
-
-
         box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
-
-
-
-        
-
-
 
         /* 여기서 여백을 조절합니다 */
 
-
-
         margin-bottom: 1rem !important; 
-
-
 
         padding: 0px !important;
 
 
-
-        
-
-
-
         /* 테이블 크기에 딱 맞게 설정 */
-
-
 
         display: inline-block; 
 
-
-
         width: auto;
-
-
 
         min-width: 100%; /* 너비는 최소 100%를 유지하되 */
 
-
-
         box-sizing: border-box;
 
-
-
     }
-
-
-
-    
-
-
 
     /* 테이블의 불필요한 기본 margin 제거 */
 
-
-
     .report-table {
-
-
 
         margin: 0 !important;
 
-
-
         border-collapse: collapse !important;
-
-
 
     }
 
-
-
     </style>
-
-
 
 """, unsafe_allow_html=True)
 
-
-
-
-
-
-
 st.title("📊 통합 월간 매출 보고서 (FC vs ACT 자동 집계)")
 
-
-
-
-
-
-
 # ==========================================
-
-
 
 # 2. 포맷팅 및 고품질 엑셀 다운로드 함수
 
-
-
 # ==========================================
-
-
 
 def format_k_val(val):
 
-
-
     if pd.isna(val) or isinstance(val, str) or val == '': return val
-
-
 
     v = val / 1_000.0
 
-
-
     rounded_int = int(round(v, 0))
-
-
 
     if rounded_int == 0:
 
-
-
         v_rounded = round(v, 2)
 
-
-
         return str(v_rounded) if v_rounded != 0 else "0"
-
-
 
     return f"{rounded_int:,}"
 
 
 
-
-
-
-
 def format_percentage_html(val):
 
-
-
     if pd.isna(val) or isinstance(val, str) or val == '': return val
-
-
-
     pct_str = f"{val:.0%}"
-
-
-
     if val >= 1.0: return f'<span style="color: #00b050; font-weight: bold;">{pct_str} ▲</span>'
-
-
-
     elif val > 0: return f'<span style="color: #c00000; font-weight: bold;">{pct_str} ▼</span>'
-
-
-
     else: return pct_str
 
 
-
-
-
-
-
 def to_excel_multiple(df_dict):
-
-
-
     output = io.BytesIO()
-
-
-
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-
-
-
         for sheet_name, df in df_dict.items():
-
-
-
             # 1. 스타일링을 위한 Styler 생성
-
-
 
             styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
 
-
-
-            
-
-
-
             # 2. 배경색/테두리 조건부 서식 적용 (화면과 동일하게)
-
-
 
             def apply_row_style(row):
 
                 # row.name이 튜플(MultiIndex)일 수 있으므로 문자열로 변환 후 모든 요소를 확인
 
                 row_name_str = str(row.name)
-
-                
 
                 # 합계나 소계 키워드가 인덱스의 어느 위치에 있든 상관없이 노란색 적용
 
@@ -485,8 +207,6 @@ def to_excel_multiple(df_dict):
                     return ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
 
                 return [''] * len(row)
-
-            
 
             # 렌더링 함수 내 적용
 
@@ -499,197 +219,89 @@ def to_excel_multiple(df_dict):
                 for _ in row
             ], axis=1)
 
-
-
-        
-
             # 3. 엑셀로 내보내기
 
 
 
             styler.to_excel(writer, sheet_name=sheet_name[:31])
 
-
-
-            
-
-
-
             # 4. 열 너비 자동 조정
 
-
-
             worksheet = writer.sheets[sheet_name[:31]]
-
-
-
             for i, col in enumerate(df.columns):
 
-
-
                 worksheet.set_column(i+1, i+1, 15)
-
-
-
-                
-
-
-
     return output.getvalue()
 
-
-
-
-
-
-
 # ==========================================
-
-
 
 # 3. 데이터 로드 및 전처리
 
-
-
 # ==========================================
-
-
 
 uploaded_file = st.sidebar.file_uploader("SAP/엑셀 데이터를 업로드하세요.", type=['xlsx', 'xls'])
 
-
-
-
-
-
-
 if uploaded_file:
-
-
 
     @st.cache_data
 
-
-
     def load_and_preprocess(file):
-
-
 
         xl = pd.ExcelFile(file)
 
-
-
         sheets = xl.sheet_names
-
-
 
         df = pd.read_excel(xl, sheet_name=sheets[0], header=4).iloc[:, :26]
 
-
-
         df.columns = ['Year', 'Month', 'Desc.', 'Date', 'STP', 'Customer', 'LK No.', "Q'ty", 
-
-
 
                       'Rev. ($)', 'Rev. (€)', 'Rev. ₩', 'BIZ Type', 'Group 1', 'Group 2', 
 
-
-
                       'Project', 'PF', 'Item', 'Source', 'KOx', 'Memo', 'CPS', 
-
-
 
                       'EUR:USD', 'EUR:KRW', 'Business Type', 'Curr.', 'Con.']
 
-
-
         if 'BIZ Type' in df.columns:
-
-
 
             # COMMERCIAL -> COMM으로 변경
 
-
-
             df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm', 'COMMERCIAL', 'commercial'], 'COMM')
-
-
 
             df['BIZ Type'] = df['BIZ Type'].fillna('Unknown')
 
-
-
-        
-
-
-
         sop_dict = {}
-
-
 
         if len(sheets) > 1:
 
-
-
             df_sop = pd.read_excel(xl, sheet_name=sheets[1])
-
-
 
             sop_dict = dict(zip(df_sop.iloc[:, 0], df_sop.iloc[:, 3]))
 
-
-
-        
-
-
-
         df['SOP'] = df['Project'].map(sop_dict)
-
-
 
         df['SOP'] = pd.to_datetime(df['SOP'], errors='coerce').dt.strftime('%Y.%m').fillna(df['SOP'].astype(str))
 
-
-
         df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
-
-
 
         df['Month'] = pd.to_numeric(df['Month'], errors='coerce')
 
-
-
         df = df.dropna(subset=['Year', 'Month'])
-
-
 
         df['Rev. (€)'] = pd.to_numeric(df['Rev. (€)'], errors='coerce').fillna(0)
 
-
-
         df.loc[(df['Item'] == 'VCMS') & (df['Source'] == 'KEM-KR'), 'Business Type'] = 'Power electronics'
-
-
 
         df.loc[(df['Item'] == 'VCMS') & (df['Source'] == 'KOASIA'), 'Business Type'] = 'Core Business'
 
-
-
         df.loc[df['Group 1'] == 'GM', 'Group 2'] = 'GM'
 
-
-
         df = df.replace([np.inf, -np.inf], 0)
-
-
 
         df['Year'] = df['Year'].astype(int)
 
 
 
         df['Month'] = df['Month'].astype(int)
-
-
 
         df['Date'] = df['Date'].astype(str).str.replace('00:00:00', '').str.strip()
 
@@ -698,113 +310,50 @@ if uploaded_file:
         return df
 
 
-
-
-
-
-
     raw_df = load_and_preprocess(uploaded_file)
-
-
 
     years = sorted(raw_df['Year'].unique())
 
-
-
     selected_year = st.sidebar.selectbox("연도", years, index=len(years)-1 if years else 0)
-
-
 
     selected_month = st.sidebar.selectbox("월", sorted(raw_df['Month'].unique()))
 
 
-
-
-
-
-
     # ==========================================
-
-
 
     # 4. 핵심 비즈니스 로직
 
-
-
     # ==========================================
-
 
 
     def get_numeric_cols(df):
 
-
-
         return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
-
-
-
-
-
-
 
     def build_summary_report(df_sub, index_cols, year, month, total_label, index_names=None):
 
-
-
         if df_sub.empty: return pd.DataFrame(), "", ""
-
-
 
         if month == 1: prev_year, prev_month = year - 1, 12
 
-
-
         else: prev_year, prev_month = year, month - 1
-
-
-
-        
-
-
 
         month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
 
-
-
         m_str, pm_str = month_names.get(month, f'{month}'), month_names.get(prev_month, f'{prev_month}')
 
-
-
         col_prev, phase_curr, phase_ytd, phase_ttl = f'{pm_str}. {year if month != 1 else prev_year}', f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL'
-
-
 
         phases = [phase_curr, phase_ytd, phase_ttl]
 
 
-
-        
-
-
-
         def get_pivot(d): return d.pivot_table(index=index_cols, columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not d.empty else pd.DataFrame()
-
-
-
-        
-
-
 
         s_prev = df_sub[(df_sub['Year'] == prev_year) & (df_sub['Month'] == prev_month) & (df_sub['Desc.'] == 'ACT')].groupby(index_cols)['Rev. (€)'].sum()
 
 
 
         p_curr, p_ytd, p_ttl = get_pivot(df_sub[(df_sub['Year'] == year) & (df_sub['Month'] == month)]), get_pivot(df_sub[(df_sub['Year'] == year) & (df_sub['Month'] <= month)]), get_pivot(df_sub[(df_sub['Year'] == year)])
-
-
-
-        
-
 
 
         all_indices = set()
@@ -816,11 +365,6 @@ if uploaded_file:
 
 
             if not p.empty: all_indices.update(p.index.tolist() if isinstance(p.index, pd.MultiIndex) else [(x,) for x in p.index.tolist()])
-
-
-
-        
-
 
 
         if not all_indices: return pd.DataFrame(), col_prev, phase_curr
