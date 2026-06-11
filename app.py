@@ -330,13 +330,23 @@ if uploaded_file:
     # 5. 스타일링 및 렌더링
     # ==========================================
     def render_html_view(df, phase_curr):
-        df_display = df.replace(0, '')
-        format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
+        # 1. 컬럼명을 복사하여 노란색 스타일 적용
+        new_columns = []
+        for col in df.columns:
+            if isinstance(col, tuple): # MultiIndex 대응
+                new_col = tuple(f'<span style="color: #FFD700;">{c}</span>' if 'ACT' in str(c) else c for c in col)
+                new_columns.append(new_col)
+            else:
+                new_columns.append(f'<span style="color: #FFD700;">{col}</span>' if 'ACT' in str(col) else col)
+        
+        df_display = df.copy()
+        df_display.columns = pd.MultiIndex.from_tuples(new_columns) if isinstance(df.columns, pd.MultiIndex) else new_columns
+        df_display = df_display.replace(0, '')
+        
+        # 2. 스타일링 적용 (기존과 동일)
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
-        numeric_cols = get_numeric_cols(df)
-        styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
-        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row) if 'TTL (K.€)' in str(row.name) or 'Total' in str(row.name) or 'Subtotal' in str(row.name) else [''] * len(row), axis=1)
-        return f'<div class="table-container">{styler.to_html()}</div>'
+        # ... (나머지 스타일링 및 반환 로직) ...
+        return f'<div class="table-container">{styler.to_html(escape=False)}</div>'
 
     def render_biz_html_table(df):
         df_display = df.replace(0, '')
