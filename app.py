@@ -103,14 +103,21 @@ def to_excel_multiple(df_dict):
     
     # 딕셔너리로 받은 데이터프레임들을 각각의 시트에 저장
     for sheet_name, df in df_dict.items():
-        df_formatted = df.copy().fillna(0)
-        df_formatted.to_excel(writer, index=True, sheet_name=sheet_name)
-        worksheet = writer.sheets[sheet_name]
-        
-        start_col = 3
-        for i, col in enumerate(df_formatted.columns):
-            fmt = pct_fmt if 'ACHI' in col[1] else num_fmt
-            worksheet.set_column(start_col + i, start_col + i, 12, fmt)
+        # 데이터가 비어있지 않은 경우에만 저장
+        if not df.empty:
+            df_formatted = df.copy().fillna(0)
+            df_formatted.to_excel(writer, index=True, sheet_name=sheet_name[:31])
+            worksheet = writer.sheets[sheet_name[:31]]
+            
+            # 기존 보고서와 상세 보고서 형식 분기 처리
+            if "Detail" not in sheet_name:
+                start_col = 3
+                for i, col in enumerate(df_formatted.columns):
+                    fmt = pct_fmt if 'ACHI' in col[1] else num_fmt
+                    worksheet.set_column(start_col + i, start_col + i, 12, fmt)
+            else:
+                worksheet.set_column(1, 1, 15)
+                worksheet.set_column(2, 2, 12, num_fmt)
             
     writer.close()
     return output.getvalue()
@@ -252,76 +259,41 @@ if uploaded_file:
         return pd.concat([final_df, grand_row]), phase_names
 
     # ==========================================
-    # 6. 스타일링 및 순수 HTML 렌더링
+    # 6. 상세 보고서 로직 (Group 1 / KOx)
     # ==========================================
-    def render_html_table(df, phase_names):
+    def get_detail_report(df, biz_type, year, month):
+        df_biz = df[(df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == year) & (df['Month'] == month)]
+        return df_biz.pivot_table(index=['Group 1', 'KOx'], values='Rev. (€)', aggfunc='sum')
+
+    # ==========================================
+    # 7. 스타일링 및 렌더링
+    # ==========================================
+    def render_html_table(df):
         df = df.replace(0, '') 
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
         styler = df.style.format(format_dict, na_rep='')
         styler.set_table_attributes('class="report-table"')
-        
-        def highlight_specifics(row):
-            styles = [''] * len(row)
-            if row.name[1] == '소계':
-                styles = ['background-color: #f2f2f2; color: #333; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
-            elif 'Sales Revenue' in str(row.name[1]):
-                styles = ['background-color: #e2efda; color: black; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
-            return styles
-            
-        styler.apply(highlight_specifics, axis=1)
-        
-        current_month_label = phase_names[0]
-        border_styles = []
-        border_styles.append({'selector': 'th', 'props': [('vertical-align', 'middle')]})
-        border_styles.append({'selector': 'td', 'props': [('vertical-align', 'middle')]})
-        
-        for i, col in enumerate(df.columns):
-            if col[0] == current_month_label and col[1] == '25 FC3':
-                border_styles.append({'selector': f'.col{i}', 'props': [('border-left', '2px solid red')]})
-            elif col[0] == current_month_label and 'ACHI' in col[1]:
-                border_styles.append({'selector': f'.col{i}', 'props': [('border-right', '2px solid red')]})
-            elif 'ACHI' in col[1]:
-                border_styles.append({'selector': f'.col{i}', 'props': [('border-right', '1px solid #8ea9db')]})
-
-        styler.set_table_styles(border_styles, overwrite=False)
-        html = styler.to_html()
-        
-        pattern = r'<th[^>]*level0[^>]*>.*?</th>\s*<th[^>]*level1[^>]*>(.*?)</th>\s*<th[^>]*level2[^>]*>.*?</th>'
-        def merge_colspan(match):
-            text = match.group(1)
-            if "Sales Revenue" in text:
-                return f'<th colspan="3" class="row_heading" style="text-align: center !important; background-color: #e2efda !important; color: black !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; border-right: 1px solid #8ea9db !important; z-index: 1;">{text}</th>'
-            return match.group(0)
-            
-        html = re.sub(pattern, merge_colspan, html)
+        styler.apply(lambda row: ['background-color: #f2f2f2; color: #333; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' if row.name[1] == '소계' else 'background-color: #e2efda; color: black; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' if 'Sales Revenue' in str(row.name[1]) else '' for _ in row], axis=1)
+        html = re.sub(r'<th[^>]*level0[^>]*>.*?</th>\s*<th[^>]*level1[^>]*>(.*?)</th>\s*<th[^>]*level2[^>]*>.*?</th>', lambda m: m.group(0).replace('<th', '<th colspan="3"') if "Sales Revenue" in m.group(1) else m.group(0), styler.to_html())
         return f'<div class="table-container">{html}</div>'
 
     # ==========================================
-    # 7. 화면 출력 (HTML) 및 통합 다운로드
+    # 8. 최종 화면 출력
     # ==========================================
-    
-    # 엑셀로 다운로드할 데이터프레임들을 모아둘 딕셔너리
     reports_to_download = {}
-    
     for b_type in ["Core", "Power"]:
         st.subheader(f"📊 {b_type} Business")
         report, phase_names = get_biz_report(raw_df, b_type, selected_year, selected_month)
-        
         if not report.empty:
-            html_table = render_html_table(report, phase_names)
-            st.markdown(html_table, unsafe_allow_html=True)
-            # 다운로드 목록에 추가 (시트 이름으로 사용)
-            reports_to_download[b_type] = report
-        else:
-            st.write("조회된 데이터가 없습니다.")
+            st.markdown(render_html_table(report), unsafe_allow_html=True)
+            reports_to_download[f"{b_type}_Report"] = report
+            
+            detail = get_detail_report(raw_df, b_type, selected_year, selected_month)
+            st.write(f"**Group 1 / KOx 상세 리포트**")
+            st.dataframe(detail.style.format("{:,.0f}"))
+            reports_to_download[f"{b_type}_Detail"] = detail
+        st.write("---")
 
-    # 두 표의 렌더링이 모두 끝나면 화면 하단에 통합 다운로드 버튼 1개만 생성
-    if reports_to_download:
-        st.write("---") # 구분선 추가
-        st.download_button(
-            label="📥 통합 리포트 엑셀 다운로드 (Core & Power 시트 분리)", 
-            data=to_excel_multiple(reports_to_download), 
-            file_name=f"Integrated_Report_{selected_year}_{selected_month}.xlsx"
-        )
+    st.download_button("📥 통합 리포트 엑셀 다운로드 (시트 4개 포함)", data=to_excel_multiple(reports_to_download), file_name=f"Integrated_Report_{selected_year}_{selected_month}.xlsx")
 else:
-    st.info("파일을 업로드하면 보고서가 생성됩니다.")
+    st.info("파일을 업로드하세요.")
