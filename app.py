@@ -17,7 +17,7 @@ st.markdown("""
     .report-table {
         border-collapse: collapse !important;
         font-family: 'Malgun Gothic', sans-serif;
-        font-size: 10px;
+        font-size: 12px;
         width: 100%;
         background-color: white;
     }
