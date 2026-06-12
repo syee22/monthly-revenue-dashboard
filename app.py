@@ -1149,13 +1149,13 @@ def export_formatted_excel(df_dict):
                 
     return output.getvalue()
 
-if reports_to_download:
-        st.write("---")
-        # 1. 기존 데이터용 다운로드
-        st.download_button("📥 전체 요약 리포트 (데이터용)", data=to_excel_multiple(reports_to_download), 
-                           file_name=f"Report_Data_{selected_year}_{selected_month:02d}.xlsx")
-        
-        # 2. 새로 만든 서식 적용용 다운로드
-        st.download_button("📸 서식 적용 리포트 (보고용)", data=export_formatted_excel(reports_to_download), 
-                           file_name=f"Report_Visual_{selected_year}_{selected_month:02d}.xlsx")
+    if reports_to_download:
+            st.write("---")
+            # 1. 기존 데이터용 다운로드
+            st.download_button("📥 전체 요약 리포트 (데이터용)", data=to_excel_multiple(reports_to_download), 
+                               file_name=f"Report_Data_{selected_year}_{selected_month:02d}.xlsx")
+            
+            # 2. 새로 만든 서식 적용용 다운로드
+            st.download_button("📸 서식 적용 리포트 (보고용)", data=export_formatted_excel(reports_to_download), 
+                               file_name=f"Report_Visual_{selected_year}_{selected_month:02d}.xlsx")
 
