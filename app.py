@@ -101,12 +101,6 @@ def to_excel_multiple(df_dict):
         for sheet_name, df in df_dict.items():
             styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
             
-            def apply_row_style(row):
-                row_name_str = str(row.name)
-                if any(k in row_name_str for k in ['TTL', 'Total', 'Subtotal', '소계']):
-                    return ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
-                return [''] * len(row)
-            
             styler.apply(lambda row: [
                 'background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' 
                 if any(keyword in str(row.name) for keyword in ['TTL', 'Total', 'Subtotal', '소계']) 
@@ -175,7 +169,7 @@ if uploaded_file:
     def get_numeric_cols(df):
         return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
 
-    def build_summary_report(df_sub, index_cols, year, month, total_label, index_names=None, sort_by_current_act=False):
+    def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.€)", index_names=None, sort_by_current_act=False):
         if df_sub.empty: return pd.DataFrame(), "", ""
         if month == 1: prev_year, prev_month = year - 1, 12
         else: prev_year, prev_month = year, month - 1
@@ -215,7 +209,6 @@ if uploaded_file:
         final_df.index.names = current_index_names
         final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
         
-        # [수정됨] 당월 ACT 기준 내림차순 정렬 로직
         if sort_by_current_act and (phase_curr, 'ACT') in final_df.columns:
             final_df = final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
             
@@ -232,8 +225,8 @@ if uploaded_file:
             den = total_row.get((phase_name, '26 FC1'), 0)
             total_row[(phase_name, 'ACHI %')] = num / den if den != 0 else 0
             
-        t_label = "TTL (K.€)"
-        t_index = tuple([''] * (len(final_df.index.names)-1) + [t_label]) if isinstance(final_df.index, pd.MultiIndex) else t_label
+        t_label = total_label
+        t_index = tuple([t_label] + [''] * (len(final_df.index.names)-1)) if isinstance(final_df.index, pd.MultiIndex) else t_label
         t_df = pd.DataFrame([total_row], index=[t_index] if not isinstance(final_df.index, pd.MultiIndex) else pd.MultiIndex.from_tuples([t_index], names=final_df.index.names))
         
         return pd.concat([final_df, t_df]), col_prev, phase_curr
@@ -268,7 +261,6 @@ if uploaded_file:
                 
             combined = pd.DataFrame(combined_dict, index=p_m.index)
             
-            # [수정됨] BIZ Type 내 KOx를 당월 ACT 기준으로 내림차순 정렬
             if (phase_names[0], 'ACT') in combined.columns:
                 combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
                 
@@ -360,7 +352,7 @@ if uploaded_file:
         
         numeric_cols = get_numeric_cols(df)
         styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
-        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row) if 'TTL (K.€)' in str(row.name) or 'Total' in str(row.name) or 'Subtotal' in str(row.name) else [''] * len(row), axis=1)
+        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row) if 'TTL' in str(row.name) or 'Total' in str(row.name) or 'Subtotal' in str(row.name) else [''] * len(row), axis=1)
         return f'<div class="table-container">{styler.to_html()}</div>'
 
     def render_biz_html_table(df):
@@ -386,7 +378,6 @@ if uploaded_file:
 
     st.subheader("📌 2. 매출 요약 (Item 기준)")
     df_item_raw = raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])]
-    # [수정됨] sort_by_current_act=True 파라미터 전달
     df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)', sort_by_current_act=True)
     if not df_item.empty: 
         st.markdown(render_html_view(df_item, c_col), unsafe_allow_html=True)
@@ -398,13 +389,32 @@ if uploaded_file:
         st.markdown(render_html_view(df_biz, ""), unsafe_allow_html=True)
         reports_to_download["Biz_Type_Summary"] = df_biz
 
-    st.subheader("📌 4. Power Electronics 비즈니스")
+    st.subheader("📌 4. Power Electronics 매출 요약 (HKMC 기준)")
+    # Group 2에서 현대(HYU)와 기아(KIA)를 HKMC로 통합하여 요약표 생성
+    df_pe_raw = raw_df[raw_df['Business Type'].str.contains("Power", case=False, na=False)].copy()
+    if not df_pe_raw.empty:
+        df_pe_raw['Cust. GR'] = df_pe_raw['Group 2'].replace({'HYU': 'HKMC', 'KIA': 'HKMC'})
+        df_pe_hkmc = df_pe_raw[df_pe_raw['Cust. GR'] == 'HKMC']
+        
+        df_pe_summary, p_col, c_col = build_summary_report(
+            df_pe_hkmc, 
+            ['Cust. GR', 'KOx'], 
+            selected_year, 
+            selected_month, 
+            total_label='PE Biz Rev. TTL (K.€)', 
+            sort_by_current_act=True
+        )
+        if not df_pe_summary.empty:
+            st.markdown(render_html_view(df_pe_summary, c_col), unsafe_allow_html=True)
+            reports_to_download["PE_HKMC_Summary"] = df_pe_summary
+
+    st.subheader("📌 5. Power Electronics 비즈니스 (상세)")
     df_pe, phase_names_pe = get_biz_report(raw_df, "Power", selected_year, selected_month)
     if not df_pe.empty: 
         st.markdown(render_biz_html_table(df_pe), unsafe_allow_html=True)
-        reports_to_download["PE_Biz"] = df_pe
+        reports_to_download["PE_Biz_Detailed"] = df_pe
 
-    st.subheader("📌 5. Core 비즈니스")
+    st.subheader("📌 6. Core 비즈니스")
     df_core, phase_names_core = get_biz_report(raw_df, "Core", selected_year, selected_month)
     if not df_core.empty: 
         st.markdown(render_biz_html_table(df_core), unsafe_allow_html=True)
@@ -412,7 +422,7 @@ if uploaded_file:
 
     if reports_to_download:
         st.write("---")
-        st.download_button("📥 전체 5개 요약 리포트 엑셀 다운로드 (시트별 분리)", data=to_excel_multiple(reports_to_download), file_name=f"Monthly_Closing_Report_{selected_year}_{selected_month:02d}.xlsx", use_container_width=True)
+        st.download_button("📥 전체 요약 리포트 엑셀 다운로드 (시트별 분리)", data=to_excel_multiple(reports_to_download), file_name=f"Monthly_Closing_Report_{selected_year}_{selected_month:02d}.xlsx", use_container_width=True)
 
 else:
-    st.info("👈 좌측 사이드바에서 엑셀 파일을 업로드하시면 5가지 요약 리포트가 자동 생성됩니다.")
+    st.info("👈 좌측 사이드바에서 엑셀 파일을 업로드하시면 요약 리포트가 자동 생성됩니다.")
