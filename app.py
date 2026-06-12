@@ -820,7 +820,7 @@ if uploaded_file:
 
             
 
-        grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('', f'{biz_type} Sales Revenue (K.€)', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
+        grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('', f'{biz_type} Biz Sales Revenue (K.€)', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
 
         return pd.concat([final_df, grand_row]), phase_names
 
