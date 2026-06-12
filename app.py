@@ -494,26 +494,26 @@ if uploaded_file:
     # ==========================================
     reports_to_download = {}
 
-    st.subheader("📌 1. CPS별 매출액 요약")
+    st.subheader("📌 CPS별 매출액 요약")
     df_cps, p_col, c_col = build_summary_report(raw_df, ['CPS'], selected_year, selected_month, 'TTL (K.€)')
     if not df_cps.empty: 
         st.markdown(render_html_view(df_cps, c_col, apply_color=False), unsafe_allow_html=True)
         reports_to_download["CPS_Summary"] = df_cps
 
-    st.subheader("📌 2. PE Item 매출액 요약")
+    st.subheader("📌 PE Item 매출액 요약")
     df_item_raw = raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])]
     df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)', index_names=['CPS'], sort_by_current_act=True)
     if not df_item.empty: 
         st.markdown(render_html_view(df_item, c_col, apply_color=False), unsafe_allow_html=True)
         reports_to_download["Item_Summary"] = df_item
 
-    st.subheader("📌 3. DIRECT & COMMISSION 매출액 요약")
+    st.subheader("📌 DIRECT & COMMISSION 매출액 요약")
     df_biz = get_biz_type_detailed_report(raw_df, selected_year, selected_month)
     if not df_biz.empty: 
         st.markdown(render_html_view(df_biz, "", apply_color=False), unsafe_allow_html=True)
         reports_to_download["Biz_Type_Summary"] = df_biz
 
-    st.subheader("📌 4. Sales Revenue: Power Electronics")
+    st.subheader("📌 Sales Revenue: Power Electronics")
     df_pe_raw = raw_df[raw_df['Business Type'].str.contains("Power", case=False, na=False)].copy()
     if not df_pe_raw.empty:
         df_pe_raw['Cust. GR'] = df_pe_raw['Group 2'].replace({'HYU': 'HKMC', 'KIA': 'HKMC'})
@@ -531,19 +531,19 @@ if uploaded_file:
             st.markdown(render_html_view(df_pe_summary, c_col, apply_color=True), unsafe_allow_html=True)
             reports_to_download["PE_HKMC_Summary"] = df_pe_summary
 
-    st.subheader("📌 5. Power Electronics 상세")
+    st.subheader("📌 Power Electronics 상세")
     df_pe, phase_names_pe = get_biz_report(raw_df, "Power", selected_year, selected_month)
     if not df_pe.empty: 
         st.markdown(render_biz_html_table(df_pe, apply_color=True), unsafe_allow_html=True)
         reports_to_download["PE_Biz_Detailed"] = df_pe
 
-    st.subheader("📌 6. Sales Revenue: Core Business")
+    st.subheader("📌 Sales Revenue: Core Business")
     df_core, phase_names_core = get_biz_report(raw_df, "Core", selected_year, selected_month)
     if not df_core.empty: 
         st.markdown(render_biz_html_table(df_core, apply_color=True), unsafe_allow_html=True)
         reports_to_download["Core_Biz"] = df_core
 
-    st.subheader("📌 7. Sales Revenue Trend")
+    st.subheader("📌 Sales Revenue Trend")
     df_trend = build_trend_report(raw_df, selected_year, selected_month)
     if not df_trend.empty:
         st.markdown(render_trend_html_table(df_trend, apply_color=False), unsafe_allow_html=True)
