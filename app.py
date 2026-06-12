@@ -868,8 +868,10 @@ if uploaded_file:
         row_order = ['HYU', 'KIA', 'GM']
         trend_df = trend_df.reindex(row_order).fillna(0)
         trend_df.loc['TTL (K.€)'] = trend_df.sum(numeric_only=True)
-
-        trend_df.index.name = ''
+        
+        trend_df.index.name = None 
+        trend_df.columns.name = None 
+        
         trend_df.columns = [col.strip() for col in trend_df.columns.values]
 
         return trend_df
@@ -960,7 +962,7 @@ if uploaded_file:
 
         html_str = styler.to_html()
 
-        html_str = optimize_html_headers(html_str, df)
+        #html_str = optimize_html_headers(html_str, df)
 
         return f'<div class="table-container">{html_str}</div>'
 
