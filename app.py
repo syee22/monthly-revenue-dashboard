@@ -101,7 +101,7 @@ def color_index_cells(v):
     return ''
 
 def apply_common_styles(styler, apply_hkmc_color=False):
-    # 총계/소계 강조
+    # 총계/소계 데이터 셀 강조
     styler.apply(lambda row: [
         'background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' 
         if any(keyword in str(row.name) for keyword in ['TTL', 'Total', 'Subtotal', '소계']) 
@@ -109,6 +109,17 @@ def apply_common_styles(styler, apply_hkmc_color=False):
         for _ in row
     ], axis=1)
     
+    # 총계/소계 인덱스(행 헤더) 셀 강조
+    def highlight_total_index(val):
+        if any(keyword in str(val) for keyword in ['TTL', 'Total', 'Subtotal', '소계']):
+            return 'background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;'
+        return ''
+
+    if hasattr(styler, 'map_index'):
+        styler.map_index(highlight_total_index, axis=0)
+    elif hasattr(styler, 'applymap_index'):
+        styler.applymap_index(highlight_total_index, axis=0)
+        
     # 4번, 5번, 6번 테이블에만 HYU/KIA 인덱스 셀 색상 적용
     if apply_hkmc_color:
         if hasattr(styler, 'map_index'):
@@ -117,6 +128,40 @@ def apply_common_styles(styler, apply_hkmc_color=False):
             styler.applymap_index(color_index_cells, axis=0, level=0)
             
     return styler
+
+def optimize_html_headers(html_str, df):
+    """Pandas HTML 테이블의 빈 헤더를 병합하여 수직/수평 중앙 정렬을 구현하는 함수"""
+    # 1. 인덱스(행 헤더) 열 병합
+    if hasattr(df, 'index') and hasattr(df.index, 'names'):
+        for i, name in enumerate(df.index.names):
+            name_str = str(name) if name is not None else ""
+            if not name_str: continue
+            
+            blank_pattern = re.compile(rf'<th class="blank level{i}"[^>]*>.*?</th>', re.IGNORECASE | re.DOTALL)
+            rowspan_header = f'<th rowspan="2" class="index_name level{i}" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; min-width: 80px;">{name_str}</th>'
+            
+            if blank_pattern.search(html_str):
+                html_str = blank_pattern.sub(rowspan_header, html_str, count=1)
+                escaped_name = re.escape(name_str)
+                index_pattern = re.compile(rf'<th class="index_name level{i}"[^>]*>\s*{escaped_name}\s*</th>', re.IGNORECASE)
+                html_str = index_pattern.sub('', html_str, count=1)
+    
+    # 2. 값 열 (이전 달 등) 빈 상단 헤더 병합
+    if hasattr(df, 'columns') and isinstance(df.columns, pd.MultiIndex):
+        for j, col in enumerate(df.columns):
+            if col[0] == '' or str(col[0]).strip() == '':
+                col_name = str(col[1])
+                escaped_col = re.escape(col_name)
+                
+                top_pattern = re.compile(rf'<th class="col_heading level0 col{j}"[^>]*>(?:&nbsp;|\s*)</th>', re.IGNORECASE)
+                rowspan_header = f'<th rowspan="2" class="col_heading level0 col{j}" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important;">{col_name}</th>'
+                
+                if top_pattern.search(html_str):
+                    html_str = top_pattern.sub(rowspan_header, html_str, count=1)
+                    bottom_pattern = re.compile(rf'<th class="col_heading level1 col{j}"[^>]*>\s*{escaped_col}\s*</th>', re.IGNORECASE)
+                    html_str = bottom_pattern.sub('', html_str, count=1)
+                    
+    return html_str
 
 def to_excel_multiple(df_dict):
     output = io.BytesIO()
@@ -401,7 +446,10 @@ if uploaded_file:
         numeric_cols = get_numeric_cols(df)
         styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
         styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
-        return f'<div class="table-container">{styler.to_html()}</div>'
+        
+        html_str = styler.to_html()
+        html_str = optimize_html_headers(html_str, df)
+        return f'<div class="table-container">{html_str}</div>'
 
     def render_biz_html_table(df, apply_color=False):
         df_display = df.replace(0, '')
@@ -411,7 +459,10 @@ if uploaded_file:
         numeric_cols = get_numeric_cols(df)
         styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
         styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
-        return f'<div class="table-container">{styler.to_html()}</div>'
+        
+        html_str = styler.to_html()
+        html_str = optimize_html_headers(html_str, df)
+        return f'<div class="table-container">{html_str}</div>'
 
     def render_trend_html_table(df, apply_color=False):
         df_display = df.replace(0, '')
@@ -420,7 +471,10 @@ if uploaded_file:
         
         styler.set_properties(**{'text-align': 'right'})
         styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
-        return f'<div class="table-container">{styler.to_html()}</div>'
+        
+        html_str = styler.to_html()
+        html_str = optimize_html_headers(html_str, df)
+        return f'<div class="table-container">{html_str}</div>'
 
     # ==========================================
     # 6. 화면 출력
@@ -435,7 +489,8 @@ if uploaded_file:
 
     st.subheader("📌 2. 매출 요약 (Item 기준)")
     df_item_raw = raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])]
-    df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)', sort_by_current_act=True)
+    # index_names=['CPS'] 파라미터를 추가하여 2번 테이블도 'CPS'로 열 이름이 출력되도록 설정했습니다.
+    df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)', index_names=['CPS'], sort_by_current_act=True)
     if not df_item.empty: 
         st.markdown(render_html_view(df_item, c_col, apply_color=False), unsafe_allow_html=True)
         reports_to_download["Item_Summary"] = df_item
@@ -461,21 +516,18 @@ if uploaded_file:
             sort_by_current_act=True
         )
         if not df_pe_summary.empty:
-            # 4번 테이블에 적용
             st.markdown(render_html_view(df_pe_summary, c_col, apply_color=True), unsafe_allow_html=True)
             reports_to_download["PE_HKMC_Summary"] = df_pe_summary
 
     st.subheader("📌 5. Power Electronics 비즈니스 (상세)")
     df_pe, phase_names_pe = get_biz_report(raw_df, "Power", selected_year, selected_month)
     if not df_pe.empty: 
-        # 5번 테이블에 적용
         st.markdown(render_biz_html_table(df_pe, apply_color=True), unsafe_allow_html=True)
         reports_to_download["PE_Biz_Detailed"] = df_pe
 
     st.subheader("📌 6. Core 비즈니스")
     df_core, phase_names_core = get_biz_report(raw_df, "Core", selected_year, selected_month)
     if not df_core.empty: 
-        # 6번 테이블에 적용 (수정됨)
         st.markdown(render_biz_html_table(df_core, apply_color=True), unsafe_allow_html=True)
         reports_to_download["Core_Biz"] = df_core
 
