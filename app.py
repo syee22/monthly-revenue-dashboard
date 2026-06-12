@@ -7,7 +7,7 @@ import re
 # ==========================================
 # 1. 페이지 설정 및 전역 CSS 주입
 # ==========================================
-st.set_page_config(page_title="월간 매출 보고서", layout="wide")
+st.set_page_config(page_title="Sales Revenue - Monthly Report", layout="wide")
 
 st.markdown("""
     <style>
