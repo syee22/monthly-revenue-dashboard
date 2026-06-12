@@ -864,22 +864,13 @@ if uploaded_file:
 
             pivot_data[col_name] = temp_df.groupby('Group 2')['Rev. (€)'].sum()
 
-            
-
         trend_df = pd.DataFrame(pivot_data)
-
         row_order = ['HYU', 'KIA', 'GM']
-
         trend_df = trend_df.reindex(row_order).fillna(0)
-
-        
-
         trend_df.loc['TTL (K.€)'] = trend_df.sum(numeric_only=True)
 
         trend_df.index.name = ''
-
         trend_df.columns = [col.strip() for col in trend_df.columns.values]
-        trend_df = trend_df.drop(trend_df.index[1])
 
         return trend_df
 
