@@ -1120,8 +1120,6 @@ if uploaded_file:
 
         reports_to_download["PE_Biz_Detailed"] = df_pe
 
-
-
     st.subheader("📌 Sales Revenue: Core Business")
 
     df_core, phase_names_core = get_biz_report(raw_df, "Core", selected_year, selected_month)
@@ -1132,26 +1130,11 @@ if uploaded_file:
 
         reports_to_download["Core_Biz"] = df_core
 
-
-
-    # if reports_to_download:
-
-    #     st.write("---")
-
-    #     st.download_button("📥 월간회의 자료용 엑셀 다운로드", data=to_excel_multiple(reports_to_download), file_name=f"Monthly_Closing_Report_{selected_year}_{selected_month:02d}.xlsx", use_container_width=True)
-
     if reports_to_download:
-            st.write("---")
-            # 1. 기존 데이터용 다운로드
-            st.download_button("📥 전체 요약 리포트 (데이터용)", data=to_excel_multiple(reports_to_download), 
-                               file_name=f"Report_Data_{selected_year}_{selected_month:02d}.xlsx")
-            
-            # 2. 새로 만든 서식 적용용 다운로드
-            st.download_button("📸 서식 적용 리포트 (보고용)", data=export_formatted_excel(reports_to_download), 
-                               file_name=f"Report_Visual_{selected_year}_{selected_month:02d}.xlsx")
 
+        st.write("---")
 
-
+        st.download_button("📥 월간회의 자료용 엑셀 다운로드", data=to_excel_multiple(reports_to_download), file_name=f"Monthly_Closing_Report_{selected_year}_{selected_month:02d}.xlsx", use_container_width=True)
 
 else:
 
