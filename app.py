@@ -109,7 +109,7 @@ def apply_common_styles(styler, apply_hkmc_color=False):
         for _ in row
     ], axis=1)
     
-    # 4번, 5번 테이블에만 HYU/KIA 인덱스 셀 색상 적용
+    # 4번, 5번, 6번 테이블에만 HYU/KIA 인덱스 셀 색상 적용
     if apply_hkmc_color:
         if hasattr(styler, 'map_index'):
             styler.map_index(color_index_cells, axis=0, level=0)
@@ -124,8 +124,8 @@ def to_excel_multiple(df_dict):
         for sheet_name, df in df_dict.items():
             styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
             
-            # 4번(PE_HKMC_Summary) 및 5번(PE_Biz_Detailed) 시트에만 색상 적용
-            apply_color = sheet_name in ["PE_HKMC_Summary", "PE_Biz_Detailed"]
+            # 4번, 5번 및 6번 시트에만 색상 적용
+            apply_color = sheet_name in ["PE_HKMC_Summary", "PE_Biz_Detailed", "Core_Biz"]
             styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
             
             styler.to_excel(writer, sheet_name=sheet_name[:31])
@@ -475,7 +475,8 @@ if uploaded_file:
     st.subheader("📌 6. Core 비즈니스")
     df_core, phase_names_core = get_biz_report(raw_df, "Core", selected_year, selected_month)
     if not df_core.empty: 
-        st.markdown(render_biz_html_table(df_core, apply_color=False), unsafe_allow_html=True)
+        # 6번 테이블에 적용 (수정됨)
+        st.markdown(render_biz_html_table(df_core, apply_color=True), unsafe_allow_html=True)
         reports_to_download["Core_Biz"] = df_core
 
     st.subheader("📌 7. 고객사별 월별 매출 트렌드 (최근 12개월)")
