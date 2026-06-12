@@ -195,7 +195,7 @@ def to_excel_multiple(df_dict):
 # ==========================================
 # 3. 데이터 로드 및 전처리
 # ==========================================
-uploaded_file = st.sidebar.file_uploader("SAP/엑셀 데이터를 업로드하세요.", type=['xlsx', 'xls'])
+uploaded_file = st.sidebar.file_uploader("엑셀 데이터를 업로드하세요.", type=['xlsx', 'xls'])
 
 if uploaded_file:
     @st.cache_data
