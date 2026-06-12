@@ -530,9 +530,12 @@ if uploaded_file:
 
         current_index_names = index_names if index_names else (['CPS'] if index_cols == ['CPS'] else index_cols)
 
-        idx = pd.MultiIndex.from_tuples(all_indices, names=current_index_names) if len(index_cols) > 1 else pd.Index([x[0] for x in all_indices], name=current_index_names[0])
+        #idx = pd.MultiIndex.from_tuples(all_indices, names=current_index_names) if len(index_cols) > 1 else pd.Index([x[0] for x in all_indices], name=current_index_names[0])
 
-        
+        if len(index_cols) == 1:
+            idx = pd.MultiIndex.from_tuples([(x,) for x in all_indices], names=current_index_names)
+        else:
+            idx = pd.MultiIndex.from_tuples(all_indices, names=current_index_names)
 
         # 🌟 구조 일관성을 위해 이전 달 데이터를 (col_prev, 'ACT') 튜플로 매핑
 
