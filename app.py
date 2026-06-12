@@ -74,7 +74,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title(" Sales Revenue - Monthly Report")
+st.title(f"Sales Revenue - {MONTH_NAMES[selected_month]} Monthly Report")
 
 # ==========================================
 # 2. 포맷팅 및 공통 스타일 함수
