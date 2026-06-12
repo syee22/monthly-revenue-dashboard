@@ -109,7 +109,7 @@ def apply_common_styles(styler, apply_hkmc_color=False):
         for _ in row
     ], axis=1)
     
-    # 2. 인덱스(행 헤더) 영역 스타일 매핑 (수정됨: 텍스트 및 그 옆 칸들까지 통일성 있게 동시 적용)
+    # 2. 인덱스(행 헤더) 영역 스타일 매핑 
     if isinstance(styler.index, pd.MultiIndex):
         for level_idx in range(styler.index.nlevels):
             styler.apply_index(lambda idx, l=level_idx: [
@@ -313,7 +313,6 @@ if uploaded_file:
         
         final_df = pd.concat(results)
         
-        # [수정됨] 3번 테이블 전체 합계(Total) 행 추가 로직 (중복 합산을 피하기 위해 Subtotal 제외 필터링 후 합산)
         main_rows = final_df[final_df.index.get_level_values(1) != 'Subtotal']
         grand_total = main_rows.sum(numeric_only=True)
         for p_name in phase_names:
@@ -344,8 +343,9 @@ if uploaded_file:
             p_fy = brand_df.pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             p_prev = df[(df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             
+            # 파이썬 논리 연산자 and로 수정 완료
             if "Core" in biz_type and brand in ['HYU', 'KIA']:
-                top = p_m[p_m['ACT'] >= 10000].index if not p_m.empty && 'ACT' in p_m.columns else p_m.index
+                top = p_m[p_m['ACT'] >= 10000].index if not p_m.empty and 'ACT' in p_m.columns else p_m.index
                 def group_others(p):
                     if p.empty: return pd.DataFrame(columns=['25 FC3', '26 FC1', 'ACT']).reindex(pd.MultiIndex.from_tuples([], names=['Project', 'Con.', 'SOP']))
                     main = p.loc[p.index.isin(top)]; oth = p.loc[~p.index.isin(top)].sum().to_frame().T; oth.index = pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP'])
@@ -377,6 +377,8 @@ if uploaded_file:
             results.append(combined)
             if brand != 'GM': results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, '소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
             
+        if not results: return pd.DataFrame(), phase_names
+        
         final_df = pd.concat(results)
         grand_total = final_df[final_df.index.get_level_values(1) != '소계'].sum(numeric_only=True)
         for p_name in phase_names:
