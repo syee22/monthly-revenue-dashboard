@@ -1,48 +1,8 @@
 import streamlit as st
-
 import pandas as pd
-
 import numpy as np
-
 import io
-
 import re
-from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
-from openpyxl.utils.dataframe import dataframe_to_rows
-
-def export_formatted_excel(df_dict):
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        # 서식 설정
-        header_fill = PatternFill(start_color="002060", end_color="002060", fill_type="solid")
-        header_font = Font(color="FFFFFF", bold=True)
-        center_align = Alignment(horizontal="center", vertical="center")
-        thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), 
-                             top=Side(style='thin'), bottom=Side(style='thin'))
-
-        for sheet_name, df in df_dict.items():
-            df.to_excel(writer, sheet_name=sheet_name[:31], index=True)
-            ws = writer.sheets[sheet_name[:31]]
-            
-            # 헤더 서식 적용
-            for cell in ws[1]: # 첫 번째 행 (헤더)
-                cell.fill = header_fill
-                cell.font = header_font
-                cell.alignment = center_align
-                cell.border = thin_border
-            
-            # 데이터 영역 서식 적용
-            for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
-                for cell in row:
-                    cell.border = thin_border
-                    cell.alignment = center_align
-                    
-            # 열 너비 자동 조정
-            for column in ws.columns:
-                ws.column_dimensions[column[0].column_letter].width = 15
-                
-    return output.getvalue()
-
 
 # ==========================================
 
@@ -51,8 +11,6 @@ def export_formatted_excel(df_dict):
 # ==========================================
 
 st.set_page_config(page_title="Sales Revenue - Monthly Report", layout="wide")
-
-
 
 st.markdown("""
 
