@@ -442,7 +442,7 @@ if uploaded_file:
         
         trend_df.loc['TTL (K.€)'] = trend_df.sum(numeric_only=True)
         trend_df.index.name = ''
-        trend_df.columns = [' '.join(col).strip() for col in trend_df.columns.values]
+        
         return trend_df
 
     # ==========================================
