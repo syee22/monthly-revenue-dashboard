@@ -493,7 +493,12 @@ if uploaded_file:
     # 6. 화면 출력
     # ==========================================
     reports_to_download = {}
-
+    st.subheader("📌 Sales Revenue Trend")
+    df_trend = build_trend_report(raw_df, selected_year, selected_month)
+    if not df_trend.empty:
+        st.markdown(render_trend_html_table(df_trend, apply_color=False), unsafe_allow_html=True)
+        reports_to_download["12M_Trend_Report"] = df_trend
+        
     st.subheader("📌 CPS별 매출액 요약")
     df_cps, p_col, c_col = build_summary_report(raw_df, ['CPS'], selected_year, selected_month, 'TTL (K.€)')
     if not df_cps.empty: 
@@ -542,12 +547,6 @@ if uploaded_file:
     if not df_core.empty: 
         st.markdown(render_biz_html_table(df_core, apply_color=True), unsafe_allow_html=True)
         reports_to_download["Core_Biz"] = df_core
-
-    st.subheader("📌 Sales Revenue Trend")
-    df_trend = build_trend_report(raw_df, selected_year, selected_month)
-    if not df_trend.empty:
-        st.markdown(render_trend_html_table(df_trend, apply_color=False), unsafe_allow_html=True)
-        reports_to_download["12M_Trend_Report"] = df_trend
 
     if reports_to_download:
         st.write("---")
