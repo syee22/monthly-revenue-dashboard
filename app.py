@@ -48,7 +48,7 @@ st.markdown("""
         vertical-align: middle;
     }
     .report-table .row_heading {
-        background-color: #f8f9fa !important;
+        background-color: #f8f9fa; /* !important를 제거하여 Pandas Styler의 인덱스 배경색이 반영되도록 수정 */
         color: #333 !important;
         text-align: left !important;
         padding-left: 10px !important;
@@ -96,9 +96,9 @@ def format_percentage_html(val):
     else: return pct_str
 
 def color_index_cells(v):
-    # HYU와 KIA 셀 배경색 지정 (인덱스용)
-    if str(v) == 'HYU': return 'background-color: #e6f2ff;'  # 하늘색
-    if str(v) == 'KIA': return 'background-color: #ffe6e6;'  # 분홍색
+    # 웹 화면 덮어쓰기 방지를 위해 !important 추가
+    if str(v) == 'HYU': return 'background-color: #e6f2ff !important;'  # 하늘색
+    if str(v) == 'KIA': return 'background-color: #ffe6e6 !important;'  # 분홍색
     return ''
 
 def apply_common_styles(styler):
@@ -110,11 +110,11 @@ def apply_common_styles(styler):
         for _ in row
     ], axis=1)
     
-    # HYU/KIA 인덱스 셀 색상 적용 (Pandas 버전 호환성)
+    # HYU/KIA 인덱스 셀 색상 적용 (level=0을 명시하여 첫 번째 타겟 대분류 열에만 색상 매핑)
     if hasattr(styler, 'map_index'):
-        styler.map_index(color_index_cells, axis=0)
+        styler.map_index(color_index_cells, axis=0, level=0)
     elif hasattr(styler, 'applymap_index'):
-        styler.applymap_index(color_index_cells, axis=0)
+        styler.applymap_index(color_index_cells, axis=0, level=0)
         
     return styler
 
