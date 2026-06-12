@@ -48,7 +48,7 @@ st.markdown("""
         vertical-align: middle;
     }
     .report-table .row_heading {
-        background-color: #f8f9fa; /* !important를 제거하여 Pandas Styler의 인덱스 배경색이 반영되도록 수정 */
+        background-color: #f8f9fa; 
         color: #333 !important;
         text-align: left !important;
         padding-left: 10px !important;
@@ -96,12 +96,11 @@ def format_percentage_html(val):
     else: return pct_str
 
 def color_index_cells(v):
-    # 웹 화면 덮어쓰기 방지를 위해 !important 추가
-    if str(v) == 'HYU': return 'background-color: #e6f2ff !important;'  # 하늘색
-    if str(v) == 'KIA': return 'background-color: #ffe6e6 !important;'  # 분홍색
+    if str(v) == 'HYU': return 'background-color: #e6f2ff;'  # 하늘색
+    if str(v) == 'KIA': return 'background-color: #ffe6e6;'  # 분홍색
     return ''
 
-def apply_common_styles(styler):
+def apply_common_styles(styler, apply_hkmc_color=False):
     # 총계/소계 강조
     styler.apply(lambda row: [
         'background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' 
@@ -110,12 +109,13 @@ def apply_common_styles(styler):
         for _ in row
     ], axis=1)
     
-    # HYU/KIA 인덱스 셀 색상 적용 (level=0을 명시하여 첫 번째 타겟 대분류 열에만 색상 매핑)
-    if hasattr(styler, 'map_index'):
-        styler.map_index(color_index_cells, axis=0, level=0)
-    elif hasattr(styler, 'applymap_index'):
-        styler.applymap_index(color_index_cells, axis=0, level=0)
-        
+    # 4번, 5번 테이블에만 HYU/KIA 인덱스 셀 색상 적용
+    if apply_hkmc_color:
+        if hasattr(styler, 'map_index'):
+            styler.map_index(color_index_cells, axis=0, level=0)
+        elif hasattr(styler, 'applymap_index'):
+            styler.applymap_index(color_index_cells, axis=0, level=0)
+            
     return styler
 
 def to_excel_multiple(df_dict):
@@ -123,7 +123,11 @@ def to_excel_multiple(df_dict):
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         for sheet_name, df in df_dict.items():
             styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
-            styler = apply_common_styles(styler)
+            
+            # 4번(PE_HKMC_Summary) 및 5번(PE_Biz_Detailed) 시트에만 색상 적용
+            apply_color = sheet_name in ["PE_HKMC_Summary", "PE_Biz_Detailed"]
+            styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
+            
             styler.to_excel(writer, sheet_name=sheet_name[:31])
             
             worksheet = writer.sheets[sheet_name[:31]]
@@ -385,7 +389,7 @@ if uploaded_file:
     # ==========================================
     # 5. 스타일링 및 렌더링
     # ==========================================
-    def render_html_view(df, phase_curr):
+    def render_html_view(df, phase_curr, apply_color=False):
         df_display = df.replace(0, '')
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
@@ -396,26 +400,26 @@ if uploaded_file:
         
         numeric_cols = get_numeric_cols(df)
         styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
-        styler = apply_common_styles(styler)
+        styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
         return f'<div class="table-container">{styler.to_html()}</div>'
 
-    def render_biz_html_table(df):
+    def render_biz_html_table(df, apply_color=False):
         df_display = df.replace(0, '')
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
         
         numeric_cols = get_numeric_cols(df)
         styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
-        styler = apply_common_styles(styler)
+        styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
         return f'<div class="table-container">{styler.to_html()}</div>'
 
-    def render_trend_html_table(df):
+    def render_trend_html_table(df, apply_color=False):
         df_display = df.replace(0, '')
         format_dict = {col: format_k_val for col in df.columns}
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
         
         styler.set_properties(**{'text-align': 'right'})
-        styler = apply_common_styles(styler)
+        styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
         return f'<div class="table-container">{styler.to_html()}</div>'
 
     # ==========================================
@@ -426,20 +430,20 @@ if uploaded_file:
     st.subheader("📌 1. 매출 요약 (CPS 기준)")
     df_cps, p_col, c_col = build_summary_report(raw_df, ['CPS'], selected_year, selected_month, 'TTL (K.€)')
     if not df_cps.empty: 
-        st.markdown(render_html_view(df_cps, c_col), unsafe_allow_html=True)
+        st.markdown(render_html_view(df_cps, c_col, apply_color=False), unsafe_allow_html=True)
         reports_to_download["CPS_Summary"] = df_cps
 
     st.subheader("📌 2. 매출 요약 (Item 기준)")
     df_item_raw = raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])]
     df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)', sort_by_current_act=True)
     if not df_item.empty: 
-        st.markdown(render_html_view(df_item, c_col), unsafe_allow_html=True)
+        st.markdown(render_html_view(df_item, c_col, apply_color=False), unsafe_allow_html=True)
         reports_to_download["Item_Summary"] = df_item
 
     st.subheader("📌 3. 비즈니스 타입별 매출 요약 (DIRECT / COMM.)")
     df_biz = get_biz_type_detailed_report(raw_df, selected_year, selected_month)
     if not df_biz.empty: 
-        st.markdown(render_html_view(df_biz, ""), unsafe_allow_html=True)
+        st.markdown(render_html_view(df_biz, "", apply_color=False), unsafe_allow_html=True)
         reports_to_download["Biz_Type_Summary"] = df_biz
 
     st.subheader("📌 4. Power Electronics 매출 요약 (HKMC 기준)")
@@ -457,25 +461,27 @@ if uploaded_file:
             sort_by_current_act=True
         )
         if not df_pe_summary.empty:
-            st.markdown(render_html_view(df_pe_summary, c_col), unsafe_allow_html=True)
+            # 4번 테이블에 적용
+            st.markdown(render_html_view(df_pe_summary, c_col, apply_color=True), unsafe_allow_html=True)
             reports_to_download["PE_HKMC_Summary"] = df_pe_summary
 
     st.subheader("📌 5. Power Electronics 비즈니스 (상세)")
     df_pe, phase_names_pe = get_biz_report(raw_df, "Power", selected_year, selected_month)
     if not df_pe.empty: 
-        st.markdown(render_biz_html_table(df_pe), unsafe_allow_html=True)
+        # 5번 테이블에 적용
+        st.markdown(render_biz_html_table(df_pe, apply_color=True), unsafe_allow_html=True)
         reports_to_download["PE_Biz_Detailed"] = df_pe
 
     st.subheader("📌 6. Core 비즈니스")
     df_core, phase_names_core = get_biz_report(raw_df, "Core", selected_year, selected_month)
     if not df_core.empty: 
-        st.markdown(render_biz_html_table(df_core), unsafe_allow_html=True)
+        st.markdown(render_biz_html_table(df_core, apply_color=False), unsafe_allow_html=True)
         reports_to_download["Core_Biz"] = df_core
 
     st.subheader("📌 7. 고객사별 월별 매출 트렌드 (최근 12개월)")
     df_trend = build_trend_report(raw_df, selected_year, selected_month)
     if not df_trend.empty:
-        st.markdown(render_trend_html_table(df_trend), unsafe_allow_html=True)
+        st.markdown(render_trend_html_table(df_trend, apply_color=False), unsafe_allow_html=True)
         reports_to_download["12M_Trend_Report"] = df_trend
 
     if reports_to_download:
