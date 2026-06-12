@@ -879,6 +879,7 @@ if uploaded_file:
         trend_df.index.name = ''
 
         trend_df.columns = [col.strip() for col in trend_df.columns.values]
+        trend_df = trend_df.drop(trend_df.index[1])
 
         return trend_df
 
