@@ -77,7 +77,7 @@ st.markdown("""
 st.title("📊 통합 월간 매출 보고서 (FC vs ACT 자동 집계)")
 
 # ==========================================
-# 2. 포맷팅 및 고품질 엑셀 다운로드 함수
+# 2. 포맷팅 및 공통 스타일 함수
 # ==========================================
 def format_k_val(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
@@ -95,19 +95,35 @@ def format_percentage_html(val):
     elif val > 0: return f'<span style="color: #c00000; font-weight: bold;">{pct_str} ▼</span>'
     else: return pct_str
 
+def color_index_cells(v):
+    # HYU와 KIA 셀 배경색 지정 (인덱스용)
+    if str(v) == 'HYU': return 'background-color: #e6f2ff;'  # 하늘색
+    if str(v) == 'KIA': return 'background-color: #ffe6e6;'  # 분홍색
+    return ''
+
+def apply_common_styles(styler):
+    # 총계/소계 강조
+    styler.apply(lambda row: [
+        'background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' 
+        if any(keyword in str(row.name) for keyword in ['TTL', 'Total', 'Subtotal', '소계']) 
+        else '' 
+        for _ in row
+    ], axis=1)
+    
+    # HYU/KIA 인덱스 셀 색상 적용 (Pandas 버전 호환성)
+    if hasattr(styler, 'map_index'):
+        styler.map_index(color_index_cells, axis=0)
+    elif hasattr(styler, 'applymap_index'):
+        styler.applymap_index(color_index_cells, axis=0)
+        
+    return styler
+
 def to_excel_multiple(df_dict):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         for sheet_name, df in df_dict.items():
             styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
-            
-            styler.apply(lambda row: [
-                'background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' 
-                if any(keyword in str(row.name) for keyword in ['TTL', 'Total', 'Subtotal', '소계']) 
-                else '' 
-                for _ in row
-            ], axis=1)
-
+            styler = apply_common_styles(styler)
             styler.to_excel(writer, sheet_name=sheet_name[:31])
             
             worksheet = writer.sheets[sheet_name[:31]]
@@ -338,7 +354,6 @@ if uploaded_file:
         grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('', f'{biz_type} Total', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
         return pd.concat([final_df, grand_row]), phase_names
 
-    # 12개월 롤링 트렌드 생성 함수 추가
     def build_trend_report(df, end_year, end_month):
         months = []
         curr_y, curr_m = end_year, end_month
@@ -348,28 +363,21 @@ if uploaded_file:
             if curr_m == 0:
                 curr_m = 12
                 curr_y -= 1
-        months.reverse() # 과거순 -> 현재순
+        months.reverse() 
         
         month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
-        
-        # ACT 데이터만 필터링
         df_act = df[df['Desc.'] == 'ACT']
         
         pivot_data = {}
-        col_names = []
         for y, m in months:
             col_name = f"{month_names[m]}.{str(y)[-2:]}"
-            col_names.append(col_name)
             temp_df = df_act[(df_act['Year'] == y) & (df_act['Month'] == m)]
             pivot_data[col_name] = temp_df.groupby('Group 2')['Rev. (€)'].sum()
             
         trend_df = pd.DataFrame(pivot_data)
-        
-        # 행 순서 고정 및 빈 값 채우기
         row_order = ['HYU', 'KIA', 'GM']
         trend_df = trend_df.reindex(row_order).fillna(0)
         
-        # 총계 행 추가
         trend_df.loc['TTL (K.€)'] = trend_df.sum(numeric_only=True)
         trend_df.index.name = ''
         return trend_df
@@ -388,7 +396,7 @@ if uploaded_file:
         
         numeric_cols = get_numeric_cols(df)
         styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
-        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row) if 'TTL' in str(row.name) or 'Total' in str(row.name) or 'Subtotal' in str(row.name) else [''] * len(row), axis=1)
+        styler = apply_common_styles(styler)
         return f'<div class="table-container">{styler.to_html()}</div>'
 
     def render_biz_html_table(df):
@@ -398,7 +406,7 @@ if uploaded_file:
         
         numeric_cols = get_numeric_cols(df)
         styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
-        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' if '소계' in str(row.name) or 'Total' in str(row.name) else '' for _ in row], axis=1)
+        styler = apply_common_styles(styler)
         return f'<div class="table-container">{styler.to_html()}</div>'
 
     def render_trend_html_table(df):
@@ -407,7 +415,7 @@ if uploaded_file:
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
         
         styler.set_properties(**{'text-align': 'right'})
-        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row) if 'TTL' in str(row.name) else [''] * len(row), axis=1)
+        styler = apply_common_styles(styler)
         return f'<div class="table-container">{styler.to_html()}</div>'
 
     # ==========================================
@@ -464,7 +472,6 @@ if uploaded_file:
         st.markdown(render_biz_html_table(df_core), unsafe_allow_html=True)
         reports_to_download["Core_Biz"] = df_core
 
-    # 신규 추가: 12개월 트렌드 
     st.subheader("📌 7. 고객사별 월별 매출 트렌드 (최근 12개월)")
     df_trend = build_trend_report(raw_df, selected_year, selected_month)
     if not df_trend.empty:
