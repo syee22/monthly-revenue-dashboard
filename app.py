@@ -109,7 +109,7 @@ def apply_common_styles(styler, apply_hkmc_color=False):
         for _ in row
     ], axis=1)
     
-    # 총계/소계 인덱스(행 헤더) 셀 강조 (엑셀 충돌 방지를 위해 !important 속성 완전 제거됨)
+    # 총계/소계 인덱스(행 헤더) 셀 강조 (엑셀 충돌 방지를 위해 !important 속성 완전 제거)
     def highlight_total_index(val):
         if any(keyword in str(val) for keyword in ['TTL', 'Total', 'Subtotal', '소계']):
             return 'background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
@@ -130,38 +130,50 @@ def apply_common_styles(styler, apply_hkmc_color=False):
     return styler
 
 def optimize_html_headers(html_str, df):
-    """Pandas HTML 테이블의 빈 헤더를 병합하여 수직/수평 중앙 정렬을 구현하는 함수"""
-    # 1. 인덱스(행 헤더) 열 병합 (좌측 상단 빈 공간 처리 - col/level 무관하게 잡아냄)
-    if hasattr(df, 'index') and hasattr(df.index, 'names'):
-        for i, name in enumerate(df.index.names):
-            name_str = str(name) if name is not None else ""
-            if not name_str: continue
+    """Pandas HTML 테이블의 빈 헤더를 배열 방식으로 안전하게 병합하여 중앙 정렬 구현"""
+    try:
+        thead_start = html_str.find('<thead>')
+        thead_end = html_str.find('</thead>')
+        if thead_start == -1 or thead_end == -1: return html_str
+        
+        thead_html = html_str[thead_start:thead_end+8]
+        
+        # thead 안의 tr 태그들을 추출
+        tr_matches = list(re.finditer(r'<tr[^>]*>(.*?)</tr>', thead_html, re.IGNORECASE | re.DOTALL))
+        if len(tr_matches) < 2: return html_str
+        
+        row0_inner = tr_matches[0].group(1)
+        row1_inner = tr_matches[1].group(1)
+        
+        # <tr> 안의 <th> 태그들을 배열로 변환
+        th_pattern = r'<th[^>]*>.*?</th>'
+        ths0 = re.findall(th_pattern, row0_inner, re.IGNORECASE | re.DOTALL)
+        ths1 = re.findall(th_pattern, row1_inner, re.IGNORECASE | re.DOTALL)
+        
+        # 인덱스 이름(좌측 상단) 병합 처리
+        if hasattr(df, 'index') and hasattr(df.index, 'names'):
+            index_names = [str(n) for n in df.index.names if n is not None and str(n).strip()]
+            num_indices = len(index_names)
             
-            blank_pattern = re.compile(rf'<th class="blank[^"]*"[^>]*>(?:&nbsp;|\s*)</th>', re.IGNORECASE)
-            rowspan_header = f'<th rowspan="2" class="index_name level{i}" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; min-width: 80px;">{name_str}</th>'
-            
-            if blank_pattern.search(html_str):
-                html_str = blank_pattern.sub(rowspan_header, html_str, count=1)
-                escaped_name = re.escape(name_str)
-                index_pattern = re.compile(rf'<th class="index_name level{i}"[^>]*>\s*{escaped_name}\s*</th>', re.IGNORECASE)
-                html_str = index_pattern.sub('', html_str, count=1)
-    
-    # 2. 값 열 (이전 달 등) 빈 상단 헤더 병합
-    if hasattr(df, 'columns') and isinstance(df.columns, pd.MultiIndex):
-        for j, col in enumerate(df.columns):
-            if col[0] == '' or str(col[0]).strip() == '':
-                col_name = str(col[1])
-                escaped_col = re.escape(col_name)
-                
-                top_pattern = re.compile(rf'<th class="col_heading level0 col{j}"[^>]*>(?:&nbsp;|\s*)</th>', re.IGNORECASE)
-                rowspan_header = f'<th rowspan="2" class="col_heading level0 col{j}" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important;">{col_name}</th>'
-                
-                if top_pattern.search(html_str):
-                    html_str = top_pattern.sub(rowspan_header, html_str, count=1)
-                    bottom_pattern = re.compile(rf'<th class="col_heading level1 col{j}"[^>]*>\s*{escaped_col}\s*</th>', re.IGNORECASE)
-                    html_str = bottom_pattern.sub('', html_str, count=1)
+            for i in range(num_indices):
+                if i < len(ths0) and i < len(ths1):
+                    name = index_names[i]
+                    # 상단 셀을 rowspan 2로 만들며 텍스트 주입
+                    ths0[i] = f'<th rowspan="2" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; min-width: 80px;">{name}</th>'
+                    # 하단 셀 삭제 (그리드 레이아웃 유지)
+                    ths1[i] = ''
                     
-    return html_str
+        # 조작된 <th> 배열을 다시 문자열로 결합
+        row0_new = "".join(ths0)
+        row1_new = "".join(ths1)
+        
+        new_thead = f"<thead>\n<tr>{row0_new}</tr>\n<tr>{row1_new}</tr>\n</thead>"
+        
+        # 원본 HTML에서 thead 교체
+        return html_str[:thead_start] + new_thead + html_str[thead_end+8:]
+    except Exception:
+        # 에러 발생 시 원본 반환하여 동작 유지
+        return html_str
 
 def to_excel_multiple(df_dict):
     output = io.BytesIO()
@@ -258,11 +270,12 @@ if uploaded_file:
         current_index_names = index_names if index_names else (['CPS'] if index_cols == ['CPS'] else index_cols)
         idx = pd.MultiIndex.from_tuples(all_indices, names=current_index_names) if len(index_cols) > 1 else pd.Index([x[0] for x in all_indices], name=current_index_names[0])
         
-        combined_dict, col_tuples = {}, [('', col_prev)]
+        # 🌟 구조 일관성을 위해 이전 달 데이터를 (col_prev, 'ACT') 튜플로 매핑
+        combined_dict, col_tuples = {}, [(col_prev, 'ACT')]
         for p in phases:
             for c in ['25 FC3', '26 FC1', 'ACT', 'ACHI %']: col_tuples.append((p, c))
             
-        combined_dict[('', col_prev)] = s_prev.reindex(idx).fillna(0) if not s_prev.empty else pd.Series(0, index=idx)
+        combined_dict[(col_prev, 'ACT')] = s_prev.reindex(idx).fillna(0) if not s_prev.empty else pd.Series(0, index=idx)
         for phase_name, data in zip(phases, [p_curr, p_ytd, p_ttl]):
             for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data[c].reindex(idx).fillna(0) if not data.empty and c in data.columns else pd.Series(0, index=idx)
             num = pd.Series(combined_dict[(phase_name, 'ACT')])
@@ -489,7 +502,6 @@ if uploaded_file:
 
     st.subheader("📌 2. 매출 요약 (Item 기준)")
     df_item_raw = raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])]
-    # index_names=['CPS'] 파라미터를 추가하여 2번 테이블도 'CPS'로 열 이름이 출력되도록 설정
     df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)', index_names=['CPS'], sort_by_current_act=True)
     if not df_item.empty: 
         st.markdown(render_html_view(df_item, c_col, apply_color=False), unsafe_allow_html=True)
