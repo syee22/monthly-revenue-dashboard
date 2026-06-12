@@ -17,7 +17,7 @@ st.markdown("""
     .report-table {
         border-collapse: collapse !important;
         font-family: 'Malgun Gothic', sans-serif;
-        font-size: 12px;
+        font-size: 10px;
         width: 100%;
         background-color: white;
     }
@@ -74,7 +74,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("📊 통합 월간 매출 보고서 (FC vs ACT 자동 집계)")
+st.title("📊 Sales Revenue - Monthly Report")
 
 # ==========================================
 # 2. 포맷팅 및 공통 스타일 함수
