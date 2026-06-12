@@ -338,6 +338,42 @@ if uploaded_file:
         grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('', f'{biz_type} Total', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
         return pd.concat([final_df, grand_row]), phase_names
 
+    # 12개월 롤링 트렌드 생성 함수 추가
+    def build_trend_report(df, end_year, end_month):
+        months = []
+        curr_y, curr_m = end_year, end_month
+        for _ in range(12):
+            months.append((curr_y, curr_m))
+            curr_m -= 1
+            if curr_m == 0:
+                curr_m = 12
+                curr_y -= 1
+        months.reverse() # 과거순 -> 현재순
+        
+        month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
+        
+        # ACT 데이터만 필터링
+        df_act = df[df['Desc.'] == 'ACT']
+        
+        pivot_data = {}
+        col_names = []
+        for y, m in months:
+            col_name = f"{month_names[m]}.{str(y)[-2:]}"
+            col_names.append(col_name)
+            temp_df = df_act[(df_act['Year'] == y) & (df_act['Month'] == m)]
+            pivot_data[col_name] = temp_df.groupby('Group 2')['Rev. (€)'].sum()
+            
+        trend_df = pd.DataFrame(pivot_data)
+        
+        # 행 순서 고정 및 빈 값 채우기
+        row_order = ['HYU', 'KIA', 'GM']
+        trend_df = trend_df.reindex(row_order).fillna(0)
+        
+        # 총계 행 추가
+        trend_df.loc['TTL (K.€)'] = trend_df.sum(numeric_only=True)
+        trend_df.index.name = ''
+        return trend_df
+
     # ==========================================
     # 5. 스타일링 및 렌더링
     # ==========================================
@@ -365,6 +401,15 @@ if uploaded_file:
         styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' if '소계' in str(row.name) or 'Total' in str(row.name) else '' for _ in row], axis=1)
         return f'<div class="table-container">{styler.to_html()}</div>'
 
+    def render_trend_html_table(df):
+        df_display = df.replace(0, '')
+        format_dict = {col: format_k_val for col in df.columns}
+        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
+        
+        styler.set_properties(**{'text-align': 'right'})
+        styler.apply(lambda row: ['background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row) if 'TTL' in str(row.name) else [''] * len(row), axis=1)
+        return f'<div class="table-container">{styler.to_html()}</div>'
+
     # ==========================================
     # 6. 화면 출력
     # ==========================================
@@ -390,7 +435,6 @@ if uploaded_file:
         reports_to_download["Biz_Type_Summary"] = df_biz
 
     st.subheader("📌 4. Power Electronics 매출 요약 (HKMC 기준)")
-    # Group 2에서 현대(HYU)와 기아(KIA)를 HKMC로 통합하여 요약표 생성
     df_pe_raw = raw_df[raw_df['Business Type'].str.contains("Power", case=False, na=False)].copy()
     if not df_pe_raw.empty:
         df_pe_raw['Cust. GR'] = df_pe_raw['Group 2'].replace({'HYU': 'HKMC', 'KIA': 'HKMC'})
@@ -419,6 +463,13 @@ if uploaded_file:
     if not df_core.empty: 
         st.markdown(render_biz_html_table(df_core), unsafe_allow_html=True)
         reports_to_download["Core_Biz"] = df_core
+
+    # 신규 추가: 12개월 트렌드 
+    st.subheader("📌 7. 고객사별 월별 매출 트렌드 (최근 12개월)")
+    df_trend = build_trend_report(raw_df, selected_year, selected_month)
+    if not df_trend.empty:
+        st.markdown(render_trend_html_table(df_trend), unsafe_allow_html=True)
+        reports_to_download["12M_Trend_Report"] = df_trend
 
     if reports_to_download:
         st.write("---")
