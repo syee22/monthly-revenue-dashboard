@@ -4,6 +4,7 @@ import numpy as np
 import io
 import re
 MONTH_NAMES = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
+st.title(f"Sales Revenue - {MONTH_NAMES[selected_month]} Monthly Report")
 # ==========================================
 # 1. 페이지 설정 및 전역 CSS 주입
 # ==========================================
@@ -74,7 +75,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title(f"Sales Revenue - {MONTH_NAMES[selected_month]} Monthly Report")
 
 # ==========================================
 # 2. 포맷팅 및 공통 스타일 함수
