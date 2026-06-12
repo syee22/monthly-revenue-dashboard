@@ -74,7 +74,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title(" Sales Revenue - Monthly Report")
+#st.title(" Sales Revenue - Monthly Report")
 
 # ==========================================
 # 2. 포맷팅 및 공통 스타일 함수
@@ -239,7 +239,7 @@ if uploaded_file:
     years = sorted(raw_df['Year'].unique())
     selected_year = st.sidebar.selectbox("연도", years, index=len(years)-1 if years else 0)
     selected_month = st.sidebar.selectbox("월", sorted(raw_df['Month'].unique()))
-
+    st.title(f"Sales Revenue - {month_names[selected_month]} Monthly Report")
     # ==========================================
     # 4. 핵심 비즈니스 로직
     # ==========================================
