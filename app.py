@@ -442,7 +442,7 @@ if uploaded_file:
         
         trend_df.loc['TTL (K.€)'] = trend_df.sum(numeric_only=True)
         trend_df.index.name = ''
-        return trend_df
+        return trend_df.drop(trend_df.index[1])
 
     # ==========================================
     # 5. 스타일링 및 렌더링
