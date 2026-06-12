@@ -9,11 +9,23 @@ import re
 # ==========================================
 st.set_page_config(page_title="Sales Revenue - Monthly Report", layout="wide")
 
+MONTH_NAMES = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
+BIZ_CONFIG = {"Power": "PE Biz", "Core": "Core Biz"}
+
 st.markdown("""
     <style>
     .block-container { padding: 2rem 3rem; }
     h1 { font-size: 1.6rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
     h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0.5rem !important; color: #002060 !important; }
+    .super-header {
+        background-color: #002060 !important;
+        color: white !important;
+        text-align: center !important;
+        font-weight: bold !important;
+        padding: 8px !important;
+        border: 1px solid #8ea9db !important;
+        font-size: 13px !important;
+    }
     .report-table {
         border-collapse: collapse !important;
         font-family: 'Malgun Gothic', sans-serif;
@@ -94,25 +106,23 @@ def format_percentage_html(val):
     elif val > 0: return f'<span style="color: #c00000; font-weight: bold;">{pct_str} ▼</span>'
     else: return pct_str
 
-def color_index_cells(v):
-    if str(v) == 'HYU': return 'background-color: #e6f2ff;'  # 하늘색
-    if str(v) == 'KIA': return 'background-color: #ffe6e6;'  # 분홍색
-    return ''
-
-def apply_common_styles(styler, apply_hkmc_color=False):
-    # 총계/소계 데이터 셀 강조 (!important 추가)
+def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
+    # 엑셀 다운로드 시에는 !important 태그를 제외합니다.
+    imp = "" if is_export else " !important"
+    
+    # 총계/소계 데이터 셀 강조
     def style_row(row):
         row_str = str(row.name)
         if any(keyword in row_str for keyword in ['TTL', 'Total', 'Subtotal', '소계']):
-            return ['background-color: #ffffe0 !important; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
+            return [f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
         return [''] * len(row)
     
     styler.apply(style_row, axis=1)
     
-    # 총계/소계 인덱스(행 헤더) 셀 강조 (!important 추가)
+    # 총계/소계 인덱스(행 헤더) 셀 강조
     def highlight_total_index(val):
         if any(keyword in str(val) for keyword in ['TTL', 'Total', 'Subtotal', '소계']):
-            return 'background-color: #ffffe0 !important; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+            return f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
         return ''
 
     # MultiIndex의 모든 레벨에 스타일 적용
@@ -125,6 +135,11 @@ def apply_common_styles(styler, apply_hkmc_color=False):
         
     # 4번, 5번, 6번 테이블에만 HYU/KIA 인덱스 셀 색상 적용
     if apply_hkmc_color:
+        def color_index_cells(v):
+            if str(v) == 'HYU': return 'background-color: #e6f2ff;'  # 하늘색
+            if str(v) == 'KIA': return 'background-color: #ffe6e6;'  # 분홍색
+            return ''
+            
         if hasattr(styler, 'map_index'):
             styler.map_index(color_index_cells, axis=0, level=0)
         elif hasattr(styler, 'applymap_index'):
@@ -178,6 +193,11 @@ def optimize_html_headers(html_str, df):
         # 에러 발생 시 원본 반환하여 동작 유지
         return html_str
 
+def inject_spanning_header(html_str, title, df):
+    total_cols = len(df.columns) + df.index.nlevels
+    new_header = f'<thead><tr><th colspan="{total_cols}" class="super-header">{title}</th></tr>'
+    return html_str.replace('<thead>', new_header)
+
 def to_excel_multiple(df_dict):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -186,7 +206,9 @@ def to_excel_multiple(df_dict):
             
             # 4번, 5번 및 6번 시트에만 색상 적용
             apply_color = sheet_name in ["PE_HKMC_Summary", "PE_Biz_Detailed", "Core_Biz"]
-            styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
+            
+            # [수정] is_export=True 를 전달하여 !important 태그를 제거합니다.
+            styler = apply_common_styles(styler, apply_hkmc_color=apply_color, is_export=True)
             
             styler.to_excel(writer, sheet_name=sheet_name[:31])
             
@@ -254,8 +276,7 @@ if uploaded_file:
         if month == 1: prev_year, prev_month = year - 1, 12
         else: prev_year, prev_month = year, month - 1
         
-        month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
-        m_str, pm_str = month_names.get(month, f'{month}'), month_names.get(prev_month, f'{prev_month}')
+        m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
         col_prev, phase_curr, phase_ytd, phase_ttl = f'{pm_str}. {year if month != 1 else prev_year}', f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL'
         phases = [phase_curr, phase_ytd, phase_ttl]
 
@@ -273,7 +294,6 @@ if uploaded_file:
         current_index_names = index_names if index_names else (['CPS'] if index_cols == ['CPS'] else index_cols)
         idx = pd.MultiIndex.from_tuples(all_indices, names=current_index_names) if len(index_cols) > 1 else pd.Index([x[0] for x in all_indices], name=current_index_names[0])
         
-        # 🌟 구조 일관성을 위해 이전 달 데이터를 (col_prev, 'ACT') 튜플로 매핑
         combined_dict, col_tuples = {}, [(col_prev, 'ACT')]
         for p in phases:
             for c in ['25 FC3', '26 FC1', 'ACT', 'ACHI %']: col_tuples.append((p, c))
@@ -316,8 +336,7 @@ if uploaded_file:
         if month == 1: prev_year, prev_month = year - 1, 12
         else: prev_year, prev_month = year, month - 1
         
-        month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
-        m_str, pm_str = month_names.get(month, f'{month}'), month_names.get(prev_month, f'{prev_month}')
+        m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
         phase_names = [f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL']
         prev_phase_name = f'{pm_str}. {prev_year}'
         
@@ -356,7 +375,7 @@ if uploaded_file:
             
         final_df = pd.concat(results)
         
-        # [수정됨] DIRECT & COMMISSION 테이블에 전체 합계(TTL) 행 추가
+        # DIRECT & COMMISSION 테이블에 전체 합계(TTL) 행 추가
         grand_total = final_df[final_df.index.get_level_values(1) != 'Subtotal'].sum(numeric_only=True)
         for p_name in phase_names:
             num = grand_total.get((p_name, 'ACT'), 0)
@@ -372,8 +391,7 @@ if uploaded_file:
         else: prev_year, prev_month = year, month - 1
         
         df_biz = df[(df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == year)].copy()
-        month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
-        m_str, pm_str = month_names.get(month, f'{month}'), month_names.get(prev_month, f'{prev_month}')
+        m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
         phase_names = [f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL']
         prev_phase_name = f'{pm_str}. {prev_year}'
         
@@ -427,8 +445,8 @@ if uploaded_file:
             den = grand_total.get((p_name, '26 FC1'), 0)
             grand_total[(p_name, 'ACHI %')] = num / den if den != 0 else 0
             
-        # [수정됨] 노란색 음영 트리거를 위해 'TTL'을 포함하도록 레이블 수정
-        grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('', f'{biz_type} Biz Rev. TTL (K.€)', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
+        # 노란색 음영 트리거를 위해 'TTL'을 포함하도록 레이블 유지
+        grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('', f'{BIZ_CONFIG.get(biz_type, biz_type)} Rev. TTL (K.€)', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
         
         return pd.concat([final_df, grand_row]), phase_names
 
@@ -443,14 +461,14 @@ if uploaded_file:
                 curr_y -= 1
         months.reverse() 
         
-        month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
         df_act = df[df['Desc.'] == 'ACT']
         
         pivot_data = {}
         for y, m in months:
-            col_name = f"{month_names[m]}.{str(y)[-2:]}"
+            col_name = f"{MONTH_NAMES[m]}.{str(y)[-2:]}"
             temp_df = df_act[(df_act['Year'] == y) & (df_act['Month'] == m)]
             pivot_data[col_name] = temp_df.groupby('Group 2')['Rev. (€)'].sum()
+            
         trend_df = pd.DataFrame(pivot_data)
         row_order = ['HYU', 'KIA', 'GM']
         trend_df = trend_df.reindex(row_order).fillna(0)
@@ -465,7 +483,7 @@ if uploaded_file:
     # ==========================================
     # 5. 스타일링 및 렌더링
     # ==========================================
-    def render_html_view(df, phase_curr, apply_color=False):
+    def render_html_view(df, phase_curr, apply_color=False, title=None):
         df_display = df.replace(0, '')
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
@@ -480,9 +498,10 @@ if uploaded_file:
         
         html_str = styler.to_html()
         html_str = optimize_html_headers(html_str, df)
+        if title: html_str = inject_spanning_header(html_str, title, df)
         return f'<div class="table-container">{html_str}</div>'
 
-    def render_biz_html_table(df, apply_color=False):
+    def render_biz_html_table(df, apply_color=False, title=None):
         df_display = df.replace(0, '')
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
@@ -493,6 +512,7 @@ if uploaded_file:
         
         html_str = styler.to_html()
         html_str = optimize_html_headers(html_str, df)
+        if title: html_str = inject_spanning_header(html_str, title, df)
         return f'<div class="table-container">{html_str}</div>'
 
     def render_trend_html_table(df, apply_color=False):
@@ -504,7 +524,6 @@ if uploaded_file:
         styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
         
         html_str = styler.to_html()
-        #html_str = optimize_html_headers(html_str, df)
         return f'<div class="table-container">{html_str}</div>'
 
     # ==========================================
@@ -520,21 +539,23 @@ if uploaded_file:
     st.subheader("📌 CPS별 매출액 요약")
     df_cps, p_col, c_col = build_summary_report(raw_df, ['CPS'], selected_year, selected_month, 'TTL (K.€)')
     if not df_cps.empty: 
-        st.markdown(render_html_view(df_cps, c_col, apply_color=False), unsafe_allow_html=True)
+        df_cps.index.name = 'CPS'
+        st.markdown(render_html_view(df_cps, c_col, apply_color=False, title="CPS Sales Revenue (K.€)"), unsafe_allow_html=True)
         reports_to_download["CPS_Summary"] = df_cps
 
     st.subheader("📌 PE Item 매출액 요약")
     df_item_raw = raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])]
-    df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)', index_names=['CPS'], sort_by_current_act=True)
+    df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)', index_names=['Item'], sort_by_current_act=True)
     if not df_item.empty: 
-        st.markdown(render_html_view(df_item, c_col, apply_color=False), unsafe_allow_html=True)
+        df_item.index.name = 'Item'
+        st.markdown(render_html_view(df_item, c_col, apply_color=False, title="PE Item Sales Revenue (K.€)"), unsafe_allow_html=True)
         reports_to_download["Item_Summary"] = df_item
 
     st.subheader("📌 DIRECT & COMMISSION 매출액 요약")
-    df_biz = get_biz_type_detailed_report(raw_df, selected_year, selected_month)
-    if not df_biz.empty: 
-        st.markdown(render_html_view(df_biz, "", apply_color=False), unsafe_allow_html=True)
-        reports_to_download["Biz_Type_Summary"] = df_biz
+    df_biz_type = get_biz_type_detailed_report(raw_df, selected_year, selected_month)
+    if not df_biz_type.empty: 
+        st.markdown(render_html_view(df_biz_type, "", apply_color=False, title="Direct & Commission Sales Revenue (K.€)"), unsafe_allow_html=True)
+        reports_to_download["Biz_Type_Summary"] = df_biz_type
 
     st.subheader("📌 Sales Revenue: Power Electronics")
     df_pe_raw = raw_df[raw_df['Business Type'].str.contains("Power", case=False, na=False)].copy()
@@ -554,21 +575,20 @@ if uploaded_file:
             st.markdown(render_html_view(df_pe_summary, c_col, apply_color=True), unsafe_allow_html=True)
             reports_to_download["PE_HKMC_Summary"] = df_pe_summary
 
-    st.subheader("📌 Power Electronics 상세")
-    df_pe, phase_names_pe = get_biz_report(raw_df, "Power", selected_year, selected_month)
-    if not df_pe.empty: 
-        st.markdown(render_biz_html_table(df_pe, apply_color=True), unsafe_allow_html=True)
-        reports_to_download["PE_Biz_Detailed"] = df_pe
-
-    st.subheader("📌 Sales Revenue: Core Business")
-    df_core, phase_names_core = get_biz_report(raw_df, "Core", selected_year, selected_month)
-    if not df_core.empty: 
-        st.markdown(render_biz_html_table(df_core, apply_color=True), unsafe_allow_html=True)
-        reports_to_download["Core_Biz"] = df_core
+    for filter_key, display_name in BIZ_CONFIG.items():
+        st.subheader(f"📌 Sales Revenue: {display_name}")
+        df_biz, _ = get_biz_report(raw_df, filter_key, selected_year, selected_month)
+        if not df_biz.empty:
+            st.markdown(render_biz_html_table(df_biz, apply_color=True, title=f"Sales Revenue: {display_name} (K.€)"), unsafe_allow_html=True)
+            reports_to_download[f"{display_name}_Detailed"] = df_biz
 
     if reports_to_download:
         st.write("---")
-        st.download_button("📥 월간회의 자료용 엑셀 다운로드", data=to_excel_multiple(reports_to_download), file_name=f"Monthly_Closing_Report_{selected_year}_{selected_month:02d}.xlsx", use_container_width=True)
-
+        st.download_button(
+            "📥 월간회의 자료용 엑셀 다운로드", 
+            data=to_excel_multiple(reports_to_download), 
+            file_name=f"Monthly_Closing_Report_{selected_year}_{selected_month:02d}.xlsx", 
+            use_container_width=True
+        )
 else:
     st.info("👈 좌측 사이드바에서 엑셀 파일을 업로드하시면 요약 리포트가 자동 생성됩니다.")
