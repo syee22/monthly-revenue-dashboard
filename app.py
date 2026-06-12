@@ -101,7 +101,7 @@ def color_index_cells(v):
     return ''
 
 def apply_common_styles(styler, apply_hkmc_color=False):
-    # 1. 데이터 영역 총계/소계 노란색 배경 강조
+    # 총계/소계 강조
     styler.apply(lambda row: [
         'background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;' 
         if any(keyword in str(row.name) for keyword in ['TTL', 'Total', 'Subtotal', '소계']) 
@@ -109,28 +109,12 @@ def apply_common_styles(styler, apply_hkmc_color=False):
         for _ in row
     ], axis=1)
     
-    # 2. 인덱스(행 헤더) 영역 스타일 매핑 
-    if isinstance(styler.index, pd.MultiIndex):
-        for level_idx in range(styler.index.nlevels):
-            styler.apply_index(lambda idx, l=level_idx: [
-                'background-color: #ffffe0; color: #002060; font-weight: bold;' 
-                if any(keyword in str(styler.index[i]) for keyword in ['TTL', 'Total', 'Subtotal', '소계']) 
-                else (
-                    'background-color: #e6f2ff;' if apply_hkmc_color and l == 0 and str(styler.index[i][0]) == 'HYU'
-                    else ('background-color: #ffe6e6;' if apply_hkmc_color and l == 0 and str(styler.index[i][0]) == 'KIA' else '')
-                )
-                for i, v in enumerate(idx)
-            ], axis=0, level=l)
-    else:
-        styler.apply_index(lambda idx: [
-            'background-color: #ffffe0; color: #002060; font-weight: bold;' 
-            if any(keyword in str(styler.index[i]) for keyword in ['TTL', 'Total', 'Subtotal', '소계']) 
-            else (
-                'background-color: #e6f2ff;' if apply_hkmc_color and str(styler.index[i]) == 'HYU'
-                else ('background-color: #ffe6e6;' if apply_hkmc_color and str(styler.index[i]) == 'KIA' else '')
-            )
-            for i, v in enumerate(idx)
-        ], axis=0)
+    # 4번, 5번, 6번 테이블에만 HYU/KIA 인덱스 셀 색상 적용
+    if apply_hkmc_color:
+        if hasattr(styler, 'map_index'):
+            styler.map_index(color_index_cells, axis=0, level=0)
+        elif hasattr(styler, 'applymap_index'):
+            styler.applymap_index(color_index_cells, axis=0, level=0)
             
     return styler
 
@@ -140,7 +124,7 @@ def to_excel_multiple(df_dict):
         for sheet_name, df in df_dict.items():
             styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
             
-            # 4번, 5번 및 6번 시트에만 고객사별 색상 켜기
+            # 4번, 5번 및 6번 시트에만 색상 적용
             apply_color = sheet_name in ["PE_HKMC_Summary", "PE_Biz_Detailed", "Core_Biz"]
             styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
             
@@ -309,19 +293,7 @@ if uploaded_file:
             results.append(combined)
             results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(biz, 'Subtotal')], names=['BIZ Type', 'KOx'])))
             
-        if not results: return pd.DataFrame()
-        
-        final_df = pd.concat(results)
-        
-        main_rows = final_df[final_df.index.get_level_values(1) != 'Subtotal']
-        grand_total = main_rows.sum(numeric_only=True)
-        for p_name in phase_names:
-            num = grand_total.get((p_name, 'ACT'), 0)
-            den = grand_total.get((p_name, '26 FC1'), 0)
-            grand_total[(p_name, 'ACHI %')] = num / den if den != 0 else 0
-            
-        grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('TTL (K.€)', '')], names=['BIZ Type', 'KOx']))
-        return pd.concat([final_df, grand_row])
+        return pd.concat(results)
 
     def get_biz_report(df, biz_type, year, month):
         if month == 1: prev_year, prev_month = year - 1, 12
@@ -343,7 +315,6 @@ if uploaded_file:
             p_fy = brand_df.pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             p_prev = df[(df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             
-            # 파이썬 논리 연산자 and로 수정 완료
             if "Core" in biz_type and brand in ['HYU', 'KIA']:
                 top = p_m[p_m['ACT'] >= 10000].index if not p_m.empty and 'ACT' in p_m.columns else p_m.index
                 def group_others(p):
@@ -377,8 +348,6 @@ if uploaded_file:
             results.append(combined)
             if brand != 'GM': results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, '소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
             
-        if not results: return pd.DataFrame(), phase_names
-        
         final_df = pd.concat(results)
         grand_total = final_df[final_df.index.get_level_values(1) != '소계'].sum(numeric_only=True)
         for p_name in phase_names:
@@ -492,18 +461,21 @@ if uploaded_file:
             sort_by_current_act=True
         )
         if not df_pe_summary.empty:
+            # 4번 테이블에 적용
             st.markdown(render_html_view(df_pe_summary, c_col, apply_color=True), unsafe_allow_html=True)
             reports_to_download["PE_HKMC_Summary"] = df_pe_summary
 
     st.subheader("📌 5. Power Electronics 비즈니스 (상세)")
     df_pe, phase_names_pe = get_biz_report(raw_df, "Power", selected_year, selected_month)
     if not df_pe.empty: 
+        # 5번 테이블에 적용
         st.markdown(render_biz_html_table(df_pe, apply_color=True), unsafe_allow_html=True)
         reports_to_download["PE_Biz_Detailed"] = df_pe
 
     st.subheader("📌 6. Core 비즈니스")
     df_core, phase_names_core = get_biz_report(raw_df, "Core", selected_year, selected_month)
     if not df_core.empty: 
+        # 6번 테이블에 적용 (수정됨)
         st.markdown(render_biz_html_table(df_core, apply_color=True), unsafe_allow_html=True)
         reports_to_download["Core_Biz"] = df_core
 
