@@ -109,10 +109,10 @@ def apply_common_styles(styler, apply_hkmc_color=False):
         for _ in row
     ], axis=1)
     
-    # 총계/소계 인덱스(행 헤더) 셀 강조
+    # 총계/소계 인덱스(행 헤더) 셀 강조 (엑셀 충돌 방지를 위해 !important 속성 완전 제거됨)
     def highlight_total_index(val):
         if any(keyword in str(val) for keyword in ['TTL', 'Total', 'Subtotal', '소계']):
-            return 'background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;'
+            return 'background-color: #ffffe0; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
         return ''
 
     if hasattr(styler, 'map_index'):
@@ -131,13 +131,12 @@ def apply_common_styles(styler, apply_hkmc_color=False):
 
 def optimize_html_headers(html_str, df):
     """Pandas HTML 테이블의 빈 헤더를 병합하여 수직/수평 중앙 정렬을 구현하는 함수"""
-    # 1. 인덱스(행 헤더) 열 병합 (좌측 상단 빈 공간 처리)
+    # 1. 인덱스(행 헤더) 열 병합 (좌측 상단 빈 공간 처리 - col/level 무관하게 잡아냄)
     if hasattr(df, 'index') and hasattr(df.index, 'names'):
         for i, name in enumerate(df.index.names):
             name_str = str(name) if name is not None else ""
             if not name_str: continue
             
-            # 💡 수정된 부분: class="blank" 뒤에 오는 문자(level, col 등)에 상관없이 모두 잡아냅니다.
             blank_pattern = re.compile(rf'<th class="blank[^"]*"[^>]*>(?:&nbsp;|\s*)</th>', re.IGNORECASE)
             rowspan_header = f'<th rowspan="2" class="index_name level{i}" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; min-width: 80px;">{name_str}</th>'
             
@@ -163,7 +162,7 @@ def optimize_html_headers(html_str, df):
                     html_str = bottom_pattern.sub('', html_str, count=1)
                     
     return html_str
-    
+
 def to_excel_multiple(df_dict):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -490,7 +489,7 @@ if uploaded_file:
 
     st.subheader("📌 2. 매출 요약 (Item 기준)")
     df_item_raw = raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])]
-    # index_names=['CPS'] 파라미터를 추가하여 2번 테이블도 'CPS'로 열 이름이 출력되도록 설정했습니다.
+    # index_names=['CPS'] 파라미터를 추가하여 2번 테이블도 'CPS'로 열 이름이 출력되도록 설정
     df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)', index_names=['CPS'], sort_by_current_act=True)
     if not df_item.empty: 
         st.markdown(render_html_view(df_item, c_col, apply_color=False), unsafe_allow_html=True)
