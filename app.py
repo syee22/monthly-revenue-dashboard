@@ -86,12 +86,6 @@ st.markdown("""
         border-top: 2px solid #8ea9db !important;
         border-bottom: 2px solid #8ea9db !important;
     }
-    /* 빨간색 테두리를 위한 CSS 클래스 */
-    .highlight-border {
-        border: 2px solid #ff0000 !important; /* 빨간색 테두리 */
-        box-sizing: border-box;
-    }
-    .report-table { border-collapse: collapse !important; }
 
     .highlight-border {
         border-right: 2px solid #ff0000 !important;
