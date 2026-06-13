@@ -77,10 +77,31 @@ st.markdown("""
         margin: 0 !important;
         border-collapse: collapse !important;
     }
-    /* 합계/소계 행 전체에 음영 및 스타일 적용 (빈 인덱스 셀 완벽 해결) */
+    
+    /* 기본 합계/소계 행 (연노랑) */
     .report-table tr.total-row th, 
     .report-table tr.total-row td {
         background-color: #ffffe0 !important;
+        color: #002060 !important;
+        font-weight: bold !important;
+        border-top: 2px solid #8ea9db !important;
+        border-bottom: 2px solid #8ea9db !important;
+    }
+    
+    /* HYU 소계 행 (하늘색) */
+    .report-table tr.total-row-hyu th, 
+    .report-table tr.total-row-hyu td {
+        background-color: #e6f2ff !important;
+        color: #002060 !important;
+        font-weight: bold !important;
+        border-top: 2px solid #8ea9db !important;
+        border-bottom: 2px solid #8ea9db !important;
+    }
+
+    /* KIA 소계 행 (분홍색) */
+    .report-table tr.total-row-kia th, 
+    .report-table tr.total-row-kia td {
+        background-color: #ffe6e6 !important;
         color: #002060 !important;
         font-weight: bold !important;
         border-top: 2px solid #8ea9db !important;
@@ -108,18 +129,12 @@ def format_percentage_html(val):
     pct_str = f"{val:.0%}"
     if 0.95 <= val <= 1.0:
         return f'<span style="color: #000000; font-weight: bold;">{pct_str} <span style="display: inline-block; width: 10px; height: 4px; background-color: #cc7a00; vertical-align: middle; margin-left: 5px;"></span>' 
-    # 100% 초과 (목표 달성)
     elif val > 1.0:
         return f'<span style="color: #2E86C1; font-weight: bold;">{pct_str} ▲</span>'
-    # 95% 미만 (미달성)
     elif val > 0:
         return f'<span style="color: #c00000; font-weight: bold;">{pct_str} ▼</span>'
     else:
         return pct_str
-
-#    if val >= 1.0: return f'<span style="color: #00b050; font-weight: bold;">{pct_str} ▲</span>'
-#    elif val > 0: return f'<span style="color: #c00000; font-weight: bold;">{pct_str} ▼</span>'
-#    else: return pct_str
 
 def color_index_cells(v):
     if str(v) == 'HYU': return 'background-color: #e6f2ff;'  # 하늘색
@@ -130,33 +145,48 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
     # 엑셀 다운로드 시에는 !important 태그를 제외합니다.
     imp = "" if is_export else " !important"
     
-    # 총계/소계 데이터 셀 강조
+    # 1. 엑셀 출력 및 셀 단위 스타일링 (데이터 영역)
     def style_row(row):
         row_str = str(row.name)
-        if any(keyword in row_str for keyword in ['TTL', 'Total', 'Subtotal', '소계']):
+        if '소계' in row_str:
+            if 'HYU' in row_str:
+                return [f'background-color: #e6f2ff{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
+            elif 'KIA' in row_str:
+                return [f'background-color: #ffe6e6{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
+            else:
+                return [f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
+        elif any(keyword in row_str for keyword in ['TTL', 'Total', 'Subtotal']):
             return [f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
         return [''] * len(row)
     
     styler.apply(style_row, axis=1)
     
-    # 엑셀 스타일링 일관성을 위해 전체 인덱스 맵핑 처리
+    # 2. 인덱스 영역 스타일링
     if hasattr(styler, 'apply_index'):
         def style_row_index(idx):
-            return [
-                f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-                if any(k in str(label) for k in ['TTL', 'Total', 'Subtotal', '소계']) else ''
-                for label in idx
-            ]
+            res = []
+            for label in idx:
+                label_str = str(label)
+                if '소계' in label_str:
+                    if 'HYU' in label_str: res.append(f'background-color: #e6f2ff{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
+                    elif 'KIA' in label_str: res.append(f'background-color: #ffe6e6{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
+                    else: res.append(f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
+                elif any(k in label_str for k in ['TTL', 'Total', 'Subtotal']):
+                    res.append(f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
+                else:
+                    res.append('')
+            return res
         styler.apply_index(style_row_index, axis=0)
     else:
         def highlight_total_index(val):
-            if any(keyword in str(val) for keyword in ['TTL', 'Total', 'Subtotal', '소계']):
+            val_str = str(val)
+            if any(keyword in val_str for keyword in ['TTL', 'Total', 'Subtotal', '소계']):
                 return f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
             return ''
         for i in range(styler.index.nlevels):
             styler.map_index(highlight_total_index, axis=0, level=i)
         
-    # 4번, 5번, 6번 테이블에만 HYU/KIA 인덱스 셀 색상 적용
+    # 3. 4번, 5번, 6번 테이블에만 HYU/KIA 기본 인덱스 셀 색상 적용
     if apply_hkmc_color:
         if hasattr(styler, 'map_index'):
             styler.map_index(color_index_cells, axis=0, level=0)
@@ -174,19 +204,16 @@ def optimize_html_headers(html_str, df):
         
         thead_html = html_str[thead_start:thead_end+8]
         
-        # thead 안의 tr 태그들을 추출
         tr_matches = list(re.finditer(r'<tr[^>]*>(.*?)</tr>', thead_html, re.IGNORECASE | re.DOTALL))
         if len(tr_matches) < 2: return html_str
         
         row0_inner = tr_matches[0].group(1)
         row1_inner = tr_matches[1].group(1)
         
-        # <tr> 안의 <th> 태그들을 배열로 변환
         th_pattern = r'<th[^>]*>.*?</th>'
         ths0 = re.findall(th_pattern, row0_inner, re.IGNORECASE | re.DOTALL)
         ths1 = re.findall(th_pattern, row1_inner, re.IGNORECASE | re.DOTALL)
         
-        # 인덱스 이름(좌측 상단) 병합 처리
         if hasattr(df, 'index') and hasattr(df.index, 'names'):
             index_names = [str(n) for n in df.index.names if n is not None and str(n).strip()]
             num_indices = len(index_names)
@@ -194,37 +221,47 @@ def optimize_html_headers(html_str, df):
             for i in range(num_indices):
                 if i < len(ths0) and i < len(ths1):
                     name = index_names[i]
-                    # 상단 셀을 rowspan 2로 만들며 텍스트 주입
                     ths0[i] = f'<th rowspan="2" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; min-width: 80px;">{name}</th>'
-                    # 하단 셀 삭제 (그리드 레이아웃 유지)
                     ths1[i] = ''
                     
-        # 조작된 <th> 배열을 다시 문자열로 결합
         row0_new = "".join(ths0)
         row1_new = "".join(ths1)
         
         new_thead = f"<thead>\n<tr>{row0_new}</tr>\n<tr>{row1_new}</tr>\n</thead>"
-        
-        # 원본 HTML에서 thead 교체
         return html_str[:thead_start] + new_thead + html_str[thead_end+8:]
     except Exception:
         return html_str
 
 def post_process_html_styles(html_str):
-    """합계/소계가 포함된 행을 찾아 고유 CSS 클래스를 주입하여 완벽한 스타일링 구현"""
+    """HTML 렌더링 시 브랜드를 추적하여 각 소계 행에 맞는 고유 CSS 클래스 주입"""
     if '<tbody>' not in html_str: return html_str
     
+    current_brand = None
+    
     def process_row(match):
+        nonlocal current_brand
         row = match.group(0)
-        # 해당 행에 특정 키워드가 포함되어 있으면 <tr> 태그에 'total-row' 클래스 추가
-        if any(k in row for k in ['TTL', 'Total', 'Subtotal', '소계']):
-            # 기존 태그를 <tr class="total-row"... 로 변경
+        
+        # 현재 처리 중인 브랜드 추적 (rowspan으로 인해 소계 행에 브랜드명이 없을 수 있기 때문)
+        if 'HYU' in row: current_brand = 'HYU'
+        elif 'KIA' in row: current_brand = 'KIA'
+        elif 'GM' in row: current_brand = 'GM'
+        
+        # 행에 특정 키워드가 포함되어 있으면 적절한 클래스 추가
+        if '소계' in row:
+            if current_brand == 'HYU':
+                row = re.sub(r'^<tr', r'<tr class="total-row-hyu"', row)
+            elif current_brand == 'KIA':
+                row = re.sub(r'^<tr', r'<tr class="total-row-kia"', row)
+            else:
+                row = re.sub(r'^<tr', r'<tr class="total-row"', row)
+        elif any(k in row for k in ['TTL', 'Total', 'Subtotal']):
             row = re.sub(r'^<tr', r'<tr class="total-row"', row)
+            
         return row
         
     parts = html_str.split('<tbody>', 1)
     tbody_content = parts[1]
-    # 각 줄별로 검사하여 클래스 주입
     tbody_content = re.sub(r'<tr[^>]*>.*?</tr>', process_row, tbody_content, flags=re.DOTALL)
     return parts[0] + '<tbody>' + tbody_content
 
