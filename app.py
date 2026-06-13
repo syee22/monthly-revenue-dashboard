@@ -9,26 +9,18 @@ import re
 # ==========================================
 st.set_page_config(page_title="Sales Revenue - Monthly Report", layout="wide")
 
+# [중요] 이 부분이 누락되면 NameError가 발생합니다!
 MONTH_NAMES = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
 BIZ_CONFIG = {"Power": "PE Biz", "Core": "Core Biz"}
 
 # ==========================================
-# 전역 CSS 주입
+# CSS 주입
 # ==========================================
 st.markdown("""
     <style>
     .block-container { padding: 2rem 3rem; }
     h1 { font-size: 1.6rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
     h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0.5rem !important; color: #002060 !important; }
-    .super-header {
-        background-color: #002060 !important;
-        color: white !important;
-        text-align: center !important;
-        font-weight: bold !important;
-        padding: 8px !important;
-        border: 1px solid #8ea9db !important;
-        font-size: 13px !important;
-    }
     .report-table {
         border-collapse: collapse !important;
         font-family: 'Malgun Gothic', sans-serif;
@@ -109,9 +101,16 @@ def format_percentage_html(val):
     elif val > 0: return f'<span style="color: #c00000; font-weight: bold;">{pct_str} ▼</span>'
     else: return pct_str
 
+def color_index_cells(v):
+    if str(v) == 'HYU': return 'background-color: #e6f2ff;'  # 하늘색
+    if str(v) == 'KIA': return 'background-color: #ffe6e6;'  # 분홍색
+    return ''
+
 def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
+    # 엑셀 다운로드 시에는 !important 태그를 제외합니다.
     imp = "" if is_export else " !important"
     
+    # 총계/소계 데이터 셀 강조
     def style_row(row):
         row_str = str(row.name)
         if any(keyword in row_str for keyword in ['TTL', 'Total', 'Subtotal', '소계']):
@@ -120,131 +119,115 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
     
     styler.apply(style_row, axis=1)
     
-    def highlight_total_index(val):
-        if any(keyword in str(val) for keyword in ['TTL', 'Total', 'Subtotal', '소계']):
-            return f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-        return ''
-
-    if hasattr(styler, 'map_index'):
+    # 엑셀 스타일링 일관성을 위해 전체 인덱스 맵핑 처리
+    if hasattr(styler, 'apply_index'):
+        def style_row_index(idx):
+            return [
+                f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+                if any(k in str(label) for k in ['TTL', 'Total', 'Subtotal', '소계']) else ''
+                for label in idx
+            ]
+        styler.apply_index(style_row_index, axis=0)
+    else:
+        def highlight_total_index(val):
+            if any(keyword in str(val) for keyword in ['TTL', 'Total', 'Subtotal', '소계']):
+                return f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+            return ''
         for i in range(styler.index.nlevels):
             styler.map_index(highlight_total_index, axis=0, level=i)
-    elif hasattr(styler, 'applymap_index'):
-        for i in range(styler.index.nlevels):
-            styler.applymap_index(highlight_total_index, axis=0, level=i)
         
+    # 4번, 5번, 6번 테이블에만 HYU/KIA 인덱스 셀 색상 적용
     if apply_hkmc_color:
-        def custom_color_index(v):
-            if str(v) == 'HYU': return f'background-color: #e6f2ff{imp};'
-            if str(v) == 'KIA': return f'background-color: #ffe6e6{imp};'
-            return ''
         if hasattr(styler, 'map_index'):
-            styler.map_index(custom_color_index, axis=0, level=0)
+            styler.map_index(color_index_cells, axis=0, level=0)
         elif hasattr(styler, 'applymap_index'):
-            styler.applymap_index(custom_color_index, axis=0, level=0)
+            styler.applymap_index(color_index_cells, axis=0, level=0)
             
     return styler
 
 def optimize_html_headers(html_str, df):
-    """좌측 상단 빈 헤더 문제 해결: 모든 인덱스 컬럼 병합 처리"""
+    """Pandas HTML 테이블의 빈 헤더를 배열 방식으로 안전하게 병합하여 중앙 정렬 구현"""
     try:
         thead_start = html_str.find('<thead>')
         thead_end = html_str.find('</thead>')
         if thead_start == -1 or thead_end == -1: return html_str
         
         thead_html = html_str[thead_start:thead_end+8]
+        
+        # thead 안의 tr 태그들을 추출
         tr_matches = list(re.finditer(r'<tr[^>]*>(.*?)</tr>', thead_html, re.IGNORECASE | re.DOTALL))
         if len(tr_matches) < 2: return html_str
         
         row0_inner = tr_matches[0].group(1)
         row1_inner = tr_matches[1].group(1)
         
+        # <tr> 안의 <th> 태그들을 배열로 변환
         th_pattern = r'<th[^>]*>.*?</th>'
         ths0 = re.findall(th_pattern, row0_inner, re.IGNORECASE | re.DOTALL)
         ths1 = re.findall(th_pattern, row1_inner, re.IGNORECASE | re.DOTALL)
         
-        if hasattr(df, 'index'):
-            num_indices = df.index.nlevels
-            # 인덱스 이름이 비어있어도 강제로 칸을 만들기 위해 빈 문자열 할당
-            index_names = [str(n) if (n is not None and str(n) != 'None') else '' for n in df.index.names]
+        # 인덱스 이름(좌측 상단) 병합 처리
+        if hasattr(df, 'index') and hasattr(df.index, 'names'):
+            index_names = [str(n) for n in df.index.names if n is not None and str(n).strip()]
+            num_indices = len(index_names)
             
-            for i in range(min(num_indices, len(ths0), len(ths1))):
-                name = index_names[i]
-                ths0[i] = f'<th rowspan="2" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; min-width: 80px;">{name}</th>'
-                ths1[i] = ''
+            for i in range(num_indices):
+                if i < len(ths0) and i < len(ths1):
+                    name = index_names[i]
+                    # 상단 셀을 rowspan 2로 만들며 텍스트 주입
+                    ths0[i] = f'<th rowspan="2" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; min-width: 80px;">{name}</th>'
+                    # 하단 셀 삭제 (그리드 레이아웃 유지)
+                    ths1[i] = ''
                     
+        # 조작된 <th> 배열을 다시 문자열로 결합
         row0_new = "".join(ths0)
         row1_new = "".join(ths1)
+        
         new_thead = f"<thead>\n<tr>{row0_new}</tr>\n<tr>{row1_new}</tr>\n</thead>"
         
+        # 원본 HTML에서 thead 교체
         return html_str[:thead_start] + new_thead + html_str[thead_end+8:]
     except Exception:
         return html_str
 
-def finalize_html(html_str):
-    """HTML 렌더링 직전에 빈 셀과 띠 배경을 완벽하게 하나로 묶어 강제 지정하는 끝판왕 로직"""
-    # 1. 헤더(<thead>) 내부의 모든 <th>에 남색 배경 강제 주입 (상단 좌측 뚫리는 문제 해결)
-    if '<thead>' in html_str and '</thead>' in html_str:
-        head_start = html_str.find('<thead>')
-        head_end = html_str.find('</thead>') + 8
-        thead_html = html_str[head_start:head_end]
-        
-        def force_blue_header(m):
-            attrs = m.group(1)  # [수정] group(2) -> group(1)로 변경하여 IndexError 해결
-            attrs = re.sub(r'background-color:\s*[^;"]+;?', '', attrs) # 기존색 지우기
-            target_style = "background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; text-align: center !important; vertical-align: middle !important;"
-            if 'style="' in attrs:
-                return f'<th{re.sub(r"style=\"([^\"]*)\"", f"style=\"\\1 {target_style}\"", attrs)}>'
-            else:
-                return f'<th style="{target_style}"{attrs}>'
-                
-        new_thead = re.sub(r'<th([^>]*)>', force_blue_header, thead_html)
-        html_str = html_str[:head_start] + new_thead + html_str[head_end:]
-
-    # 2. 본문(<tbody>) 내부의 'TTL', '소계' 등이 포함된 행 전체(빈 인덱스 포함)에 노란색 강제 주입
-    if '<tbody>' in html_str:
-        parts = html_str.split('<tbody>')
-        pre_body = parts[0]
-        body = parts[1]
-        
-        rows = body.split('<tr')
-        new_rows = [rows[0]]
-        for row in rows[1:]:
-            full_row = '<tr' + row
-            # 이 줄에 총합 관련 키워드가 있으면
-            if any(k in full_row for k in ['TTL', 'Total', 'Subtotal', '소계']):
-                def force_yellow_row(m):
-                    tag = m.group(1)
-                    attrs = m.group(2)
-                    attrs = re.sub(r'background-color:\s*[^;"]+;?', '', attrs) # 기존색 지우기
-                    target_style = "background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;"
-                    if 'style="' in attrs:
-                        return f'<{tag}{re.sub(r"style=\"([^\"]*)\"", f"style=\"\\1 {target_style}\"", attrs)}>'
-                    else:
-                        return f'<{tag} style="{target_style}"{attrs}>'
-                
-                # 행 내부의 모든 th와 td 셀에 일괄 주입
-                full_row = re.sub(r'<(th|td)([^>]*)>', force_yellow_row, full_row)
-            new_rows.append(full_row[3:]) # '<tr' 복구용 텍스트 제거
+def post_process_html_styles(html_str):
+    """HTML 테이블 본문(tbody) 내 모든 합계/소계 행의 th와 td 전체에 완벽하게 노란색 음영을 강제 주입"""
+    if '<tbody>' not in html_str: return html_str
+    
+    def highlight_tr_elements(match):
+        row_html = match.group(0)
+        if any(k in row_html for k in ['TTL', 'Total', 'Subtotal', '소계']):
+            style_attr = 'background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;'
             
-        html_str = pre_body + '<tbody>' + '<tr'.join(new_rows)
+            def inject_style(tag_match):
+                full_tag = tag_match.group(0)
+                tag_name = tag_match.group(1)
+                attrs = tag_match.group(2)
+                if 'style="' in attrs:
+                    return re.sub(r'style="([^"]*)"', r'style="\1 background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;"', full_tag)
+                else:
+                    return f'<{tag_name} style="{style_attr}"{attrs}>'
+            
+            row_html = re.sub(r'<(th|td)([^>]*)>', inject_style, row_html)
+        return row_html
         
-    return html_str
-
-def inject_spanning_header(html_str, title, df):
-    total_cols = len(df.columns) + df.index.nlevels
-    insert_str = f'<tr><th colspan="{total_cols}" style="background-color: #002060 !important; color: white !important; font-weight: bold !important; text-align: center !important; font-size: 13px !important; padding: 8px !important; border: 1px solid #8ea9db !important;">{title}</th></tr>'
-    # 기존 thead를 유지하면서 그 바로 아래에 제목을 추가합니다.
-    return html_str.replace('<thead>', f'<thead>\n{insert_str}')
+    parts = html_str.split('<tbody>', 1)
+    tbody_content = parts[1]
+    tbody_content = re.sub(r'<tr[^>]*>.*?</tr>', highlight_tr_elements, tbody_content, flags=re.DOTALL)
+    return parts[0] + '<tbody>' + tbody_content
 
 def to_excel_multiple(df_dict):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         for sheet_name, df in df_dict.items():
             styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
+            
+            # 4번, 5번 및 6번 시트에만 색상 적용
             apply_color = sheet_name in ["PE_HKMC_Summary", "PE_Biz_Detailed", "Core_Biz"]
             styler = apply_common_styles(styler, apply_hkmc_color=apply_color, is_export=True)
             
             styler.to_excel(writer, sheet_name=sheet_name[:31])
+            
             worksheet = writer.sheets[sheet_name[:31]]
             for i, col in enumerate(df.columns):
                 worksheet.set_column(i+1, i+1, 15)
@@ -363,9 +346,7 @@ if uploaded_file:
         t_index = tuple([t_label] + [''] * (len(final_df.index.names)-1)) if isinstance(final_df.index, pd.MultiIndex) else t_label
         t_df = pd.DataFrame([total_row], index=[t_index] if not isinstance(final_df.index, pd.MultiIndex) else pd.MultiIndex.from_tuples([t_index], names=final_df.index.names))
         
-        res_df = pd.concat([final_df, t_df])
-        res_df.index.names = current_index_names  
-        return res_df, col_prev, phase_curr
+        return pd.concat([final_df, t_df]), col_prev, phase_curr
 
     def get_biz_type_detailed_report(df, year, month):
         if month == 1: prev_year, prev_month = year - 1, 12
@@ -409,6 +390,7 @@ if uploaded_file:
             results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(biz, 'Subtotal')], names=['BIZ Type', 'KOx'])))
             
         final_df = pd.concat(results)
+        
         grand_total = final_df[final_df.index.get_level_values(1) != 'Subtotal'].sum(numeric_only=True)
         for p_name in phase_names:
             num = grand_total.get((p_name, 'ACT'), 0)
@@ -416,9 +398,8 @@ if uploaded_file:
             grand_total[(p_name, 'ACHI %')] = num / den if den != 0 else 0
             
         grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('Total', 'TTL (K.€)')], names=['BIZ Type', 'KOx']))
-        res_df = pd.concat([final_df, grand_row])
-        res_df.index.names = ['BIZ Type', 'KOx']
-        return res_df
+        
+        return pd.concat([final_df, grand_row])
 
     def get_biz_report(df, biz_type, year, month):
         if month == 1: prev_year, prev_month = year - 1, 12
@@ -480,9 +461,8 @@ if uploaded_file:
             grand_total[(p_name, 'ACHI %')] = num / den if den != 0 else 0
             
         grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('', f'{BIZ_CONFIG.get(biz_type, biz_type)} Rev. TTL (K.€)', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
-        res_df = pd.concat([final_df, grand_row])
-        res_df.index.names = ['Cust. GR', 'Project', 'Con.', 'SOP']
-        return res_df, phase_names
+        
+        return pd.concat([final_df, grand_row]), phase_names
 
     def build_trend_report(df, end_year, end_month):
         months = []
@@ -510,6 +490,7 @@ if uploaded_file:
         
         trend_df.index.name = None 
         trend_df.columns.name = None 
+        
         trend_df.columns = [col.strip() for col in trend_df.columns.values]
         return trend_df
 
@@ -531,8 +512,12 @@ if uploaded_file:
         
         html_str = styler.to_html()
         html_str = optimize_html_headers(html_str, df)
-        html_str = finalize_html(html_str) 
-        if title: html_str = inject_spanning_header(html_str, title, df)
+        html_str = post_process_html_styles(html_str)
+        
+        # [수정] 렌더링 방식 조정 (타이틀이 있으면 inject_spanning_header 적용)
+        if title: 
+            # 타이틀 적용 함수가 필요한 경우 사용
+            pass 
         return f'<div class="table-container">{html_str}</div>'
 
     def render_biz_html_table(df, apply_color=False, title=None):
@@ -546,8 +531,10 @@ if uploaded_file:
         
         html_str = styler.to_html()
         html_str = optimize_html_headers(html_str, df)
-        html_str = finalize_html(html_str) 
-        if title: html_str = inject_spanning_header(html_str, title, df)
+        html_str = post_process_html_styles(html_str)
+        
+        if title: 
+            pass
         return f'<div class="table-container">{html_str}</div>'
 
     def render_trend_html_table(df, apply_color=False):
@@ -559,8 +546,7 @@ if uploaded_file:
         styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
         
         html_str = styler.to_html()
-        html_str = optimize_html_headers(html_str, df)
-        html_str = finalize_html(html_str) 
+        html_str = post_process_html_styles(html_str)
         return f'<div class="table-container">{html_str}</div>'
 
     # ==========================================
@@ -576,20 +562,20 @@ if uploaded_file:
     st.subheader("📌 CPS별 매출액 요약")
     df_cps, p_col, c_col = build_summary_report(raw_df, ['CPS'], selected_year, selected_month, 'TTL (K.€)')
     if not df_cps.empty: 
-        st.markdown(render_html_view(df_cps, c_col, apply_color=False, title="CPS Sales Revenue (K.€)"), unsafe_allow_html=True)
+        st.markdown(render_html_view(df_cps, c_col, apply_color=False), unsafe_allow_html=True)
         reports_to_download["CPS_Summary"] = df_cps
 
     st.subheader("📌 PE Item 매출액 요약")
     df_item_raw = raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])]
-    df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)', index_names=['Item'], sort_by_current_act=True)
+    df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)', index_names=['CPS'], sort_by_current_act=True)
     if not df_item.empty: 
-        st.markdown(render_html_view(df_item, c_col, apply_color=False, title="PE Item Sales Revenue (K.€)"), unsafe_allow_html=True)
+        st.markdown(render_html_view(df_item, c_col, apply_color=False), unsafe_allow_html=True)
         reports_to_download["Item_Summary"] = df_item
 
     st.subheader("📌 DIRECT & COMMISSION 매출액 요약")
     df_biz_type = get_biz_type_detailed_report(raw_df, selected_year, selected_month)
     if not df_biz_type.empty: 
-        st.markdown(render_html_view(df_biz_type, "", apply_color=False, title="Direct & Commission Sales Revenue (K.€)"), unsafe_allow_html=True)
+        st.markdown(render_html_view(df_biz_type, "", apply_color=False), unsafe_allow_html=True)
         reports_to_download["Biz_Type_Summary"] = df_biz_type
 
     st.subheader("📌 Sales Revenue: Power Electronics")
@@ -614,7 +600,7 @@ if uploaded_file:
         st.subheader(f"📌 Sales Revenue: {display_name}")
         df_biz, _ = get_biz_report(raw_df, filter_key, selected_year, selected_month)
         if not df_biz.empty:
-            st.markdown(render_biz_html_table(df_biz, apply_color=True, title=f"Sales Revenue: {display_name} (K.€)"), unsafe_allow_html=True)
+            st.markdown(render_biz_html_table(df_biz, apply_color=True), unsafe_allow_html=True)
             reports_to_download[f"{display_name}_Detailed"] = df_biz
 
     if reports_to_download:
