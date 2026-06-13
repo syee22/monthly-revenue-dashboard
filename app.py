@@ -233,7 +233,7 @@ def optimize_html_headers(html_str, df):
         return html_str
 
 def post_process_html_styles(html_str):
-    """HTML 렌더링 시 브랜드를 추적하여 각 소계 행에 맞는 고유 CSS 클래스 주입"""
+    """HTML 렌더링 시 브랜드를 추적하여 각 소계 행에 맞는 고유 CSS 클래스 및 인라인 색상 덮어쓰기 주입"""
     if '<tbody>' not in html_str: return html_str
     
     current_brand = None
@@ -247,12 +247,16 @@ def post_process_html_styles(html_str):
         elif 'KIA' in row: current_brand = 'KIA'
         elif 'GM' in row: current_brand = 'GM'
         
-        # 행에 특정 키워드가 포함되어 있으면 적절한 클래스 추가
+        # 행에 특정 키워드가 포함되어 있으면 적절한 클래스와 강제 색상 교체 적용
         if '소계' in row:
             if current_brand == 'HYU':
                 row = re.sub(r'^<tr', r'<tr class="total-row-hyu"', row)
+                # 판다스가 잘못 지정한 노란색을 하늘색으로 강제 교체
+                row = re.sub(r'#ffffe0', '#e6f2ff', row, flags=re.IGNORECASE)
             elif current_brand == 'KIA':
                 row = re.sub(r'^<tr', r'<tr class="total-row-kia"', row)
+                # 판다스가 잘못 지정한 노란색을 분홍색으로 강제 교체
+                row = re.sub(r'#ffffe0', '#ffe6e6', row, flags=re.IGNORECASE)
             else:
                 row = re.sub(r'^<tr', r'<tr class="total-row"', row)
         elif any(k in row for k in ['TTL', 'Total', 'Subtotal']):
