@@ -117,6 +117,16 @@ st.markdown("""
         border-top: 2px solid #8ea9db !important;
         border-bottom: 2px solid #8ea9db !important;
     }
+
+    /* COMM 소계 행 (연한 회색) */
+    .report-table tr.total-row-comm th, 
+    .report-table tr.total-row-comm td {
+        background-color: #f2f2f2 !important;
+        color: #002060 !important;
+        font-weight: bold !important;
+        border-top: 2px solid #8ea9db !important;
+        border-bottom: 2px solid #8ea9db !important;
+    }
     
     /* PE Biz 및 Core Biz 상세 테이블 인덱스 가운데 정렬 */
     .report-table.biz-table .row_heading {
@@ -158,6 +168,7 @@ def color_index_cells(v):
     if val_str == 'HYU': return 'background-color: #e6f2ff;'  # 하늘색
     if val_str == 'KIA': return 'background-color: #ffe6e6;'  # 분홍색
     if val_str == 'DIRECT': return 'background-color: #e6f2ff;' # 연한 청색
+    if val_str == 'COMM': return 'background-color: #f2f2f2;' # 연한 회색
     return ''
 
 def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
@@ -173,7 +184,9 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
             return [f'background-color: #ffe6e6{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
         elif 'DIRECT_Subtotal_숨김' in row_str:
             return [f'background-color: #e6f2ff{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
-        elif 'COMM_Subtotal_숨김' in row_str or 'Unknown_Subtotal_숨김' in row_str:
+        elif 'COMM_Subtotal_숨김' in row_str:
+            return [f'background-color: #f2f2f2{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
+        elif 'Unknown_Subtotal_숨김' in row_str:
             return [f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
         elif 'GRAND_TOTAL_MERGE' in row_str:
             return [f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
@@ -195,7 +208,9 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
                     res.append(f'background-color: #ffe6e6{imp}; color: #ffe6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
                 elif 'DIRECT_Subtotal_숨김' in label_str:
                     res.append(f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                elif 'COMM_Subtotal_숨김' in label_str or 'Unknown_Subtotal_숨김' in label_str:
+                elif 'COMM_Subtotal_숨김' in label_str:
+                    res.append(f'background-color: #f2f2f2{imp}; color: #f2f2f2; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
+                elif 'Unknown_Subtotal_숨김' in label_str:
                     res.append(f'background-color: #ffffe0{imp}; color: #ffffe0; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
                 elif 'GRAND_TOTAL_MERGE' in label_str:
                     res.append(f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
@@ -214,7 +229,9 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
                 return f'background-color: #ffe6e6{imp}; color: #ffe6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
             elif 'DIRECT_Subtotal_숨김' in val_str:
                 return f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-            elif 'COMM_Subtotal_숨김' in val_str or 'Unknown_Subtotal_숨김' in val_str:
+            elif 'COMM_Subtotal_숨김' in val_str:
+                return f'background-color: #f2f2f2{imp}; color: #f2f2f2; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+            elif 'Unknown_Subtotal_숨김' in val_str:
                 return f'background-color: #ffffe0{imp}; color: #ffffe0; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
             elif 'GRAND_TOTAL_MERGE' in val_str:
                 return f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
@@ -288,8 +305,11 @@ def post_process_html_styles(html_str):
         elif 'DIRECT_Subtotal_숨김' in row:
             row = row.replace('DIRECT_Subtotal_숨김', '') 
             row = re.sub(r'^<tr', r'<tr class="total-row-direct"', row) # 연한 청색
-        elif 'COMM_Subtotal_숨김' in row or 'Unknown_Subtotal_숨김' in row:
-            row = row.replace('COMM_Subtotal_숨김', '').replace('Unknown_Subtotal_숨김', '') 
+        elif 'COMM_Subtotal_숨김' in row:
+            row = row.replace('COMM_Subtotal_숨김', '') 
+            row = re.sub(r'^<tr', r'<tr class="total-row-comm"', row) # 연한 회색
+        elif 'Unknown_Subtotal_숨김' in row:
+            row = row.replace('Unknown_Subtotal_숨김', '') 
             row = re.sub(r'^<tr', r'<tr class="total-row"', row) # 기존 노란색
             
         # Grand Total 병합 처리 로직
