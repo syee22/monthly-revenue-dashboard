@@ -107,7 +107,7 @@ def format_percentage_html(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
     pct_str = f"{val:.0%}"
     if 0.95 <= val <= 1.0:
-        return f'<span style="color: #595959; font-weight: bold; letter-spacing: 2px;">{pct_str} ▬</span>'
+        return f'<span style="color: #595959; font-weight: bold; letter-spacing: 1px;">{pct_str} ▬</span>'
     # 100% 초과 (목표 달성)
     elif val > 1.0:
         return f'<span style="color: #00b050; font-weight: bold;">{pct_str} ▲</span>'
