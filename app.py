@@ -20,15 +20,6 @@ st.markdown("""
     .block-container { padding: 2rem 3rem; }
     h1 { font-size: 1.6rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
     h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0.5rem !important; color: #002060 !important; }
-    .super-header {
-        background-color: #002060 !important;
-        color: white !important;
-        text-align: center !important;
-        font-weight: bold !important;
-        padding: 8px !important;
-        border: 1px solid #8ea9db !important;
-        font-size: 13px !important;
-    }
     .report-table {
         border-collapse: collapse !important;
         font-family: 'Malgun Gothic', sans-serif;
@@ -109,11 +100,6 @@ def format_percentage_html(val):
     elif val > 0: return f'<span style="color: #c00000; font-weight: bold;">{pct_str} ▼</span>'
     else: return pct_str
 
-def color_index_cells(v):
-    if str(v) == 'HYU': return 'background-color: #e6f2ff;'  
-    if str(v) == 'KIA': return 'background-color: #ffe6e6;'  
-    return ''
-
 def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
     imp = "" if is_export else " !important"
     
@@ -150,7 +136,7 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
     return styler
 
 def optimize_html_headers(html_str, df):
-    """Pandas HTML 테이블의 빈 헤더를 배열 방식으로 안전하게 병합하여 중앙 정렬 구현"""
+    """좌측 상단 빈 헤더 문제 해결: 모든 인덱스 컬럼 병합 처리"""
     try:
         thead_start = html_str.find('<thead>')
         thead_end = html_str.find('</thead>')
@@ -167,15 +153,15 @@ def optimize_html_headers(html_str, df):
         ths0 = re.findall(th_pattern, row0_inner, re.IGNORECASE | re.DOTALL)
         ths1 = re.findall(th_pattern, row1_inner, re.IGNORECASE | re.DOTALL)
         
-        if hasattr(df, 'index') and hasattr(df.index, 'names'):
-            index_names = [str(n) for n in df.index.names if n is not None and str(n).strip()]
-            num_indices = len(index_names)
+        if hasattr(df, 'index'):
+            num_indices = df.index.nlevels
+            # 인덱스 이름이 비어있어도 강제로 칸을 만들기 위해 빈 문자열 할당
+            index_names = [str(n) if (n is not None and str(n) != 'None') else '' for n in df.index.names]
             
-            for i in range(num_indices):
-                if i < len(ths0) and i < len(ths1):
-                    name = index_names[i]
-                    ths0[i] = f'<th rowspan="2" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; min-width: 80px;">{name}</th>'
-                    ths1[i] = ''
+            for i in range(min(num_indices, len(ths0), len(ths1))):
+                name = index_names[i]
+                ths0[i] = f'<th rowspan="2" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; min-width: 80px;">{name}</th>'
+                ths1[i] = ''
                     
         row0_new = "".join(ths0)
         row1_new = "".join(ths1)
@@ -185,43 +171,61 @@ def optimize_html_headers(html_str, df):
     except Exception:
         return html_str
 
-def post_process_html_styles(html_str):
-    """HTML 테이블 본문(tbody) 내 합계/소계 행의 모든 셀(빈 셀 포함)에 완벽하게 노란색 음영을 강제 주입"""
-    if '<tbody>' not in html_str: return html_str
-    
-    def row_replacer(match):
-        row = match.group(0)
-        # 해당 행에 TTL, Total, Subtotal 등의 키워드가 포함되어 있다면 전체 음영 처리
-        if any(k in row for k in ['TTL', 'Total', 'Subtotal', '소계']):
-            # 기존 배경색 제거
-            row = re.sub(r'background-color:\s*#[0-9a-fA-F]+(?: !important)?', '', row)
-            
-            style_str = 'background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;'
-            
-            def cell_replacer(cell_match):
-                tag = cell_match.group(1)
-                attrs = cell_match.group(2)
-                
-                if 'style="' in attrs:
-                    # 기존 style 속성이 있으면 병합
-                    new_attrs = re.sub(r'style="([^"]*)"', rf'style="\1 {style_str}"', attrs)
-                    return f'<{tag}{new_attrs}>'
-                else:
-                    # 속성이 없으면 새로 추가
-                    return f'<{tag} style="{style_str}"{attrs}>'
-                    
-            # <tr> 내부의 모든 <th>와 <td>를 찾아 스타일 주입 (빈 칸 포함)
-            row = re.sub(r'<(th|td)([^>]*)>', cell_replacer, row)
-        return row
+def finalize_html(html_str):
+    """HTML 렌더링 직전에 빈 셀과 띠 배경을 완벽하게 하나로 묶어 강제 지정하는 끝판왕 로직"""
+    # 1. 헤더(<thead>) 내부의 모든 <th>에 남색 배경 강제 주입 (상단 좌측 뚫리는 문제 해결)
+    if '<thead>' in html_str and '</thead>' in html_str:
+        head_start = html_str.find('<thead>')
+        head_end = html_str.find('</thead>') + 8
+        thead_html = html_str[head_start:head_end]
         
-    parts = html_str.split('<tbody>', 1)
-    new_tbody = re.sub(r'<tr[^>]*>.*?</tr>', row_replacer, parts[1], flags=re.DOTALL)
-    return parts[0] + '<tbody>' + new_tbody
+        def force_blue_header(m):
+            attrs = m.group(2)
+            attrs = re.sub(r'background-color:\s*[^;"]+;?', '', attrs) # 기존색 지우기
+            target_style = "background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; text-align: center !important; vertical-align: middle !important;"
+            if 'style="' in attrs:
+                return f'<th{re.sub(r"style=\"([^\"]*)\"", f"style=\"\\1 {target_style}\"", attrs)}>'
+            else:
+                return f'<th style="{target_style}"{attrs}>'
+                
+        new_thead = re.sub(r'<th([^>]*)>', force_blue_header, thead_html)
+        html_str = html_str[:head_start] + new_thead + html_str[head_end:]
+
+    # 2. 본문(<tbody>) 내부의 'TTL', '소계' 등이 포함된 행 전체(빈 인덱스 포함)에 노란색 강제 주입
+    if '<tbody>' in html_str:
+        parts = html_str.split('<tbody>')
+        pre_body = parts[0]
+        body = parts[1]
+        
+        rows = body.split('<tr')
+        new_rows = [rows[0]]
+        for row in rows[1:]:
+            full_row = '<tr' + row
+            # 이 줄에 총합 관련 키워드가 있으면
+            if any(k in full_row for k in ['TTL', 'Total', 'Subtotal', '소계']):
+                def force_yellow_row(m):
+                    tag = m.group(1)
+                    attrs = m.group(2)
+                    attrs = re.sub(r'background-color:\s*[^;"]+;?', '', attrs) # 기존색 지우기
+                    target_style = "background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;"
+                    if 'style="' in attrs:
+                        return f'<{tag}{re.sub(r"style=\"([^\"]*)\"", f"style=\"\\1 {target_style}\"", attrs)}>'
+                    else:
+                        return f'<{tag} style="{target_style}"{attrs}>'
+                
+                # 행 내부의 모든 th와 td 셀에 일괄 주입
+                full_row = re.sub(r'<(th|td)([^>]*)>', force_yellow_row, full_row)
+            new_rows.append(full_row[3:]) # '<tr' 복구용 텍스트 제거
+            
+        html_str = pre_body + '<tbody>' + '<tr'.join(new_rows)
+        
+    return html_str
 
 def inject_spanning_header(html_str, title, df):
     total_cols = len(df.columns) + df.index.nlevels
-    new_header = f'<thead><tr><th colspan="{total_cols}" class="super-header">{title}</th></tr>'
-    return html_str.replace('<thead>', new_header)
+    insert_str = f'<tr><th colspan="{total_cols}" style="background-color: #002060 !important; color: white !important; font-weight: bold !important; text-align: center !important; font-size: 13px !important; padding: 8px !important; border: 1px solid #8ea9db !important;">{title}</th></tr>'
+    # 기존 thead를 유지하면서 그 바로 아래에 제목을 추가합니다.
+    return html_str.replace('<thead>', f'<thead>\n{insert_str}')
 
 def to_excel_multiple(df_dict):
     output = io.BytesIO()
@@ -351,7 +355,7 @@ if uploaded_file:
         t_df = pd.DataFrame([total_row], index=[t_index] if not isinstance(final_df.index, pd.MultiIndex) else pd.MultiIndex.from_tuples([t_index], names=final_df.index.names))
         
         res_df = pd.concat([final_df, t_df])
-        res_df.index.names = current_index_names  # 병합 후 인덱스 이름 복원 (좌측 상단 빈칸 방지)
+        res_df.index.names = current_index_names  
         return res_df, col_prev, phase_curr
 
     def get_biz_type_detailed_report(df, year, month):
@@ -518,7 +522,7 @@ if uploaded_file:
         
         html_str = styler.to_html()
         html_str = optimize_html_headers(html_str, df)
-        html_str = post_process_html_styles(html_str)
+        html_str = finalize_html(html_str) # 강제 스타일 후처리
         if title: html_str = inject_spanning_header(html_str, title, df)
         return f'<div class="table-container">{html_str}</div>'
 
@@ -533,7 +537,7 @@ if uploaded_file:
         
         html_str = styler.to_html()
         html_str = optimize_html_headers(html_str, df)
-        html_str = post_process_html_styles(html_str)
+        html_str = finalize_html(html_str) # 강제 스타일 후처리
         if title: html_str = inject_spanning_header(html_str, title, df)
         return f'<div class="table-container">{html_str}</div>'
 
@@ -546,7 +550,8 @@ if uploaded_file:
         styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
         
         html_str = styler.to_html()
-        html_str = post_process_html_styles(html_str)
+        html_str = optimize_html_headers(html_str, df)
+        html_str = finalize_html(html_str) # 강제 스타일 후처리
         return f'<div class="table-container">{html_str}</div>'
 
     # ==========================================
@@ -567,7 +572,6 @@ if uploaded_file:
 
     st.subheader("📌 PE Item 매출액 요약")
     df_item_raw = raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])]
-    # df_item의 index_names를 'Item'으로 정확히 매핑
     df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)', index_names=['Item'], sort_by_current_act=True)
     if not df_item.empty: 
         st.markdown(render_html_view(df_item, c_col, apply_color=False, title="PE Item Sales Revenue (K.€)"), unsafe_allow_html=True)
