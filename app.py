@@ -152,7 +152,9 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
             return [f'background-color: #e6f2ff{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
         elif 'KIA_소계' in row_str:
             return [f'background-color: #ffe6e6{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
-        elif any(keyword in row_str for keyword in ['TTL', 'Total', 'Subtotal', '소계']):
+        elif 'Subtotal_숨김' in row_str:
+            return [f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
+        elif any(keyword in row_str for keyword in ['TTL', 'Total', '소계']):
             return [f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
         return [''] * len(row)
     
@@ -170,7 +172,10 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
                 elif 'KIA_소계' in label_str: 
                     # 엑셀에서 글자를 숨기기 위해 배경색과 동일한 글자색(#ffe6e6) 부여
                     res.append(f'background-color: #ffe6e6{imp}; color: #ffe6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                elif any(k in label_str for k in ['TTL', 'Total', 'Subtotal', '소계']):
+                elif 'Subtotal_숨김' in label_str:
+                    # 엑셀에서 글자를 숨기기 위해 배경색과 동일한 글자색(#ffffe0) 부여
+                    res.append(f'background-color: #ffffe0{imp}; color: #ffffe0; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
+                elif any(k in label_str for k in ['TTL', 'Total', '소계']):
                     res.append(f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
                 else: 
                     res.append('')
@@ -183,7 +188,9 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
                 return f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
             elif 'KIA_소계' in val_str:
                 return f'background-color: #ffe6e6{imp}; color: #ffe6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-            elif any(keyword in val_str for keyword in ['TTL', 'Total', 'Subtotal', '소계']):
+            elif 'Subtotal_숨김' in val_str:
+                return f'background-color: #ffffe0{imp}; color: #ffffe0; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+            elif any(keyword in val_str for keyword in ['TTL', 'Total', '소계']):
                 return f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
             return ''
         for i in range(styler.index.nlevels):
@@ -248,7 +255,10 @@ def post_process_html_styles(html_str):
         elif 'KIA_소계' in row:
             row = row.replace('KIA_소계', '') # 텍스트 완전히 삭제 (빈칸 처리)
             row = re.sub(r'^<tr', r'<tr class="total-row-kia"', row)
-        elif any(k in row for k in ['TTL', 'Total', 'Subtotal', '소계']):
+        elif 'Subtotal_숨김' in row:
+            row = row.replace('Subtotal_숨김', '') # 텍스트 완전히 삭제 (빈칸 처리)
+            row = re.sub(r'^<tr', r'<tr class="total-row"', row)
+        elif any(k in row for k in ['TTL', 'Total', '소계']):
             row = re.sub(r'^<tr', r'<tr class="total-row"', row)
             
         return row
@@ -429,11 +439,13 @@ if uploaded_file:
                 subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
                 
             results.append(combined)
-            results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(biz, 'Subtotal')], names=['BIZ Type', 'KOx'])))
+            # [수정] Subtotal을 내부 식별자인 'Subtotal_숨김'으로 변경
+            results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(biz, 'Subtotal_숨김')], names=['BIZ Type', 'KOx'])))
             
         final_df = pd.concat(results)
         
-        grand_total = final_df[final_df.index.get_level_values(1) != 'Subtotal'].sum(numeric_only=True)
+        # [수정] Subtotal_숨김 행을 제외하고 총계 계산
+        grand_total = final_df[final_df.index.get_level_values(1) != 'Subtotal_숨김'].sum(numeric_only=True)
         for p_name in phase_names:
             num = grand_total.get((p_name, 'ACT'), 0)
             den = grand_total.get((p_name, '26 FC1'), 0)
@@ -494,7 +506,7 @@ if uploaded_file:
             combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
             results.append(combined)
             
-            # [수정] HYU, KIA 소계 행을 고유 식별자로 생성하여 판다스가 인식하도록 처리
+            # [수정] HYU, KIA 소계 행을 고유 식별자로 생성
             if brand != 'GM': 
                 results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
             
