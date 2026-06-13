@@ -55,7 +55,7 @@ st.markdown("""
         vertical-align: middle;
     }
     .report-table .row_heading {
-        color: #333 !important;
+        color: #002060 !important;
         text-align: left !important;
         padding-left: 10px !important;
         border: 1px solid #d9d9d9 !important;
