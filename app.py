@@ -87,15 +87,16 @@ st.markdown("""
         border-bottom: 2px solid #8ea9db !important;
     }
     
-    .report-table { border: 2px solid #002060 !important; border-collapse: collapse !important; }
-
-    /* 마지막 열(당월) 빨간 테두리 강제 */
-    .last-col {
+    .report-table .last-col {
         border-right: 2px solid #ff0000 !important;
     }
-    /* 하단 테두리 강제 */
-    .bottom-row {
+    .report-table .bottom-row {
         border-bottom: 2px solid #ff0000 !important;
+    }
+    /* 하단 우측 모서리 셀은 두 선이 모두 필요함 */
+    .report-table .last-col.bottom-row {
+        border-bottom: 2px solid #ff0000 !important;
+        border-right: 2px solid #ff0000 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -561,26 +562,29 @@ if uploaded_file:
     def render_trend_html_table(df, apply_color=False):
         df_display = df.replace(0, '')
         format_dict = {col: format_k_val for col in df.columns}
+        # 테이블에 report-table 클래스 부여
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
         
         # 클래스 프레임 생성
         classes = pd.DataFrame([[''] * len(df.columns)] * len(df), index=df.index, columns=df.columns)
         
-        # 1. 마지막 열(당월)에 'last-col' 클래스 적용
+        # 마지막 열에 last-col 클래스 부여
         classes.iloc[:, -1] = classes.iloc[:, -1] + ' last-col'
         
-        # 2. 마지막 행(합계 행)에 'bottom-row' 클래스 적용
+        # 마지막 행에 bottom-row 클래스 부여
         classes.iloc[-1, :] = classes.iloc[-1, :] + ' bottom-row'
         
+        # 적용
         styler.set_td_classes(classes)
-        styler.set_properties(**{'text-align': 'right'})
         styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
         
         html_str = styler.to_html()
-        html_str = post_process_html_styles(html_str)
         
-        # [중요] HTML 상의 마지막 <th> 헤더에도 빨간 테두리 클래스 강제 주입
-        html_str = re.sub(r'(<th[^>]*>May\.26</th>)', r'<th class="last-col" style="border-top:2px solid #ff0000 !important;">May.26</th>', html_str)
+        # 헤더(TH)에도 클래스 강제 적용 (RE.SUB 이용)
+        # 마지막 컬럼명을 찾아 헤더 태그에 클래스 주입
+        last_col_name = df.columns[-1]
+        pattern = rf'(<th[^>]*>{last_col_name}</th>)'
+        html_str = re.sub(pattern, rf'<th class="last-col" style="border-top:2px solid #ff0000 !important;">{last_col_name}</th>', html_str)
         
         return f'<div class="table-container">{html_str}</div>'
 
