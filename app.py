@@ -86,6 +86,22 @@ st.markdown("""
         border-top: 2px solid #8ea9db !important;
         border-bottom: 2px solid #8ea9db !important;
     }
+    /* 빨간색 테두리를 위한 CSS 클래스 */
+    .highlight-border {
+        border: 2px solid #ff0000 !important; /* 빨간색 테두리 */
+        box-sizing: border-box;
+    }
+    .report-table { border-collapse: collapse !important; }
+
+    .highlight-border {
+        border-right: 2px solid #ff0000 !important;
+        border-top: 2px solid #ff0000 !important;
+        border-bottom: 2px solid #ff0000 !important;
+    }
+    /* 첫 번째 셀(좌측 상단)은 테두리를 닫아줌 */
+    .highlight-border-left {
+        border-left: 2px solid #ff0000 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -551,6 +567,18 @@ if uploaded_file:
         df_display = df.replace(0, '')
         format_dict = {col: format_k_val for col in df.columns}
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
+        
+        # 마지막 열 인덱스 확인
+        last_col = df.columns[-1]
+        
+        # 모든 셀에 대해 클래스 프레임 생성
+        classes = pd.DataFrame([[''] * len(df.columns)] * len(df), index=df.index, columns=df.columns)
+        
+        # 마지막 열에 클래스 할당 (첫 번째 열이 아니면 오른쪽 테두리 위주, 첫 번째 열이면 전체 테두리)
+        classes[last_col] = 'highlight-border'
+        
+        # 인덱스(첫 컬럼)의 마지막 열이 겹치는 경우를 위한 예외 처리(필요시)
+        styler.set_td_classes(classes)
         
         styler.set_properties(**{'text-align': 'right'})
         styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
