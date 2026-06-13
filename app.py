@@ -135,18 +135,18 @@ st.markdown("""
         padding-right: 4px !important;
     }
 
-    /* Trend 테이블 마지막 열(당월) 강조 (진한 빨간색 테두리) */
+    /* Trend 테이블 마지막 열(당월) 강조 (4px의 두꺼운 진한 빨간색 테두리) */
     .report-table.trend-table th:last-child {
-        border-top: 2px solid #c00000 !important;
-        border-left: 2px solid #c00000 !important;
-        border-right: 2px solid #c00000 !important;
+        border-top: 4px solid #c00000 !important;
+        border-left: 4px solid #c00000 !important;
+        border-right: 4px solid #c00000 !important;
     }
-    .report-table.trend-table td:last-child {
-        border-left: 2px solid #c00000 !important;
-        border-right: 2px solid #c00000 !important;
+    .report-table.trend-table tbody tr td:last-child {
+        border-left: 4px solid #c00000 !important;
+        border-right: 4px solid #c00000 !important;
     }
     .report-table.trend-table tbody tr:last-child td:last-child {
-        border-bottom: 2px solid #c00000 !important;
+        border-bottom: 4px solid #c00000 !important;
     }
     </style>
 """, unsafe_allow_html=True)
