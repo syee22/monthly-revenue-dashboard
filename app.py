@@ -106,9 +106,16 @@ def format_k_val(val):
 def format_percentage_html(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
     pct_str = f"{val:.0%}"
-    if val >= 1.0: return f'<span style="color: #00b050; font-weight: bold;">{pct_str} ▲</span>'
-    elif val > 0: return f'<span style="color: #c00000; font-weight: bold;">{pct_str} ▼</span>'
-    else: return pct_str
+    if 0.95 <= val <= 1.0:
+        return f'<span style="color: #595959; font-weight: bold;">{pct_str} ―</span>'
+    # 100% 초과 (목표 달성)
+    elif val > 1.0:
+        return f'<span style="color: #00b050; font-weight: bold;">{pct_str} ▲</span>'
+    # 95% 미만 (미달성)
+    elif val > 0:
+        return f'<span style="color: #c00000; font-weight: bold;">{pct_str} ▼</span>'
+    else:
+        return pct_str
 
 def color_index_cells(v):
     if str(v) == 'HYU': return 'background-color: #e6f2ff;'  # 하늘색
