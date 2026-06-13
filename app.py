@@ -20,6 +20,15 @@ st.markdown("""
     .block-container { padding: 2rem 3rem; }
     h1 { font-size: 1.6rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
     h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0.5rem !important; color: #002060 !important; }
+    .super-header {
+        background-color: #002060 !important;
+        color: white !important;
+        text-align: center !important;
+        font-weight: bold !important;
+        padding: 8px !important;
+        border: 1px solid #8ea9db !important;
+        font-size: 13px !important;
+    }
     .report-table {
         border-collapse: collapse !important;
         font-family: 'Malgun Gothic', sans-serif;
@@ -180,7 +189,7 @@ def finalize_html(html_str):
         thead_html = html_str[head_start:head_end]
         
         def force_blue_header(m):
-            attrs = m.group(2)
+            attrs = m.group(1)  # [수정] group(2) -> group(1)로 변경하여 IndexError 해결
             attrs = re.sub(r'background-color:\s*[^;"]+;?', '', attrs) # 기존색 지우기
             target_style = "background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; text-align: center !important; vertical-align: middle !important;"
             if 'style="' in attrs:
@@ -522,7 +531,7 @@ if uploaded_file:
         
         html_str = styler.to_html()
         html_str = optimize_html_headers(html_str, df)
-        html_str = finalize_html(html_str) # 강제 스타일 후처리
+        html_str = finalize_html(html_str) 
         if title: html_str = inject_spanning_header(html_str, title, df)
         return f'<div class="table-container">{html_str}</div>'
 
@@ -537,7 +546,7 @@ if uploaded_file:
         
         html_str = styler.to_html()
         html_str = optimize_html_headers(html_str, df)
-        html_str = finalize_html(html_str) # 강제 스타일 후처리
+        html_str = finalize_html(html_str) 
         if title: html_str = inject_spanning_header(html_str, title, df)
         return f'<div class="table-container">{html_str}</div>'
 
@@ -551,7 +560,7 @@ if uploaded_file:
         
         html_str = styler.to_html()
         html_str = optimize_html_headers(html_str, df)
-        html_str = finalize_html(html_str) # 강제 스타일 후처리
+        html_str = finalize_html(html_str) 
         return f'<div class="table-container">{html_str}</div>'
 
     # ==========================================
