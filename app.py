@@ -134,6 +134,20 @@ st.markdown("""
         padding-left: 4px !important;
         padding-right: 4px !important;
     }
+
+    /* Trend 테이블 마지막 열(당월) 강조 (진한 빨간색 테두리) */
+    .report-table.trend-table th:last-child {
+        border-top: 2px solid #c00000 !important;
+        border-left: 2px solid #c00000 !important;
+        border-right: 2px solid #c00000 !important;
+    }
+    .report-table.trend-table td:last-child {
+        border-left: 2px solid #c00000 !important;
+        border-right: 2px solid #c00000 !important;
+    }
+    .report-table.trend-table tbody tr:last-child td:last-child {
+        border-bottom: 2px solid #c00000 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -684,7 +698,8 @@ if uploaded_file:
     def render_trend_html_table(df, apply_color=False):
         df_display = df.replace(0, '')
         format_dict = {col: format_k_val for col in df.columns}
-        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
+        # Trend 테이블에 전용 CSS 클래스 부여
+        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table trend-table"')
         
         styler.set_properties(**{'text-align': 'right'})
         styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
