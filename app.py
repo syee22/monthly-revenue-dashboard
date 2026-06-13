@@ -86,15 +86,16 @@ st.markdown("""
         border-top: 2px solid #8ea9db !important;
         border-bottom: 2px solid #8ea9db !important;
     }
+    
+    .report-table { border: 2px solid #002060 !important; border-collapse: collapse !important; }
 
-    .highlight-border {
+    /* 마지막 열(당월) 빨간 테두리 강제 */
+    .last-col {
         border-right: 2px solid #ff0000 !important;
-        border-top: 2px solid #ff0000 !important;
-        border-bottom: 2px solid #ff0000 !important;
     }
-    /* 첫 번째 셀(좌측 상단)은 테두리를 닫아줌 */
-    .highlight-border-left {
-        border-left: 2px solid #ff0000 !important;
+    /* 하단 테두리 강제 */
+    .bottom-row {
+        border-bottom: 2px solid #ff0000 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -562,23 +563,25 @@ if uploaded_file:
         format_dict = {col: format_k_val for col in df.columns}
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
         
-        # 마지막 열 인덱스 확인
-        last_col = df.columns[-1]
-        
-        # 모든 셀에 대해 클래스 프레임 생성
+        # 클래스 프레임 생성
         classes = pd.DataFrame([[''] * len(df.columns)] * len(df), index=df.index, columns=df.columns)
         
-        # 마지막 열에 클래스 할당 (첫 번째 열이 아니면 오른쪽 테두리 위주, 첫 번째 열이면 전체 테두리)
-        classes[last_col] = 'highlight-border'
+        # 1. 마지막 열(당월)에 'last-col' 클래스 적용
+        classes.iloc[:, -1] = classes.iloc[:, -1] + ' last-col'
         
-        # 인덱스(첫 컬럼)의 마지막 열이 겹치는 경우를 위한 예외 처리(필요시)
+        # 2. 마지막 행(합계 행)에 'bottom-row' 클래스 적용
+        classes.iloc[-1, :] = classes.iloc[-1, :] + ' bottom-row'
+        
         styler.set_td_classes(classes)
-        
         styler.set_properties(**{'text-align': 'right'})
         styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
         
         html_str = styler.to_html()
         html_str = post_process_html_styles(html_str)
+        
+        # [중요] HTML 상의 마지막 <th> 헤더에도 빨간 테두리 클래스 강제 주입
+        html_str = re.sub(r'(<th[^>]*>May\.26</th>)', r'<th class="last-col" style="border-top:2px solid #ff0000 !important;">May.26</th>', html_str)
+        
         return f'<div class="table-container">{html_str}</div>'
 
     # ==========================================
