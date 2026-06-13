@@ -110,7 +110,7 @@ def format_percentage_html(val):
         return f'<span style="color: #000000; font-weight: bold;">{pct_str} <span style="display: inline-block; width: 10px; height: 4px; background-color: #cc7a00; vertical-align: middle; margin-left: 5px;"></span>' 
     # 100% 초과 (목표 달성)
     elif val > 1.0:
-        return f'<span style="color: #00b050; font-weight: bold;">{pct_str} ▲</span>'
+        return f'<span style="color: #3399FF; font-weight: bold;">{pct_str} ▲</span>'
     # 95% 미만 (미달성)
     elif val > 0:
         return f'<span style="color: #c00000; font-weight: bold;">{pct_str} ▼</span>'
