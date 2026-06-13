@@ -135,13 +135,13 @@ def format_percentage_html(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
     pct_str = f"{val:.0%}"
     if 0.95 <= val <= 1.0:
-        return f'<span style="color: #000000; font-weight: bold;font-style: italic;">{pct_str} <span style="display: inline-block; width: 10px; height: 4px; background-color: #cc7a00; vertical-align: middle; margin-left: 5px;"></span>' 
+        return f'<span style="color: #000000; font-weight: bold; font-style: italic;">{pct_str} <span style="display: inline-block; width: 10px; height: 4px; background-color: #cc7a00; vertical-align: middle; margin-left: 5px;"></span></span>' 
     elif val > 1.0:
-        return f'<span style="color: #2E86C1; font-weight: bold;font-style: italic;">{pct_str} ▲</span>'
+        return f'<span style="color: #2E86C1; font-weight: bold; font-style: italic;">{pct_str} ▲</span>'
     elif val > 0:
-        return f'<span style="color: #c00000; font-weight: bold;font-style: italic;">{pct_str} ▼</span>'
+        return f'<span style="color: #c00000; font-weight: bold; font-style: italic;">{pct_str} ▼</span>'
     else:
-        return pct_str
+        return f'<span style="font-style: italic;">{pct_str}</span>'
 
 def color_index_cells(v):
     if str(v) == 'HYU': return 'background-color: #e6f2ff;'  # 하늘색
@@ -160,6 +160,8 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
         elif 'KIA_소계' in row_str:
             return [f'background-color: #ffe6e6{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
         elif 'Subtotal_숨김' in row_str:
+            return [f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
+        elif 'GRAND_TOTAL_MERGE' in row_str:
             return [f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
         elif any(keyword in row_str for keyword in ['TTL', 'Total', '소계']):
             return [f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
@@ -182,6 +184,8 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
                 elif 'Subtotal_숨김' in label_str:
                     # 엑셀에서 글자를 숨기기 위해 배경색과 동일한 글자색(#ffffe0) 부여
                     res.append(f'background-color: #ffffe0{imp}; color: #ffffe0; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
+                elif 'GRAND_TOTAL_MERGE' in label_str:
+                    res.append(f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
                 elif any(k in label_str for k in ['TTL', 'Total', '소계']):
                     res.append(f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
                 else: 
@@ -197,6 +201,8 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
                 return f'background-color: #ffe6e6{imp}; color: #ffe6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
             elif 'Subtotal_숨김' in val_str:
                 return f'background-color: #ffffe0{imp}; color: #ffffe0; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+            elif 'GRAND_TOTAL_MERGE' in val_str:
+                return f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
             elif any(keyword in val_str for keyword in ['TTL', 'Total', '소계']):
                 return f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
             return ''
@@ -250,7 +256,7 @@ def optimize_html_headers(html_str, df):
         return html_str
 
 def post_process_html_styles(html_str):
-    """HTML 렌더링 시 브랜드를 추적하여 각 소계 행에 맞는 고유 CSS 클래스 및 텍스트 삭제 처리"""
+    """HTML 렌더링 시 브랜드를 추적하여 각 소계 행에 맞는 고유 CSS 클래스, 텍스트 삭제 및 병합 셀 처리"""
     if '<tbody>' not in html_str: return html_str
     
     def process_row(match):
@@ -265,6 +271,21 @@ def post_process_html_styles(html_str):
         elif 'Subtotal_숨김' in row:
             row = row.replace('Subtotal_숨김', '') # 텍스트 완전히 삭제 (빈칸 처리)
             row = re.sub(r'^<tr', r'<tr class="total-row"', row)
+            
+        # [수정] Grand Total 병합 처리 로직
+        elif 'GRAND_TOTAL_MERGE_START' in row:
+            row = re.sub(r'^<tr', r'<tr class="total-row"', row)
+            label_match = re.search(r'GRAND_TOTAL_MERGE_START(.*?)</th', row)
+            if label_match:
+                actual_label = label_match.group(1).strip()
+                # 4개의 인덱스(th) 태그를 1개의 colspan=4 로 합치면서 좌측 정렬 지정
+                row = re.sub(
+                    r'<th[^>]*>GRAND_TOTAL_MERGE_START.*?</th>\s*<th[^>]*>GRAND_TOTAL_MERGE_DEL</th>\s*<th[^>]*>GRAND_TOTAL_MERGE_DEL</th>\s*<th[^>]*>GRAND_TOTAL_MERGE_DEL</th>',
+                    f'<th colspan="4" style="text-align: left !important; padding-left: 15px !important; background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;">{actual_label}</th>',
+                    row,
+                    flags=re.DOTALL
+                )
+                
         elif any(k in row for k in ['TTL', 'Total', '소계']):
             row = re.sub(r'^<tr', r'<tr class="total-row"', row)
             
@@ -278,7 +299,23 @@ def post_process_html_styles(html_str):
 def to_excel_multiple(df_dict):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        for sheet_name, df in df_dict.items():
+        for sheet_name, original_df in df_dict.items():
+            df = original_df.copy()
+            
+            # [수정] 엑셀 다운로드를 위해 병합용 내부 마커 텍스트를 깔끔하게 제거
+            if isinstance(df.index, pd.MultiIndex):
+                new_tuples = []
+                for t in df.index:
+                    new_t = list(t)
+                    if isinstance(new_t[0], str) and 'GRAND_TOTAL_MERGE_START' in new_t[0]:
+                        # 엑셀에서는 첫번째 열에 레이블을 두고 나머지는 빈칸으로 처리
+                        new_t[0] = new_t[0].replace('GRAND_TOTAL_MERGE_START', '')
+                        for i in range(1, len(new_t)):
+                            if new_t[i] == 'GRAND_TOTAL_MERGE_DEL':
+                                new_t[i] = ''
+                    new_tuples.append(tuple(new_t))
+                df.index = pd.MultiIndex.from_tuples(new_tuples, names=df.index.names)
+            
             styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
             
             # 4번, 5번 및 6번 시트에만 색상 적용
@@ -446,12 +483,10 @@ if uploaded_file:
                 subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
                 
             results.append(combined)
-            # [수정] Subtotal을 내부 식별자인 'Subtotal_숨김'으로 변경
             results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(biz, 'Subtotal_숨김')], names=['BIZ Type', 'KOx'])))
             
         final_df = pd.concat(results)
         
-        # [수정] Subtotal_숨김 행을 제외하고 총계 계산
         grand_total = final_df[final_df.index.get_level_values(1) != 'Subtotal_숨김'].sum(numeric_only=True)
         for p_name in phase_names:
             num = grand_total.get((p_name, 'ACT'), 0)
@@ -513,7 +548,6 @@ if uploaded_file:
             combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
             results.append(combined)
             
-            # [수정] HYU, KIA 소계 행을 고유 식별자로 생성
             if brand != 'GM': 
                 results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
             
@@ -524,7 +558,15 @@ if uploaded_file:
             den = grand_total.get((p_name, '26 FC1'), 0)
             grand_total[(p_name, 'ACHI %')] = num / den if den != 0 else 0
             
-        grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('', f'{BIZ_CONFIG.get(biz_type, biz_type)} Rev. TTL (K.€)', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
+        # [수정] Grand Total용 특수 식별자를 부여하여 HTML 렌더링 시 가로 병합 처리되도록 구성
+        grand_label = f'{BIZ_CONFIG.get(biz_type, biz_type)} Rev. TTL (K.€)'
+        grand_row = pd.DataFrame(
+            [grand_total], 
+            index=pd.MultiIndex.from_tuples(
+                [(f'GRAND_TOTAL_MERGE_START{grand_label}', 'GRAND_TOTAL_MERGE_DEL', 'GRAND_TOTAL_MERGE_DEL', 'GRAND_TOTAL_MERGE_DEL')], 
+                names=['Cust. GR', 'Project', 'Con.', 'SOP']
+            )
+        )
         
         return pd.concat([final_df, grand_row]), phase_names
 
@@ -585,7 +627,6 @@ if uploaded_file:
     def render_biz_html_table(df, apply_color=False, title=None):
         df_display = df.replace(0, '')
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
-        # [수정] 해당 테이블에만 biz-table CSS 클래스 적용
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table biz-table"')
         
         numeric_cols = get_numeric_cols(df)
