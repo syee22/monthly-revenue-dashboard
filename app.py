@@ -14,7 +14,7 @@ MONTH_NAMES = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:
 BIZ_CONFIG = {"Power": "PE Biz", "Core": "Core Biz"}
 
 # ==========================================
-# CSS 주입
+# CSS 주입 (total-row 클래스 추가)
 # ==========================================
 st.markdown("""
     <style>
@@ -76,6 +76,15 @@ st.markdown("""
     .report-table {
         margin: 0 !important;
         border-collapse: collapse !important;
+    }
+    /* 합계/소계 행 전체에 음영 및 스타일 적용 (빈 인덱스 셀 완벽 해결) */
+    .report-table tr.total-row th, 
+    .report-table tr.total-row td {
+        background-color: #ffffe0 !important;
+        color: #002060 !important;
+        font-weight: bold !important;
+        border-top: 2px solid #8ea9db !important;
+        border-bottom: 2px solid #8ea9db !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -168,8 +177,7 @@ def optimize_html_headers(html_str, df):
         
         # 인덱스 이름(좌측 상단) 병합 처리
         if hasattr(df, 'index') and hasattr(df.index, 'names'):
-            # [수정] 빈 문자열('')도 무시하지 않고 살려서 칸 수를 정확히 맞춤
-            index_names = [str(n) if n is not None and str(n) != 'None' else '' for n in df.index.names]
+            index_names = [str(n) for n in df.index.names if n is not None and str(n).strip()]
             num_indices = len(index_names)
             
             for i in range(num_indices):
@@ -192,41 +200,21 @@ def optimize_html_headers(html_str, df):
         return html_str
 
 def post_process_html_styles(html_str):
-    """HTML 테이블 본문(tbody) 내 모든 합계/소계 행의 th와 td 전체에 완벽하게 노란색 음영을 강제 주입"""
+    """합계/소계가 포함된 행을 찾아 고유 CSS 클래스를 주입하여 완벽한 스타일링 구현"""
     if '<tbody>' not in html_str: return html_str
     
-    def highlight_tr_elements(match):
-        row_html = match.group(0)
-        if any(k in row_html for k in ['TTL', 'Total', 'Subtotal', '소계']):
-            target_style = 'background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;'
-            
-            def inject_style(tag_match):
-                tag = tag_match.group(1)
-                attrs = tag_match.group(2)
-                
-                # [수정] 중복 방지 및 HTML 필터링 오류 회피를 위해 기존 색상/폰트/테두리 스타일 속성을 완전히 삭제
-                attrs = re.sub(r'background-color:\s*[^;"]+;?', '', attrs)
-                attrs = re.sub(r'color:\s*[^;"]+;?', '', attrs)
-                attrs = re.sub(r'font-weight:\s*[^;"]+;?', '', attrs)
-                attrs = re.sub(r'border-top:\s*[^;"]+;?', '', attrs)
-                attrs = re.sub(r'border-bottom:\s*[^;"]+;?', '', attrs)
-                
-                if 'style="' in attrs:
-                    # 기존 style 속성에 새 스타일 병합
-                    new_attrs = re.sub(r'style="([^"]*)"', rf'style="\1 {target_style}"', attrs)
-                    return f'<{tag}{new_attrs}>'
-                else:
-                    # 속성이 없으면 새로 추가
-                    prefix = " " if attrs and not attrs.startswith(" ") else ""
-                    return f'<{tag} style="{target_style}"{prefix}{attrs}>'
-            
-            # 행 내부의 모든 th, td를 순회하며 스타일 적용
-            row_html = re.sub(r'<(th|td)([^>]*)>', inject_style, row_html)
-        return row_html
+    def process_row(match):
+        row = match.group(0)
+        # 해당 행에 특정 키워드가 포함되어 있으면 <tr> 태그에 'total-row' 클래스 추가
+        if any(k in row for k in ['TTL', 'Total', 'Subtotal', '소계']):
+            # 기존 태그를 <tr class="total-row"... 로 변경
+            row = re.sub(r'^<tr', r'<tr class="total-row"', row)
+        return row
         
     parts = html_str.split('<tbody>', 1)
     tbody_content = parts[1]
-    tbody_content = re.sub(r'<tr[^>]*>.*?</tr>', highlight_tr_elements, tbody_content, flags=re.DOTALL)
+    # 각 줄별로 검사하여 클래스 주입
+    tbody_content = re.sub(r'<tr[^>]*>.*?</tr>', process_row, tbody_content, flags=re.DOTALL)
     return parts[0] + '<tbody>' + tbody_content
 
 def to_excel_multiple(df_dict):
