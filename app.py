@@ -530,57 +530,35 @@ if uploaded_file:
             pass 
         return f'<div class="table-container">{html_str}</div>'
 
- #   def render_biz_html_table(df, apply_color=False, title=None):
- #       df_display = df.replace(0, '')
- #       format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
- #       styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
-        
- #       numeric_cols = get_numeric_cols(df)
- #       styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
- #       styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
-        
- #       html_str = styler.to_html()
- #       html_str = optimize_html_headers(html_str, df)
- #       html_str = post_process_html_styles(html_str)
-        
- #       if title: 
- #           pass
- #       return f'<div class="table-container">{html_str}</div>'
-
-    #def render_trend_html_table(df, apply_color=False):
-    #    df_display = df.replace(0, '')
-    #    format_dict = {col: format_k_val for col in df.columns}
-    #    styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
-        
-    #    styler.set_properties(**{'text-align': 'right'})
-    #    styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
-        
-    #    html_str = styler.to_html()
-    #    html_str = post_process_html_styles(html_str)
-    #    return f'<div class="table-container">{html_str}</div>'
     def render_biz_html_table(df, apply_color=False, title=None):
         df_display = df.replace(0, '')
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
         
-        # 1. 숫자 컬럼은 우측 정렬
         numeric_cols = get_numeric_cols(df)
         styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
-        
-        # 2. [추가] Con., SOP 열만 따로 추출하여 가운데 정렬 적용
-        # MultiIndex 컬럼일 경우 해당 level을 확인해야 합니다.
-        # 데이터프레임 구조에 따라 ['Con.'] 또는 [('Con.', '')] 형태가 될 수 있습니다.
-        target_cols = [c for c in df.columns if 'Con.' in str(c) or 'SOP' in str(c)]
-        if target_cols:
-            styler.set_properties(subset=target_cols, **{'text-align': 'center !important'})
-        
         styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
         
         html_str = styler.to_html()
         html_str = optimize_html_headers(html_str, df)
         html_str = post_process_html_styles(html_str)
         
+        if title: 
+            pass
         return f'<div class="table-container">{html_str}</div>'
+
+    def render_trend_html_table(df, apply_color=False):
+        df_display = df.replace(0, '')
+        format_dict = {col: format_k_val for col in df.columns}
+        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
+        
+        styler.set_properties(**{'text-align': 'right'})
+        styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
+        
+        html_str = styler.to_html()
+        html_str = post_process_html_styles(html_str)
+        return f'<div class="table-container">{html_str}</div>'
+
     # ==========================================
     # 6. 화면 출력
     # ==========================================
