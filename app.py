@@ -128,11 +128,11 @@ def format_percentage_html(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
     pct_str = f"{val:.0%}"
     if 0.95 <= val <= 1.0:
-        return f'<span style="color: #000000; font-weight: bold;">{pct_str} <span style="display: inline-block; width: 10px; height: 4px; background-color: #cc7a00; vertical-align: middle; margin-left: 5px;"></span>' 
+        return f'<span style="color: #000000; font-weight: bold;font-style: italic;">{pct_str} <span style="display: inline-block; width: 10px; height: 4px; background-color: #cc7a00; vertical-align: middle; margin-left: 5px;"></span>' 
     elif val > 1.0:
-        return f'<span style="color: #2E86C1; font-weight: bold;">{pct_str} ▲</span>'
+        return f'<span style="color: #2E86C1; font-weight: bold;font-style: italic;">{pct_str} ▲</span>'
     elif val > 0:
-        return f'<span style="color: #c00000; font-weight: bold;">{pct_str} ▼</span>'
+        return f'<span style="color: #c00000; font-weight: bold;font-style: italic;">{pct_str} ▼</span>'
     else:
         return pct_str
 
