@@ -409,7 +409,7 @@ if uploaded_file:
             den = grand_total.get((p_name, '26 FC1'), 0)
             grand_total[(p_name, 'ACHI %')] = num / den if den != 0 else 0
             
-        grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('Total', 'TTL (K.€)')], names=['BIZ Type', 'KOx']))
+        grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('TTL (K.€)', ' ')], names=['BIZ Type', 'KOx']))
         
         return pd.concat([final_df, grand_row])
 
