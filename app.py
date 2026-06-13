@@ -148,14 +148,11 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
     # 1. 엑셀 출력 및 셀 단위 스타일링 (데이터 영역)
     def style_row(row):
         row_str = str(row.name)
-        if '소계' in row_str:
-            if 'HYU' in row_str:
-                return [f'background-color: #e6f2ff{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
-            elif 'KIA' in row_str:
-                return [f'background-color: #ffe6e6{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
-            else:
-                return [f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
-        elif any(keyword in row_str for keyword in ['TTL', 'Total', 'Subtotal']):
+        if 'HYU_소계' in row_str:
+            return [f'background-color: #e6f2ff{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
+        elif 'KIA_소계' in row_str:
+            return [f'background-color: #ffe6e6{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
+        elif any(keyword in row_str for keyword in ['TTL', 'Total', 'Subtotal', '소계']):
             return [f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
         return [''] * len(row)
     
@@ -167,20 +164,26 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
             res = []
             for label in idx:
                 label_str = str(label)
-                if '소계' in label_str:
-                    if 'HYU' in label_str: res.append(f'background-color: #e6f2ff{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                    elif 'KIA' in label_str: res.append(f'background-color: #ffe6e6{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                    else: res.append(f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                elif any(k in label_str for k in ['TTL', 'Total', 'Subtotal']):
+                if 'HYU_소계' in label_str: 
+                    # 엑셀에서 글자를 숨기기 위해 배경색과 동일한 글자색(#e6f2ff) 부여
+                    res.append(f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
+                elif 'KIA_소계' in label_str: 
+                    # 엑셀에서 글자를 숨기기 위해 배경색과 동일한 글자색(#ffe6e6) 부여
+                    res.append(f'background-color: #ffe6e6{imp}; color: #ffe6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
+                elif any(k in label_str for k in ['TTL', 'Total', 'Subtotal', '소계']):
                     res.append(f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                else:
+                else: 
                     res.append('')
             return res
         styler.apply_index(style_row_index, axis=0)
     else:
         def highlight_total_index(val):
             val_str = str(val)
-            if any(keyword in val_str for keyword in ['TTL', 'Total', 'Subtotal', '소계']):
+            if 'HYU_소계' in val_str:
+                return f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+            elif 'KIA_소계' in val_str:
+                return f'background-color: #ffe6e6{imp}; color: #ffe6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+            elif any(keyword in val_str for keyword in ['TTL', 'Total', 'Subtotal', '소계']):
                 return f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
             return ''
         for i in range(styler.index.nlevels):
@@ -233,33 +236,19 @@ def optimize_html_headers(html_str, df):
         return html_str
 
 def post_process_html_styles(html_str):
-    """HTML 렌더링 시 브랜드를 추적하여 각 소계 행에 맞는 고유 CSS 클래스 및 인라인 색상 덮어쓰기 주입"""
+    """HTML 렌더링 시 브랜드를 추적하여 각 소계 행에 맞는 고유 CSS 클래스 및 텍스트 삭제 처리"""
     if '<tbody>' not in html_str: return html_str
     
-    current_brand = None
-    
     def process_row(match):
-        nonlocal current_brand
         row = match.group(0)
         
-        # 현재 처리 중인 브랜드 추적 (rowspan으로 인해 소계 행에 브랜드명이 없을 수 있기 때문)
-        if 'HYU' in row: current_brand = 'HYU'
-        elif 'KIA' in row: current_brand = 'KIA'
-        elif 'GM' in row: current_brand = 'GM'
-        
-        # 행에 특정 키워드가 포함되어 있으면 적절한 클래스와 강제 색상 교체 적용
-        if '소계' in row:
-            if current_brand == 'HYU':
-                row = re.sub(r'^<tr', r'<tr class="total-row-hyu"', row)
-                # 판다스가 잘못 지정한 노란색을 하늘색으로 강제 교체
-                row = re.sub(r'#ffffe0', '#e6f2ff', row, flags=re.IGNORECASE)
-            elif current_brand == 'KIA':
-                row = re.sub(r'^<tr', r'<tr class="total-row-kia"', row)
-                # 판다스가 잘못 지정한 노란색을 분홍색으로 강제 교체
-                row = re.sub(r'#ffffe0', '#ffe6e6', row, flags=re.IGNORECASE)
-            else:
-                row = re.sub(r'^<tr', r'<tr class="total-row"', row)
-        elif any(k in row for k in ['TTL', 'Total', 'Subtotal']):
+        if 'HYU_소계' in row:
+            row = row.replace('HYU_소계', '') # 텍스트 완전히 삭제 (빈칸 처리)
+            row = re.sub(r'^<tr', r'<tr class="total-row-hyu"', row)
+        elif 'KIA_소계' in row:
+            row = row.replace('KIA_소계', '') # 텍스트 완전히 삭제 (빈칸 처리)
+            row = re.sub(r'^<tr', r'<tr class="total-row-kia"', row)
+        elif any(k in row for k in ['TTL', 'Total', 'Subtotal', '소계']):
             row = re.sub(r'^<tr', r'<tr class="total-row"', row)
             
         return row
@@ -504,10 +493,13 @@ if uploaded_file:
                 
             combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
             results.append(combined)
-            if brand != 'GM': results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, '소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
+            
+            # [수정] HYU, KIA 소계 행을 고유 식별자로 생성하여 판다스가 인식하도록 처리
+            if brand != 'GM': 
+                results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
             
         final_df = pd.concat(results)
-        grand_total = final_df[final_df.index.get_level_values(1) != '소계'].sum(numeric_only=True)
+        grand_total = final_df[~final_df.index.get_level_values(1).str.contains('소계', na=False)].sum(numeric_only=True)
         for p_name in phase_names:
             num = grand_total.get((p_name, 'ACT'), 0)
             den = grand_total.get((p_name, '26 FC1'), 0)
