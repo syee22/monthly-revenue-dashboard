@@ -86,18 +86,6 @@ st.markdown("""
         border-top: 2px solid #8ea9db !important;
         border-bottom: 2px solid #8ea9db !important;
     }
-    
-    .report-table .last-col {
-        border-right: 2px solid #ff0000 !important;
-    }
-    .report-table .bottom-row {
-        border-bottom: 2px solid #ff0000 !important;
-    }
-    /* 하단 우측 모서리 셀은 두 선이 모두 필요함 */
-    .report-table .last-col.bottom-row {
-        border-bottom: 2px solid #ff0000 !important;
-        border-right: 2px solid #ff0000 !important;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -561,40 +549,14 @@ if uploaded_file:
 
     def render_trend_html_table(df, apply_color=False):
         df_display = df.replace(0, '')
-    
-        # 테두리 강조를 위한 스타일 함수
-        def highlight_borders(x):
-            # x는 데이터프레임입니다.
-            df_style = pd.DataFrame('', index=x.index, columns=x.columns)
-            
-            # 마지막 열(당월)에 오른쪽 빨간 테두리
-            df_style.iloc[:, -1] = 'border-right: 2px solid #ff0000 !important;'
-            
-            # 마지막 행(TTL)에 아래쪽 빨간 테두리
-            df_style.iloc[-1, :] = df_style.iloc[-1, :].apply(lambda s: s + ' border-bottom: 2px solid #ff0000 !important;')
-            
-            # 마지막 열 & 마지막 행 교차점(우측 하단)
-            df_style.iloc[-1, -1] = 'border-right: 2px solid #ff0000 !important; border-bottom: 2px solid #ff0000 !important;'
-            
-            return df_style
-
-        # 스타일 적용
-        styler = df_display.style.format(lambda x: format_k_val(x), na_rep='')
-        styler.set_table_attributes('class="report-table"')
-        styler.apply(highlight_borders, axis=None) # 셀 별로 스타일 적용
+        format_dict = {col: format_k_val for col in df.columns}
+        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
         
         styler.set_properties(**{'text-align': 'right'})
         styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
         
         html_str = styler.to_html()
         html_str = post_process_html_styles(html_str)
-        
-        # 마지막 헤더 빨간 테두리 적용 (th 요소)
-        last_col_name = df.columns[-1]
-        html_str = re.sub(rf'(<th[^>]*>{last_col_name}</th>)', 
-                          rf'<th style="border-right: 2px solid #ff0000 !important; border-top: 2px solid #ff0000 !important;">{last_col_name}</th>', 
-                          html_str)
-        
         return f'<div class="table-container">{html_str}</div>'
 
     # ==========================================
