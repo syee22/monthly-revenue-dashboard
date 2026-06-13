@@ -530,22 +530,22 @@ if uploaded_file:
             pass 
         return f'<div class="table-container">{html_str}</div>'
 
-    def render_biz_html_table(df, apply_color=False, title=None):
-        df_display = df.replace(0, '')
-        format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
-        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
+ #   def render_biz_html_table(df, apply_color=False, title=None):
+ #       df_display = df.replace(0, '')
+ #       format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
+ #       styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
         
-        numeric_cols = get_numeric_cols(df)
-        styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
-        styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
+ #       numeric_cols = get_numeric_cols(df)
+ #       styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
+ #       styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
         
-        html_str = styler.to_html()
-        html_str = optimize_html_headers(html_str, df)
-        html_str = post_process_html_styles(html_str)
+ #       html_str = styler.to_html()
+ #       html_str = optimize_html_headers(html_str, df)
+ #       html_str = post_process_html_styles(html_str)
         
-        if title: 
-            pass
-        return f'<div class="table-container">{html_str}</div>'
+ #       if title: 
+ #           pass
+ #       return f'<div class="table-container">{html_str}</div>'
 
     #def render_trend_html_table(df, apply_color=False):
     #    df_display = df.replace(0, '')
