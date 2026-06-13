@@ -107,6 +107,13 @@ st.markdown("""
         border-top: 2px solid #8ea9db !important;
         border-bottom: 2px solid #8ea9db !important;
     }
+    
+    /* PE Biz 및 Core Biz 상세 테이블 인덱스 가운데 정렬 */
+    .report-table.biz-table .row_heading {
+        text-align: center !important;
+        padding-left: 4px !important;
+        padding-right: 4px !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -578,7 +585,8 @@ if uploaded_file:
     def render_biz_html_table(df, apply_color=False, title=None):
         df_display = df.replace(0, '')
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
-        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
+        # [수정] 해당 테이블에만 biz-table CSS 클래스 적용
+        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table biz-table"')
         
         numeric_cols = get_numeric_cols(df)
         styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
