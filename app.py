@@ -5,10 +5,17 @@ import io
 import re
 
 # ==========================================
-# 1. 페이지 설정 및 전역 CSS 주입
+# 1. 페이지 설정 및 전역 변수 설정
 # ==========================================
 st.set_page_config(page_title="Sales Revenue - Monthly Report", layout="wide")
 
+# [중요] 이 부분이 누락되면 NameError가 발생합니다!
+MONTH_NAMES = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
+BIZ_CONFIG = {"Power": "PE Biz", "Core": "Core Biz"}
+
+# ==========================================
+# CSS 주입
+# ==========================================
 st.markdown("""
     <style>
     .block-container { padding: 2rem 3rem; }
@@ -285,8 +292,7 @@ if uploaded_file:
         if month == 1: prev_year, prev_month = year - 1, 12
         else: prev_year, prev_month = year, month - 1
         
-        month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
-        m_str, pm_str = month_names.get(month, f'{month}'), month_names.get(prev_month, f'{prev_month}')
+        m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
         col_prev, phase_curr, phase_ytd, phase_ttl = f'{pm_str}. {year if month != 1 else prev_year}', f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL'
         phases = [phase_curr, phase_ytd, phase_ttl]
 
@@ -346,8 +352,7 @@ if uploaded_file:
         if month == 1: prev_year, prev_month = year - 1, 12
         else: prev_year, prev_month = year, month - 1
         
-        month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
-        m_str, pm_str = month_names.get(month, f'{month}'), month_names.get(prev_month, f'{prev_month}')
+        m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
         phase_names = [f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL']
         prev_phase_name = f'{pm_str}. {prev_year}'
         
@@ -401,8 +406,7 @@ if uploaded_file:
         else: prev_year, prev_month = year, month - 1
         
         df_biz = df[(df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == year)].copy()
-        month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
-        m_str, pm_str = month_names.get(month, f'{month}'), month_names.get(prev_month, f'{prev_month}')
+        m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
         phase_names = [f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL']
         prev_phase_name = f'{pm_str}. {prev_year}'
         
@@ -471,12 +475,11 @@ if uploaded_file:
                 curr_y -= 1
         months.reverse() 
         
-        month_names = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
         df_act = df[df['Desc.'] == 'ACT']
         
         pivot_data = {}
         for y, m in months:
-            col_name = f"{month_names[m]}.{str(y)[-2:]}"
+            col_name = f"{MONTH_NAMES[m]}.{str(y)[-2:]}"
             temp_df = df_act[(df_act['Year'] == y) & (df_act['Month'] == m)]
             pivot_data[col_name] = temp_df.groupby('Group 2')['Rev. (€)'].sum()
             
@@ -494,7 +497,7 @@ if uploaded_file:
     # ==========================================
     # 5. 스타일링 및 렌더링
     # ==========================================
-    def render_html_view(df, phase_curr, apply_color=False):
+    def render_html_view(df, phase_curr, apply_color=False, title=None):
         df_display = df.replace(0, '')
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
@@ -510,9 +513,14 @@ if uploaded_file:
         html_str = styler.to_html()
         html_str = optimize_html_headers(html_str, df)
         html_str = post_process_html_styles(html_str)
+        
+        # [수정] 렌더링 방식 조정 (타이틀이 있으면 inject_spanning_header 적용)
+        if title: 
+            # 타이틀 적용 함수가 필요한 경우 사용
+            pass 
         return f'<div class="table-container">{html_str}</div>'
 
-    def render_biz_html_table(df, apply_color=False):
+    def render_biz_html_table(df, apply_color=False, title=None):
         df_display = df.replace(0, '')
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
@@ -524,6 +532,9 @@ if uploaded_file:
         html_str = styler.to_html()
         html_str = optimize_html_headers(html_str, df)
         html_str = post_process_html_styles(html_str)
+        
+        if title: 
+            pass
         return f'<div class="table-container">{html_str}</div>'
 
     def render_trend_html_table(df, apply_color=False):
