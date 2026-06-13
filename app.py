@@ -168,7 +168,8 @@ def optimize_html_headers(html_str, df):
         
         # 인덱스 이름(좌측 상단) 병합 처리
         if hasattr(df, 'index') and hasattr(df.index, 'names'):
-            index_names = [str(n) for n in df.index.names if n is not None and str(n).strip()]
+            # [수정] 빈 문자열('')도 무시하지 않고 살려서 칸 수를 정확히 맞춤
+            index_names = [str(n) if n is not None and str(n) != 'None' else '' for n in df.index.names]
             num_indices = len(index_names)
             
             for i in range(num_indices):
@@ -197,17 +198,29 @@ def post_process_html_styles(html_str):
     def highlight_tr_elements(match):
         row_html = match.group(0)
         if any(k in row_html for k in ['TTL', 'Total', 'Subtotal', '소계']):
-            style_attr = 'background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;'
+            target_style = 'background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;'
             
             def inject_style(tag_match):
-                full_tag = tag_match.group(0)
-                tag_name = tag_match.group(1)
+                tag = tag_match.group(1)
                 attrs = tag_match.group(2)
+                
+                # [수정] 중복 방지 및 HTML 필터링 오류 회피를 위해 기존 색상/폰트/테두리 스타일 속성을 완전히 삭제
+                attrs = re.sub(r'background-color:\s*[^;"]+;?', '', attrs)
+                attrs = re.sub(r'color:\s*[^;"]+;?', '', attrs)
+                attrs = re.sub(r'font-weight:\s*[^;"]+;?', '', attrs)
+                attrs = re.sub(r'border-top:\s*[^;"]+;?', '', attrs)
+                attrs = re.sub(r'border-bottom:\s*[^;"]+;?', '', attrs)
+                
                 if 'style="' in attrs:
-                    return re.sub(r'style="([^"]*)"', r'style="\1 background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;"', full_tag)
+                    # 기존 style 속성에 새 스타일 병합
+                    new_attrs = re.sub(r'style="([^"]*)"', rf'style="\1 {target_style}"', attrs)
+                    return f'<{tag}{new_attrs}>'
                 else:
-                    return f'<{tag_name} style="{style_attr}"{attrs}>'
+                    # 속성이 없으면 새로 추가
+                    prefix = " " if attrs and not attrs.startswith(" ") else ""
+                    return f'<{tag} style="{target_style}"{prefix}{attrs}>'
             
+            # 행 내부의 모든 th, td를 순회하며 스타일 적용
             row_html = re.sub(r'<(th|td)([^>]*)>', inject_style, row_html)
         return row_html
         
@@ -514,9 +527,7 @@ if uploaded_file:
         html_str = optimize_html_headers(html_str, df)
         html_str = post_process_html_styles(html_str)
         
-        # [수정] 렌더링 방식 조정 (타이틀이 있으면 inject_spanning_header 적용)
         if title: 
-            # 타이틀 적용 함수가 필요한 경우 사용
             pass 
         return f'<div class="table-container">{html_str}</div>'
 
