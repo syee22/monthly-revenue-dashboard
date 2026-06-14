@@ -50,15 +50,15 @@ h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0
 
 /* 데이터가 담긴 행(tbody) 높이 12px 강제 고정 */
 .report-table tbody tr { 
-    height: 12px !important; 
-    max-height: 12px !important;
+    height: 14px !important; 
+    max-height: 14px !important;
 }
 .report-table tbody td, .report-table tbody th { 
-    height: 12px !important; 
-    max-height: 12px !important;
+    height: 14px !important; 
+    max-height: 14px !important;
     padding-top: 0px !important; 
     padding-bottom: 0px !important; 
-    line-height: 12px !important; 
+    line-height: 14px !important; 
 }
 </style>""", unsafe_allow_html=True)
 
