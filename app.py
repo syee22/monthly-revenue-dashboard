@@ -48,7 +48,7 @@ h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0
     word-break: break-all !important; 
 }
 
-/* 데이터가 담긴 행(tbody) 높이 12px 강제 고정 */
+/* 데이터가 담긴 행(tbody) 높이 15px 강제 고정 */
 .report-table tbody tr { 
     height: 15px !important; 
     max-height: 15px !important;
@@ -63,7 +63,7 @@ h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0
 </style>""", unsafe_allow_html=True)
 
 # ==========================================
-# 2. 동적 테두리 생성
+# 2. 동적 테두리 및 포맷터 생성
 # ==========================================
 def get_trend_highlight_css(table_id):
     return f"<style>#{table_id} thead tr:nth-child(1) th:last-child {{ border-top: 4px solid #c00000 !important; border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody td:last-child {{ border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:last-child {{ border-bottom: 4px solid #c00000 !important; }}</style>"
@@ -86,7 +86,6 @@ def get_dynamic_highlight_css(table_id, df, highlight_phase):
     if start_col == -1: return ""
 
     num_indices = df.index.nlevels
-
     target_th_row0 = num_indices + level0_cols.index(highlight_phase) + 1
     target_th_row1_start = start_col + 1
     target_th_row1_end = end_col + 1
@@ -115,6 +114,12 @@ def format_percentage_html(val):
         return f'<span style="color: #c00000; font-weight: bold; font-style: italic;">{pct_str} ▼</span>'
     else:
         return f'<span style="font-style: italic;">{pct_str}</span>'
+
+# TTL 전용 기호 없는 포맷터
+def format_percentage_html_no_trend(val):
+    if pd.isna(val) or isinstance(val, str) or val == '': return val
+    pct_str = f"{val:.0%}"
+    return f'<span style="color: #000000; font-weight: bold; font-style: italic;">{pct_str}</span>'
 
 def color_index_cells(v):
     val_str = str(v)
@@ -589,7 +594,18 @@ if uploaded_file:
     def render_html_view(df, phase_curr, apply_color=False, title=None):
         table_id = f"table_{uuid.uuid4().hex[:8]}"
         df_display = df.replace(0, '')
-        format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
+        
+        # [수정] TTL 열이면 기호 없는 함수 적용, 그 외엔 원래 함수 적용
+        format_dict = {}
+        for col in df.columns:
+            if 'ACHI' in str(col[1]):
+                if 'TTL' in str(col[0]):
+                    format_dict[col] = format_percentage_html_no_trend
+                else:
+                    format_dict[col] = format_percentage_html
+            else:
+                format_dict[col] = format_k_val
+                
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
         styler.set_table_styles([
             {'selector': 'th, td', 'props': [('border-collapse', 'separate')]},
@@ -610,7 +626,18 @@ if uploaded_file:
     def render_biz_html_table(df, phase_curr, apply_color=False, title=None):
         table_id = f"table_{uuid.uuid4().hex[:8]}"
         df_display = df.replace(0, '')
-        format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
+        
+        # [수정] TTL 열이면 기호 없는 함수 적용, 그 외엔 원래 함수 적용
+        format_dict = {}
+        for col in df.columns:
+            if 'ACHI' in str(col[1]):
+                if 'TTL' in str(col[0]):
+                    format_dict[col] = format_percentage_html_no_trend
+                else:
+                    format_dict[col] = format_percentage_html
+            else:
+                format_dict[col] = format_k_val
+                
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table biz-table"')
         
         numeric_cols = get_numeric_cols(df)
