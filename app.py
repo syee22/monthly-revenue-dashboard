@@ -108,11 +108,11 @@ def format_percentage_html(val):
     pct_str = f"{val:.0%}"
     shadow = "text-shadow: 1px 1px 1px rgba(0,0,0,0.3);"
     if 0.95 <= val <= 1.0:
-        return f'<span style="font-weight: bold;">{pct_str}</span>' 
+        return f'<font-style: italic;">{pct_str}</span>' 
     elif val > 1.0:
-        return f'<span style="color: #145A32; font-weight: bold; font-style: italic;">{pct_str} <span style="{shadow}">▲</span></span>'
+        return f'<span style="color: #145A32;  font-style: italic;">{pct_str} <span style="{shadow}">▲</span></span>'
     elif val > 0:
-        return f'<span style="color: #B03A2E; font-weight: bold; font-style: italic;">{pct_str} <span style="{shadow}">▼</span></span>'
+        return f'<span style="color: #B03A2E; font-style: italic;">{pct_str} <span style="{shadow}">▼</span></span>'
     return f'<span style="font-style: italic;">{pct_str}</span>'
 
 # TTL 전용 기호 없는 포맷터
