@@ -14,7 +14,7 @@ MONTH_NAMES = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:
 BIZ_CONFIG = {"Power": "PE Biz", "Core": "Core Biz"}
 
 # ==========================================
-# 전역 CSS 주입 (마크다운 오류 방지용 압축 및 열 너비 고정)
+# 전역 CSS 주입 (마크다운 오류 방지용 압축 및 높이/너비 고정)
 # ==========================================
 st.markdown("""<style>
 .block-container { padding: 2rem 3rem; }
@@ -46,6 +46,19 @@ h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0
     font-size: 11px !important; 
     white-space: normal !important; 
     word-break: break-all !important; 
+}
+
+/* 데이터가 담긴 행(tbody) 높이 12px 강제 고정 */
+.report-table tbody tr { 
+    height: 12px !important; 
+    max-height: 12px !important;
+}
+.report-table tbody td, .report-table tbody th { 
+    height: 12px !important; 
+    max-height: 12px !important;
+    padding-top: 0px !important; 
+    padding-bottom: 0px !important; 
+    line-height: 12px !important; 
 }
 </style>""", unsafe_allow_html=True)
 
@@ -213,7 +226,6 @@ def optimize_html_headers(html_str, df):
             if i < len(ths0) and i < len(ths1):
                 name = str(index_names[i]) if index_names[i] is not None else ""
                 
-                # Con. 및 SOP 열 제목 영역 50px 강제 지정
                 if name in ['Con.', 'SOP']:
                     width_style = "width: 50px !important; min-width: 50px !important; max-width: 50px !important; padding-left: 2px !important; padding-right: 2px !important; white-space: normal !important;"
                 else:
