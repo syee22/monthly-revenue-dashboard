@@ -21,13 +21,29 @@ st.markdown("""
     .block-container { padding: 2rem 3rem; }
     h1 { font-size: 1.6rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
     h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0.5rem !important; color: #002060 !important; }
+    
+    .table-container {
+        overflow-x: auto;
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 1rem !important; 
+        padding: 2px !important; /* 굵은 테두리가 잘리지 않도록 여백 추가 */
+        display: inline-block; 
+        width: auto;
+        min-width: 100%;
+        box-sizing: border-box;
+        background-color: white;
+    }
+    
     .report-table {
         border-collapse: collapse !important;
         font-family: 'Malgun Gothic', sans-serif;
         font-size: 12px;
         width: 100%;
         background-color: white;
+        margin: 0 !important;
+        border: 2px solid #002060 !important; /* 겉 파란 테두리를 div가 아닌 table 자체로 이동 */
     }
+    
     .report-table tr { border-bottom: none !important; }
     .report-table td, .report-table th { border-bottom: none !important; border-top: none !important; }
     .report-table th, .report-table td {
@@ -61,21 +77,6 @@ st.markdown("""
         border: 1px solid #d9d9d9 !important;
         vertical-align: middle !important;
         font-weight: bold !important;
-    }
-    .table-container {
-        overflow-x: auto;
-        border: 2px solid #002060;
-        box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
-        margin-bottom: 1rem !important; 
-        padding: 0px !important;
-        display: inline-block; 
-        width: auto;
-        min-width: 100%;
-        box-sizing: border-box;
-    }
-    .report-table {
-        margin: 0 !important;
-        border-collapse: collapse !important;
     }
     
     /* 기본 합계/소계 행 (연노랑) */
@@ -135,18 +136,11 @@ st.markdown("""
         padding-right: 4px !important;
     }
 
-    /* Trend 테이블 마지막 열(당월) 강조 (4px의 두꺼운 진한 빨간색 테두리) */
-    .report-table.trend-table th:last-child {
-        border-top: 4px solid #c00000 !important;
-        border-left: 4px solid #c00000 !important;
-        border-right: 4px solid #c00000 !important;
-    }
-    .report-table.trend-table tbody tr td:last-child {
-        border-left: 4px solid #c00000 !important;
-        border-right: 4px solid #c00000 !important;
-    }
-    .report-table.trend-table tbody tr:last-child td:last-child {
-        border-bottom: 4px solid #c00000 !important;
+    /* Trend 테이블 헤더 마지막 열(당월) 빨간색 5px 아주 굵은 테두리 */
+    .report-table.trend-table thead th:last-child {
+        border-top: 5px solid #c00000 !important;
+        border-right: 5px solid #c00000 !important;
+        border-left: 5px solid #c00000 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -179,34 +173,45 @@ def format_percentage_html(val):
 
 def color_index_cells(v):
     val_str = str(v)
-    if val_str == 'HYU': return 'background-color: #e6f2ff;'  # 하늘색
-    if val_str == 'KIA': return 'background-color: #ffe6e6;'  # 분홍색
-    if val_str == 'DIRECT': return 'background-color: #e6f2ff;' # 연한 청색
-    if val_str == 'COMM': return 'background-color: #f2f2f2;' # 연한 회색
+    if val_str == 'HYU': return 'background-color: #e6f2ff;'  
+    if val_str == 'KIA': return 'background-color: #ffe6e6;'  
+    if val_str == 'DIRECT': return 'background-color: #e6f2ff;' 
+    if val_str == 'COMM': return 'background-color: #f2f2f2;' 
     return ''
 
-def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
+def apply_common_styles(styler, apply_hkmc_color=False, is_export=False, is_trend=False):
     # 엑셀 다운로드 시에는 !important 태그를 제외합니다.
     imp = "" if is_export else " !important"
     
-    # 1. 엑셀 출력 및 셀 단위 스타일링 (데이터 영역)
+    # 1. 셀 단위 스타일링 (데이터 영역)
     def style_row(row):
         row_str = str(row.name)
+        base_style = ''
         if 'HYU_소계' in row_str:
-            return [f'background-color: #e6f2ff{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
+            base_style = f'background-color: #e6f2ff{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
         elif 'KIA_소계' in row_str:
-            return [f'background-color: #ffe6e6{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
+            base_style = f'background-color: #ffe6e6{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
         elif 'DIRECT_Subtotal_숨김' in row_str:
-            return [f'background-color: #e6f2ff{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
+            base_style = f'background-color: #e6f2ff{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
         elif 'COMM_Subtotal_숨김' in row_str:
-            return [f'background-color: #f2f2f2{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
+            base_style = f'background-color: #f2f2f2{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
         elif 'Unknown_Subtotal_숨김' in row_str:
-            return [f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
+            base_style = f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
         elif 'GRAND_TOTAL_MERGE' in row_str:
-            return [f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
+            base_style = f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
         elif any(keyword in row_str for keyword in ['TTL', 'Total', '소계']):
-            return [f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'] * len(row)
-        return [''] * len(row)
+            base_style = f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+        
+        res = [base_style] * len(row)
+        
+        # [핵심 수정] Trend 테이블의 당월(마지막 열) 본문 데이터 영역 테두리를 강제로 5px로 주입
+        if is_trend and not is_export:
+            res[-1] = res[-1] + f' border-left: 5px solid #c00000{imp}; border-right: 5px solid #c00000{imp};'
+            # 마지막 행(TTL)일 경우 빨간색 밑줄을 추가하여 기존 파란줄과 겹치는 현상 완벽 방어
+            if any(k in row_str for k in ['TTL', 'Total']):
+                res[-1] = res[-1] + f' border-bottom: 5px solid #c00000{imp};'
+                
+        return res
     
     styler.apply(style_row, axis=1)
     
@@ -255,7 +260,6 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
         for i in range(styler.index.nlevels):
             styler.map_index(highlight_total_index, axis=0, level=i)
         
-    # 3. 4번, 5번, 6번 및 Biz_Type 테이블에 기본 인덱스 셀 색상 적용
     if apply_hkmc_color:
         if hasattr(styler, 'map_index'):
             styler.map_index(color_index_cells, axis=0, level=0)
@@ -309,24 +313,21 @@ def post_process_html_styles(html_str):
         row = match.group(0)
         
         if 'HYU_소계' in row:
-            row = row.replace('HYU_소계', '') # 텍스트 완전히 삭제 (빈칸 처리)
+            row = row.replace('HYU_소계', '') 
             row = re.sub(r'^<tr', r'<tr class="total-row-hyu"', row)
         elif 'KIA_소계' in row:
             row = row.replace('KIA_소계', '') 
             row = re.sub(r'^<tr', r'<tr class="total-row-kia"', row)
-            
-        # DIRECT 및 COMM 소계 처리
         elif 'DIRECT_Subtotal_숨김' in row:
             row = row.replace('DIRECT_Subtotal_숨김', '') 
-            row = re.sub(r'^<tr', r'<tr class="total-row-direct"', row) # 연한 청색
+            row = re.sub(r'^<tr', r'<tr class="total-row-direct"', row) 
         elif 'COMM_Subtotal_숨김' in row:
             row = row.replace('COMM_Subtotal_숨김', '') 
-            row = re.sub(r'^<tr', r'<tr class="total-row-comm"', row) # 연한 회색
+            row = re.sub(r'^<tr', r'<tr class="total-row-comm"', row) 
         elif 'Unknown_Subtotal_숨김' in row:
             row = row.replace('Unknown_Subtotal_숨김', '') 
-            row = re.sub(r'^<tr', r'<tr class="total-row"', row) # 기존 노란색
+            row = re.sub(r'^<tr', r'<tr class="total-row"', row) 
             
-        # Grand Total 병합 처리 로직
         elif 'GRAND_TOTAL_MERGE_START' in row:
             row = re.sub(r'^<tr', r'<tr class="total-row"', row)
             label_match = re.search(r'GRAND_TOTAL_MERGE_START(.*?)</th', row)
@@ -355,7 +356,6 @@ def to_excel_multiple(df_dict):
         for sheet_name, original_df in df_dict.items():
             df = original_df.copy()
             
-            # 엑셀 다운로드를 위해 병합용 내부 마커 텍스트를 깔끔하게 제거
             if isinstance(df.index, pd.MultiIndex):
                 new_tuples = []
                 for t in df.index:
@@ -370,9 +370,9 @@ def to_excel_multiple(df_dict):
             
             styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
             
-            # 적용할 시트 목록 확장 (Biz_Type_Summary 포함)
             apply_color = sheet_name in ["PE_HKMC_Summary", "PE_Biz_Detailed", "Core_Biz", "Biz_Type_Summary"]
-            styler = apply_common_styles(styler, apply_hkmc_color=apply_color, is_export=True)
+            # 엑셀에서는 is_trend=False로 강제 처리되어 빨간 선이 출력되지 않도록 보호됩니다.
+            styler = apply_common_styles(styler, apply_hkmc_color=apply_color, is_export=True, is_trend=(sheet_name=="12M_Trend_Report"))
             
             styler.to_excel(writer, sheet_name=sheet_name[:31])
             
@@ -535,13 +535,10 @@ if uploaded_file:
                 subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
                 
             results.append(combined)
-            
-            # 각 비즈니스 타입에 맞는 고유 숨김 식별자 사용
             results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(biz, f'{biz}_Subtotal_숨김')], names=['BIZ Type', 'KOx'])))
             
         final_df = pd.concat(results)
         
-        # 소계용 숨김 식별자들을 제외하고 총계 계산
         grand_total = final_df[~final_df.index.get_level_values(1).str.contains('Subtotal_숨김', na=False)].sum(numeric_only=True)
         for p_name in phase_names:
             num = grand_total.get((p_name, 'ACT'), 0)
@@ -698,11 +695,11 @@ if uploaded_file:
     def render_trend_html_table(df, apply_color=False):
         df_display = df.replace(0, '')
         format_dict = {col: format_k_val for col in df.columns}
-        # Trend 테이블에 전용 CSS 클래스 부여
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table trend-table"')
         
         styler.set_properties(**{'text-align': 'right'})
-        styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
+        # Trend 테이블에만 빨간 테두리 로직이 강력 적용되도록 is_trend=True 전달
+        styler = apply_common_styles(styler, apply_hkmc_color=apply_color, is_trend=True)
         
         html_str = styler.to_html()
         html_str = post_process_html_styles(html_str)
@@ -734,7 +731,6 @@ if uploaded_file:
     st.subheader("📌 DIRECT & COMMISSION 매출액 요약")
     df_biz_type = get_biz_type_detailed_report(raw_df, selected_year, selected_month)
     if not df_biz_type.empty: 
-        # DIRECT 및 COMM의 색상 처리를 위해 apply_color=True로 활성화합니다.
         st.markdown(render_html_view(df_biz_type, "", apply_color=True), unsafe_allow_html=True)
         reports_to_download["Biz_Type_Summary"] = df_biz_type
 
