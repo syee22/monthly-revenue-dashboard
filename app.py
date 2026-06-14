@@ -135,11 +135,39 @@ st.markdown("""
         padding-right: 4px !important;
     }
 
-    /* Trend 테이블 헤더 마지막 열(당월) 빨간색 5px 아주 굵은 테두리 */
+    /* ========================================= */
+    /* Trend 테이블 당월(마지막 열) 5px 테두리 강조 */
+    /* ========================================= */
     .report-table.trend-table thead th:last-child {
         border-top: 5px solid #c00000 !important;
         border-right: 5px solid #c00000 !important;
         border-left: 5px solid #c00000 !important;
+    }
+    .report-table.trend-table tbody td:last-child {
+        border-left: 5px solid #c00000 !important;
+        border-right: 5px solid #c00000 !important;
+    }
+    .report-table.trend-table tbody tr:last-child td:last-child {
+        border-bottom: 5px solid #c00000 !important;
+    }
+
+    /* ========================================= */
+    /* Summary 다중열 테이블 당월(데이터 열 2~5번째) 5px 테두리 강조 */
+    /* ========================================= */
+    /* 데이터 행의 왼쪽(2번째 열) 선 */
+    .report-table.summary-table tbody td:nth-of-type(2) {
+        border-left: 5px solid #c00000 !important;
+    }
+    /* 데이터 행의 오른쪽(5번째 열) 선 */
+    .report-table.summary-table tbody td:nth-of-type(5) {
+        border-right: 5px solid #c00000 !important;
+    }
+    /* 마지막 총계 행의 하단 선 (2~5번째 열 전체) */
+    .report-table.summary-table tbody tr:last-child td:nth-of-type(2),
+    .report-table.summary-table tbody tr:last-child td:nth-of-type(3),
+    .report-table.summary-table tbody tr:last-child td:nth-of-type(4),
+    .report-table.summary-table tbody tr:last-child td:nth-of-type(5) {
+        border-bottom: 5px solid #c00000 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -176,9 +204,8 @@ def color_index_cells(v):
     if val_str == 'COMM': return 'background-color: #f2f2f2;' 
     return ''
 
-def apply_common_styles(styler, df, apply_hkmc_color=False, is_export=False, is_trend=False, highlight_phase=None):
+def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
     imp = "" if is_export else " !important"
-    last_row_name = df.index[-1] if not df.empty else None
     
     # 1. 셀 단위 스타일링 (데이터 영역)
     def style_row(row):
@@ -199,33 +226,7 @@ def apply_common_styles(styler, df, apply_hkmc_color=False, is_export=False, is_
         elif any(keyword in row_str for keyword in ['TTL', 'Total', '소계']):
             base_style = f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
         
-        res = [base_style] * len(row)
-        
-        # [핵심] 다중 열(Multi-Index) 요약 테이블 당월 강조 테두리 동적 주입
-        if highlight_phase and not is_export:
-            start_idx, end_idx = -1, -1
-            for i, col in enumerate(row.index):
-                c0 = col[0] if isinstance(col, tuple) else col
-                if c0 == highlight_phase:
-                    if start_idx == -1: start_idx = i
-                    end_idx = i
-            
-            if start_idx != -1 and end_idx != -1:
-                res[start_idx] = res[start_idx] + f' border-left: 5px solid #c00000{imp};'
-                res[end_idx] = res[end_idx] + f' border-right: 5px solid #c00000{imp};'
-                
-                # 테이블 가장 마지막 행일 경우 밑줄 마감 처리
-                if row.name == last_row_name:
-                    for idx in range(start_idx, end_idx + 1):
-                        res[idx] = res[idx] + f' border-bottom: 5px solid #c00000{imp};'
-        
-        # [핵심] Trend 단일 열 테이블 당월 강조 테두리 직접 주입
-        if is_trend and not is_export:
-            res[-1] = res[-1] + f' border-left: 5px solid #c00000{imp}; border-right: 5px solid #c00000{imp};'
-            if row.name == last_row_name:
-                res[-1] = res[-1] + f' border-bottom: 5px solid #c00000{imp};'
-                
-        return res
+        return [base_style] * len(row)
     
     styler.apply(style_row, axis=1)
     
@@ -311,9 +312,9 @@ def optimize_html_headers(html_str, df, highlight_phase=None):
                     ths0[i] = f'<th rowspan="2" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; min-width: 80px;">{name}</th>'
                     ths1[i] = ''
         
-        # [핵심] 다중 헤더 (상단 제목 + 하단 항목) 빨간 테두리 정밀 삽입 로직
+        # [핵심] 다중 헤더 (상단 제목 + 하단 항목) 빨간 테두리 정밀 삽입
         if highlight_phase:
-            # 1. Row 0 (최상단 헤더) - 정확한 텍스트 매칭
+            # 1. Row 0 (최상단 헤더)
             for i in range(num_indices, len(ths0)):
                 m = re.search(r'<th[^>]*>(.*?)</th>', ths0[i], re.IGNORECASE | re.DOTALL)
                 if m and m.group(1).strip() == highlight_phase:
@@ -325,7 +326,7 @@ def optimize_html_headers(html_str, df, highlight_phase=None):
                         ths0[i] = tag.replace('<th ', f'<th style="{style_str}" ').replace('<th>', f'<th style="{style_str}">')
                     break
             
-            # 2. Row 1 (서브 헤더) - 데이터 프레임 컬럼 인덱스 추적
+            # 2. Row 1 (서브 헤더)
             start_idx, end_idx = -1, -1
             col_list = list(df.columns)
             for i, col in enumerate(col_list):
@@ -422,7 +423,8 @@ def to_excel_multiple(df_dict):
             styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
             
             apply_color = sheet_name in ["PE_HKMC_Summary", "PE_Biz_Detailed", "Core_Biz", "Biz_Type_Summary"]
-            styler = apply_common_styles(styler, df, apply_hkmc_color=apply_color, is_export=True, is_trend=(sheet_name=="12M_Trend_Report"), highlight_phase=None)
+            # 엑셀 다운로드 시 순수 데이터 서식만 유지 (빨간 강조선 제외)
+            styler = apply_common_styles(styler, apply_hkmc_color=apply_color, is_export=True)
             
             styler.to_excel(writer, sheet_name=sheet_name[:31])
             
@@ -707,7 +709,8 @@ if uploaded_file:
     def render_html_view(df, phase_curr, apply_color=False, title=None):
         df_display = df.replace(0, '')
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
-        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
+        # 다중열(Multi-Index) 요약 테이블 전용 클래스 "summary-table" 추가
+        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table summary-table"')
         styler.set_table_styles([
             {'selector': 'th, td', 'props': [('border-collapse', 'separate')]},
             {'selector': 'tr', 'props': [('display', 'table-row')]}
@@ -715,7 +718,7 @@ if uploaded_file:
         
         numeric_cols = get_numeric_cols(df)
         styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
-        styler = apply_common_styles(styler, df, apply_hkmc_color=apply_color, highlight_phase=phase_curr)
+        styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
         
         html_str = styler.to_html()
         html_str = optimize_html_headers(html_str, df, highlight_phase=phase_curr)
@@ -725,11 +728,12 @@ if uploaded_file:
     def render_biz_html_table(df, phase_curr, apply_color=False, title=None):
         df_display = df.replace(0, '')
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
-        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table biz-table"')
+        # 상세 다중열 요약 테이블도 "summary-table" 클래스 추가
+        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table biz-table summary-table"')
         
         numeric_cols = get_numeric_cols(df)
         styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
-        styler = apply_common_styles(styler, df, apply_hkmc_color=apply_color, highlight_phase=phase_curr)
+        styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
         
         html_str = styler.to_html()
         html_str = optimize_html_headers(html_str, df, highlight_phase=phase_curr)
@@ -739,10 +743,11 @@ if uploaded_file:
     def render_trend_html_table(df, apply_color=False):
         df_display = df.replace(0, '')
         format_dict = {col: format_k_val for col in df.columns}
+        # 트렌드 테이블 고유 클래스 "trend-table"
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table trend-table"')
         
         styler.set_properties(**{'text-align': 'right'})
-        styler = apply_common_styles(styler, df, apply_hkmc_color=apply_color, is_trend=True)
+        styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
         
         html_str = styler.to_html()
         html_str = post_process_html_styles(html_str)
