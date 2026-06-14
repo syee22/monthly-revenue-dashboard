@@ -14,7 +14,7 @@ MONTH_NAMES = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:
 BIZ_CONFIG = {"Power": "PE Biz", "Core": "Core Biz"}
 
 # ==========================================
-# 전역 CSS 주입 (들여쓰기 제거로 마크다운 오류 방지)
+# 전역 CSS 주입 (마크다운 오류 방지용 압축)
 # ==========================================
 st.markdown("""<style>
 .block-container { padding: 2rem 3rem; }
@@ -37,14 +37,12 @@ h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0
 </style>""", unsafe_allow_html=True)
 
 # ==========================================
-# 2. 동적 테두리 생성 (한 줄 문자열 처리)
+# 2. 동적 테두리 생성
 # ==========================================
 def get_trend_highlight_css(table_id):
-    """Trend 테이블 전용 가장 우측 열 붉은 테두리 강조"""
     return f"<style>#{table_id} thead tr:nth-child(1) th:last-child {{ border-top: 5px solid #c00000 !important; border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important; }} #{table_id} tbody td:last-child {{ border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:last-child {{ border-bottom: 5px solid #c00000 !important; }}</style>"
 
 def get_dynamic_highlight_css(table_id, df, highlight_phase):
-    """다중열 요약 테이블에서 정확한 당월 데이터를 찾아 표 전체를 아우르는 붉은 테두리 생성"""
     if not highlight_phase: return ""
     
     cols = list(df.columns)
@@ -61,8 +59,8 @@ def get_dynamic_highlight_css(table_id, df, highlight_phase):
 
     if start_col == -1: return ""
 
-    index_names = [str(n) for n in df.index.names if n is not None and str(n).strip()] if hasattr(df, 'index') and hasattr(df.index, 'names') else []
-    num_indices = len(index_names) if index_names else 1
+    # nlevels 속성을 사용하여 인덱스 레벨 수를 절대적으로 참조
+    num_indices = df.index.nlevels
 
     target_th_row0 = num_indices + level0_cols.index(highlight_phase) + 1
     target_th_row1_start = start_col + 1
@@ -196,17 +194,16 @@ def optimize_html_headers(html_str, df):
         ths0 = re.findall(th_pattern, row0_inner, re.IGNORECASE | re.DOTALL)
         ths1 = re.findall(th_pattern, row1_inner, re.IGNORECASE | re.DOTALL)
         
-        num_indices = 0
-        if hasattr(df, 'index') and hasattr(df.index, 'names'):
-            index_names = [str(n) for n in df.index.names if n is not None and str(n).strip()]
-            num_indices = len(index_names)
-            
-            for i in range(num_indices):
-                if i < len(ths0) and i < len(ths1):
-                    name = index_names[i]
-                    ths0[i] = f'<th rowspan="2" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; min-width: 80px;">{name}</th>'
-                    ths1[i] = ''
-                    
+        # nlevels 속성을 사용하여 인덱스 레벨 수를 절대적으로 참조
+        num_indices = df.index.nlevels
+        index_names = list(df.index.names)
+        
+        for i in range(num_indices):
+            if i < len(ths0) and i < len(ths1):
+                name = str(index_names[i]) if index_names[i] is not None else ""
+                ths0[i] = f'<th rowspan="2" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; min-width: 80px;">{name}</th>'
+                ths1[i] = ''
+                
         row0_new = "".join(ths0)
         row1_new = "".join(ths1)
         
@@ -392,8 +389,13 @@ if uploaded_file:
             total_row[(phase_name, 'ACHI %')] = num / den if den != 0 else 0
             
         t_label = total_label
-        t_index = tuple([t_label] + [''] * (len(final_df.index.names)-1)) if isinstance(final_df.index, pd.MultiIndex) else t_label
-        t_df = pd.DataFrame([total_row], index=[t_index] if not isinstance(final_df.index, pd.MultiIndex) else pd.MultiIndex.from_tuples([t_index], names=final_df.index.names))
+        
+        # [핵심 수정 부분] 단일 인덱스 표의 경우에도 인덱스 이름을 강제로 유지하도록 명시
+        if isinstance(final_df.index, pd.MultiIndex):
+            t_index = tuple([t_label] + [''] * (len(final_df.index.names)-1))
+            t_df = pd.DataFrame([total_row], index=pd.MultiIndex.from_tuples([t_index], names=final_df.index.names))
+        else:
+            t_df = pd.DataFrame([total_row], index=pd.Index([t_label], name=final_df.index.name))
         
         return pd.concat([final_df, t_df]), col_prev, phase_curr
 
