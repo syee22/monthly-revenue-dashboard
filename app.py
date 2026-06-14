@@ -32,7 +32,7 @@ h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0
 .report-table tr.total-row-hyu th, .report-table tr.total-row-hyu td { background-color: #e6f2ff !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
 .report-table tr.total-row-kia th, .report-table tr.total-row-kia td { background-color: #ffe6e6 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
 .report-table tr.total-row-direct th, .report-table tr.total-row-direct td { background-color: #99caff !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
-.report-table tr.total-row-comm th, .report-table tr.total-row-comm td { background-color: #f2f2f2 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
+.report-table tr.total-row-comm th, .report-table tr.total-row-comm td { background-color: #d0d0d0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
 .report-table.biz-table .row_heading { text-align: center !important; padding-left: 4px !important; padding-right: 4px !important; }
 </style>""", unsafe_allow_html=True)
 
