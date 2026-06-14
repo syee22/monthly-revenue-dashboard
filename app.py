@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import io
 import re
+import uuid
 
 # ==========================================
 # 1. 페이지 설정 및 전역 변수 설정
@@ -13,7 +14,7 @@ MONTH_NAMES = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:
 BIZ_CONFIG = {"Power": "PE Biz", "Core": "Core Biz"}
 
 # ==========================================
-# CSS 주입
+# 전역 CSS 주입
 # ==========================================
 st.markdown("""
     <style>
@@ -134,47 +135,84 @@ st.markdown("""
         padding-left: 4px !important;
         padding-right: 4px !important;
     }
-
-    /* ========================================= */
-    /* Trend 테이블 당월(마지막 열) 5px 테두리 강조 */
-    /* ========================================= */
-    .report-table.trend-table thead th:last-child {
-        border-top: 5px solid #c00000 !important;
-        border-right: 5px solid #c00000 !important;
-        border-left: 5px solid #c00000 !important;
-    }
-    .report-table.trend-table tbody td:last-child {
-        border-left: 5px solid #c00000 !important;
-        border-right: 5px solid #c00000 !important;
-    }
-    .report-table.trend-table tbody tr:last-child td:last-child {
-        border-bottom: 5px solid #c00000 !important;
-    }
-
-    /* ========================================= */
-    /* Summary 다중열 테이블 당월(데이터 열 2~5번째) 5px 테두리 강조 */
-    /* ========================================= */
-    /* 데이터 행의 왼쪽(2번째 열) 선 */
-    .report-table.summary-table tbody td:nth-of-type(2) {
-        border-left: 5px solid #c00000 !important;
-    }
-    /* 데이터 행의 오른쪽(5번째 열) 선 */
-    .report-table.summary-table tbody td:nth-of-type(5) {
-        border-right: 5px solid #c00000 !important;
-    }
-    /* 마지막 총계 행의 하단 선 (2~5번째 열 전체) */
-    .report-table.summary-table tbody tr:last-child td:nth-of-type(2),
-    .report-table.summary-table tbody tr:last-child td:nth-of-type(3),
-    .report-table.summary-table tbody tr:last-child td:nth-of-type(4),
-    .report-table.summary-table tbody tr:last-child td:nth-of-type(5) {
-        border-bottom: 5px solid #c00000 !important;
-    }
     </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 포맷팅 및 공통 스타일 함수
+# 2. 동적 테두리 생성 및 공통 스타일 함수
 # ==========================================
+def get_trend_highlight_css(table_id):
+    """Trend 테이블 전용 가장 우측 열 붉은 테두리 강조"""
+    return f"""
+    <style>
+    #{table_id} thead tr:nth-child(1) th:last-child {{
+        border-top: 5px solid #c00000 !important;
+        border-left: 5px solid #c00000 !important;
+        border-right: 5px solid #c00000 !important;
+    }}
+    #{table_id} tbody td:last-child {{
+        border-left: 5px solid #c00000 !important;
+        border-right: 5px solid #c00000 !important;
+    }}
+    #{table_id} tbody tr:last-child td:last-child {{
+        border-bottom: 5px solid #c00000 !important;
+    }}
+    </style>
+    """
+
+def get_dynamic_highlight_css(table_id, df, highlight_phase):
+    """다중열 요약 테이블에서 정확한 당월 데이터를 찾아 표 전체를 아우르는 붉은 테두리를 생성합니다."""
+    if not highlight_phase: return ""
+    
+    cols = list(df.columns)
+    start_col, end_col = -1, -1
+    level0_cols = []
+
+    for i, col in enumerate(cols):
+        c0 = col[0] if isinstance(col, tuple) else str(col)
+        if not level0_cols or level0_cols[-1] != c0:
+            level0_cols.append(c0)
+        if c0 == highlight_phase:
+            if start_col == -1: start_col = i
+            end_col = i
+
+    if start_col == -1: return ""
+
+    index_names = [str(n) for n in df.index.names if n is not None and str(n).strip()] if hasattr(df, 'index') and hasattr(df.index, 'names') else []
+    num_indices = len(index_names) if index_names else 1
+
+    # CSS nth-child 계수 계산
+    target_th_row0 = num_indices + level0_cols.index(highlight_phase) + 1
+    target_th_row1_start = start_col + 1
+    target_th_row1_end = end_col + 1
+    td_start = start_col + 1
+    td_end = end_col + 1
+
+    return f"""
+    <style>
+    #{table_id} thead tr:nth-child(1) th:nth-child({target_th_row0}) {{
+        border-top: 5px solid #c00000 !important;
+        border-left: 5px solid #c00000 !important;
+        border-right: 5px solid #c00000 !important;
+    }}
+    #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_start}) {{
+        border-left: 5px solid #c00000 !important;
+    }}
+    #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_end}) {{
+        border-right: 5px solid #c00000 !important;
+    }}
+    #{table_id} tbody td:nth-of-type({td_start}) {{
+        border-left: 5px solid #c00000 !important;
+    }}
+    #{table_id} tbody td:nth-of-type({td_end}) {{
+        border-right: 5px solid #c00000 !important;
+    }}
+    #{table_id} tbody tr:last-child td:nth-of-type(n+{td_start}):nth-of-type(-n+{td_end}) {{
+        border-bottom: 5px solid #c00000 !important;
+    }}
+    </style>
+    """
+
 def format_k_val(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
     v = val / 1_000.0
@@ -207,7 +245,6 @@ def color_index_cells(v):
 def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
     imp = "" if is_export else " !important"
     
-    # 1. 셀 단위 스타일링 (데이터 영역)
     def style_row(row):
         row_str = str(row.name)
         base_style = ''
@@ -230,7 +267,6 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
     
     styler.apply(style_row, axis=1)
     
-    # 2. 인덱스 영역 스타일링
     if hasattr(styler, 'apply_index'):
         def style_row_index(idx):
             res = []
@@ -283,7 +319,7 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
             
     return styler
 
-def optimize_html_headers(html_str, df, highlight_phase=None):
+def optimize_html_headers(html_str, df):
     try:
         thead_start = html_str.find('<thead>')
         thead_end = html_str.find('</thead>')
@@ -311,44 +347,6 @@ def optimize_html_headers(html_str, df, highlight_phase=None):
                     name = index_names[i]
                     ths0[i] = f'<th rowspan="2" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; min-width: 80px;">{name}</th>'
                     ths1[i] = ''
-        
-        # [핵심] 다중 헤더 (상단 제목 + 하단 항목) 빨간 테두리 정밀 삽입
-        if highlight_phase:
-            # 1. Row 0 (최상단 헤더)
-            for i in range(num_indices, len(ths0)):
-                m = re.search(r'<th[^>]*>(.*?)</th>', ths0[i], re.IGNORECASE | re.DOTALL)
-                if m and m.group(1).strip() == highlight_phase:
-                    tag = ths0[i]
-                    style_str = 'border-top: 5px solid #c00000 !important; border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important;'
-                    if 'style="' in tag:
-                        ths0[i] = tag.replace('style="', f'style="{style_str} ')
-                    else:
-                        ths0[i] = tag.replace('<th ', f'<th style="{style_str}" ').replace('<th>', f'<th style="{style_str}">')
-                    break
-            
-            # 2. Row 1 (서브 헤더)
-            start_idx, end_idx = -1, -1
-            col_list = list(df.columns)
-            for i, col in enumerate(col_list):
-                c0 = col[0] if isinstance(col, tuple) else str(col)
-                if c0 == highlight_phase:
-                    if start_idx == -1: start_idx = i
-                    end_idx = i
-            
-            if start_idx != -1 and end_idx != -1:
-                idx_start = num_indices + start_idx
-                idx_end = num_indices + end_idx
-                if idx_start < len(ths1):
-                    tag = ths1[idx_start]
-                    style_str = 'border-left: 5px solid #c00000 !important;'
-                    if 'style="' in tag: ths1[idx_start] = tag.replace('style="', f'style="{style_str} ')
-                    else: ths1[idx_start] = tag.replace('<th ', f'<th style="{style_str}" ').replace('<th>', f'<th style="{style_str}">')
-                
-                if idx_end < len(ths1):
-                    tag = ths1[idx_end]
-                    style_str = 'border-right: 5px solid #c00000 !important;'
-                    if 'style="' in tag: ths1[idx_end] = tag.replace('style="', f'style="{style_str} ')
-                    else: ths1[idx_end] = tag.replace('<th ', f'<th style="{style_str}" ').replace('<th>', f'<th style="{style_str}">')
                     
         row0_new = "".join(ths0)
         row1_new = "".join(ths1)
@@ -363,7 +361,6 @@ def post_process_html_styles(html_str):
     
     def process_row(match):
         row = match.group(0)
-        
         if 'HYU_소계' in row:
             row = row.replace('HYU_소계', '') 
             row = re.sub(r'^<tr', r'<tr class="total-row-hyu"', row)
@@ -379,7 +376,6 @@ def post_process_html_styles(html_str):
         elif 'Unknown_Subtotal_숨김' in row:
             row = row.replace('Unknown_Subtotal_숨김', '') 
             row = re.sub(r'^<tr', r'<tr class="total-row"', row) 
-            
         elif 'GRAND_TOTAL_MERGE_START' in row:
             row = re.sub(r'^<tr', r'<tr class="total-row"', row)
             label_match = re.search(r'GRAND_TOTAL_MERGE_START(.*?)</th', row)
@@ -391,10 +387,8 @@ def post_process_html_styles(html_str):
                     row,
                     flags=re.DOTALL
                 )
-                
         elif any(k in row for k in ['TTL', 'Total', '소계']):
             row = re.sub(r'^<tr', r'<tr class="total-row"', row)
-            
         return row
         
     parts = html_str.split('<tbody>', 1)
@@ -407,7 +401,6 @@ def to_excel_multiple(df_dict):
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         for sheet_name, original_df in df_dict.items():
             df = original_df.copy()
-            
             if isinstance(df.index, pd.MultiIndex):
                 new_tuples = []
                 for t in df.index:
@@ -421,13 +414,10 @@ def to_excel_multiple(df_dict):
                 df.index = pd.MultiIndex.from_tuples(new_tuples, names=df.index.names)
             
             styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
-            
             apply_color = sheet_name in ["PE_HKMC_Summary", "PE_Biz_Detailed", "Core_Biz", "Biz_Type_Summary"]
-            # 엑셀 다운로드 시 순수 데이터 서식만 유지 (빨간 강조선 제외)
             styler = apply_common_styles(styler, apply_hkmc_color=apply_color, is_export=True)
             
             styler.to_excel(writer, sheet_name=sheet_name[:31])
-            
             worksheet = writer.sheets[sheet_name[:31]]
             for i, col in enumerate(df.columns):
                 worksheet.set_column(i+1, i+1, 15)
@@ -707,10 +697,10 @@ if uploaded_file:
     # 5. 스타일링 및 렌더링
     # ==========================================
     def render_html_view(df, phase_curr, apply_color=False, title=None):
+        table_id = f"table_{uuid.uuid4().hex[:8]}"
         df_display = df.replace(0, '')
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
-        # 다중열(Multi-Index) 요약 테이블 전용 클래스 "summary-table" 추가
-        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table summary-table"')
+        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
         styler.set_table_styles([
             {'selector': 'th, td', 'props': [('border-collapse', 'separate')]},
             {'selector': 'tr', 'props': [('display', 'table-row')]}
@@ -721,29 +711,34 @@ if uploaded_file:
         styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
         
         html_str = styler.to_html()
-        html_str = optimize_html_headers(html_str, df, highlight_phase=phase_curr)
+        html_str = optimize_html_headers(html_str, df)
         html_str = post_process_html_styles(html_str)
-        return f'<div class="table-container">{html_str}</div>'
+        
+        # 동적으로 계산된 CSS 주입 (절대 빗나가지 않음)
+        css_str = get_dynamic_highlight_css(table_id, df, phase_curr)
+        return f'{css_str}<div id="{table_id}" class="table-container">{html_str}</div>'
 
     def render_biz_html_table(df, phase_curr, apply_color=False, title=None):
+        table_id = f"table_{uuid.uuid4().hex[:8]}"
         df_display = df.replace(0, '')
         format_dict = {col: format_percentage_html if 'ACHI' in col[1] else format_k_val for col in df.columns}
-        # 상세 다중열 요약 테이블도 "summary-table" 클래스 추가
-        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table biz-table summary-table"')
+        styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table biz-table"')
         
         numeric_cols = get_numeric_cols(df)
         styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
         styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
         
         html_str = styler.to_html()
-        html_str = optimize_html_headers(html_str, df, highlight_phase=phase_curr)
+        html_str = optimize_html_headers(html_str, df)
         html_str = post_process_html_styles(html_str)
-        return f'<div class="table-container">{html_str}</div>'
+        
+        css_str = get_dynamic_highlight_css(table_id, df, phase_curr)
+        return f'{css_str}<div id="{table_id}" class="table-container">{html_str}</div>'
 
     def render_trend_html_table(df, apply_color=False):
+        table_id = f"table_{uuid.uuid4().hex[:8]}"
         df_display = df.replace(0, '')
         format_dict = {col: format_k_val for col in df.columns}
-        # 트렌드 테이블 고유 클래스 "trend-table"
         styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table trend-table"')
         
         styler.set_properties(**{'text-align': 'right'})
@@ -751,7 +746,9 @@ if uploaded_file:
         
         html_str = styler.to_html()
         html_str = post_process_html_styles(html_str)
-        return f'<div class="table-container">{html_str}</div>'
+        
+        css_str = get_trend_highlight_css(table_id)
+        return f'{css_str}<div id="{table_id}" class="table-container">{html_str}</div>'
 
     # ==========================================
     # 6. 화면 출력
