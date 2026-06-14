@@ -14,154 +14,37 @@ MONTH_NAMES = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:
 BIZ_CONFIG = {"Power": "PE Biz", "Core": "Core Biz"}
 
 # ==========================================
-# 전역 CSS 주입
+# 전역 CSS 주입 (들여쓰기 제거로 마크다운 오류 방지)
 # ==========================================
-st.markdown("""
-    <style>
-    .block-container { padding: 2rem 3rem; }
-    h1 { font-size: 1.6rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
-    h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0.5rem !important; color: #002060 !important; }
-    
-    .table-container {
-        overflow-x: auto;
-        box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
-        margin-bottom: 1rem !important; 
-        padding: 2px !important; 
-        display: inline-block; 
-        width: auto;
-        min-width: 100%;
-        box-sizing: border-box;
-        background-color: white;
-    }
-    
-    .report-table {
-        border-collapse: collapse !important;
-        font-family: 'Malgun Gothic', sans-serif;
-        font-size: 12px;
-        width: 100%;
-        background-color: white;
-        margin: 0 !important;
-        border: 2px solid #002060 !important; 
-    }
-    
-    .report-table tr { border-bottom: none !important; }
-    .report-table td, .report-table th { border-bottom: none !important; border-top: none !important; }
-    .report-table th, .report-table td {
-        max-width: 250px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .report-table thead th {
-        background-color: #002060 !important;
-        color: white !important;
-        border: 1px solid #8ea9db !important;
-        text-align: center !important;
-        padding: 4px 3px !important;
-        font-weight: 600 !important;
-        font-size: 11.5px !important;
-        position: sticky;
-        top: 0;
-        z-index: 10;
-    }
-    .report-table td {
-        border: 1px solid #d9d9d9;
-        text-align: center;
-        padding: 4px;
-        vertical-align: middle;
-    }
-    .report-table .row_heading {
-        color: #002060 !important;
-        text-align: left !important;
-        padding-left: 10px !important;
-        border: 1px solid #d9d9d9 !important;
-        vertical-align: middle !important;
-        font-weight: bold !important;
-    }
-    
-    /* 기본 합계/소계 행 (연노랑) */
-    .report-table tr.total-row th, 
-    .report-table tr.total-row td {
-        background-color: #ffffe0 !important;
-        color: #002060 !important;
-        font-weight: bold !important;
-        border-top: 2px solid #8ea9db !important;
-        border-bottom: 2px solid #8ea9db !important;
-    }
-    
-    /* HYU 소계 행 (하늘색) */
-    .report-table tr.total-row-hyu th, 
-    .report-table tr.total-row-hyu td {
-        background-color: #e6f2ff !important;
-        color: #002060 !important;
-        font-weight: bold !important;
-        border-top: 2px solid #8ea9db !important;
-        border-bottom: 2px solid #8ea9db !important;
-    }
-
-    /* KIA 소계 행 (분홍색) */
-    .report-table tr.total-row-kia th, 
-    .report-table tr.total-row-kia td {
-        background-color: #ffe6e6 !important;
-        color: #002060 !important;
-        font-weight: bold !important;
-        border-top: 2px solid #8ea9db !important;
-        border-bottom: 2px solid #8ea9db !important;
-    }
-    
-    /* DIRECT 소계 행 (연한 청색) */
-    .report-table tr.total-row-direct th, 
-    .report-table tr.total-row-direct td {
-        background-color: #e6f2ff !important;
-        color: #002060 !important;
-        font-weight: bold !important;
-        border-top: 2px solid #8ea9db !important;
-        border-bottom: 2px solid #8ea9db !important;
-    }
-
-    /* COMM 소계 행 (연한 회색) */
-    .report-table tr.total-row-comm th, 
-    .report-table tr.total-row-comm td {
-        background-color: #f2f2f2 !important;
-        color: #002060 !important;
-        font-weight: bold !important;
-        border-top: 2px solid #8ea9db !important;
-        border-bottom: 2px solid #8ea9db !important;
-    }
-    
-    /* PE Biz 및 Core Biz 상세 테이블 인덱스 가운데 정렬 */
-    .report-table.biz-table .row_heading {
-        text-align: center !important;
-        padding-left: 4px !important;
-        padding-right: 4px !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
+st.markdown("""<style>
+.block-container { padding: 2rem 3rem; }
+h1 { font-size: 1.6rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
+h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0.5rem !important; color: #002060 !important; }
+.table-container { overflow-x: auto; box-shadow: 2px 2px 10px rgba(0,0,0,0.1); margin-bottom: 1rem !important; padding: 2px !important; display: inline-block; width: auto; min-width: 100%; box-sizing: border-box; background-color: white; }
+.report-table { border-collapse: collapse !important; font-family: 'Malgun Gothic', sans-serif; font-size: 12px; width: 100%; background-color: white; margin: 0 !important; border: 2px solid #002060 !important; }
+.report-table tr { border-bottom: none !important; }
+.report-table td, .report-table th { border-bottom: none !important; border-top: none !important; }
+.report-table th, .report-table td { max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.report-table thead th { background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; text-align: center !important; padding: 4px 3px !important; font-weight: 600 !important; font-size: 11.5px !important; position: sticky; top: 0; z-index: 10; }
+.report-table td { border: 1px solid #d9d9d9; text-align: center; padding: 4px; vertical-align: middle; }
+.report-table .row_heading { color: #002060 !important; text-align: left !important; padding-left: 10px !important; border: 1px solid #d9d9d9 !important; vertical-align: middle !important; font-weight: bold !important; }
+.report-table tr.total-row th, .report-table tr.total-row td { background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
+.report-table tr.total-row-hyu th, .report-table tr.total-row-hyu td { background-color: #e6f2ff !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
+.report-table tr.total-row-kia th, .report-table tr.total-row-kia td { background-color: #ffe6e6 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
+.report-table tr.total-row-direct th, .report-table tr.total-row-direct td { background-color: #e6f2ff !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
+.report-table tr.total-row-comm th, .report-table tr.total-row-comm td { background-color: #f2f2f2 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
+.report-table.biz-table .row_heading { text-align: center !important; padding-left: 4px !important; padding-right: 4px !important; }
+</style>""", unsafe_allow_html=True)
 
 # ==========================================
-# 2. 동적 테두리 생성 및 공통 스타일 함수
+# 2. 동적 테두리 생성 (한 줄 문자열 처리)
 # ==========================================
 def get_trend_highlight_css(table_id):
     """Trend 테이블 전용 가장 우측 열 붉은 테두리 강조"""
-    return f"""
-    <style>
-    #{table_id} thead tr:nth-child(1) th:last-child {{
-        border-top: 5px solid #c00000 !important;
-        border-left: 5px solid #c00000 !important;
-        border-right: 5px solid #c00000 !important;
-    }}
-    #{table_id} tbody td:last-child {{
-        border-left: 5px solid #c00000 !important;
-        border-right: 5px solid #c00000 !important;
-    }}
-    #{table_id} tbody tr:last-child td:last-child {{
-        border-bottom: 5px solid #c00000 !important;
-    }}
-    </style>
-    """
+    return f"<style>#{table_id} thead tr:nth-child(1) th:last-child {{ border-top: 5px solid #c00000 !important; border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important; }} #{table_id} tbody td:last-child {{ border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:last-child {{ border-bottom: 5px solid #c00000 !important; }}</style>"
 
 def get_dynamic_highlight_css(table_id, df, highlight_phase):
-    """다중열 요약 테이블에서 정확한 당월 데이터를 찾아 표 전체를 아우르는 붉은 테두리를 생성합니다."""
+    """다중열 요약 테이블에서 정확한 당월 데이터를 찾아 표 전체를 아우르는 붉은 테두리 생성"""
     if not highlight_phase: return ""
     
     cols = list(df.columns)
@@ -181,37 +64,13 @@ def get_dynamic_highlight_css(table_id, df, highlight_phase):
     index_names = [str(n) for n in df.index.names if n is not None and str(n).strip()] if hasattr(df, 'index') and hasattr(df.index, 'names') else []
     num_indices = len(index_names) if index_names else 1
 
-    # CSS nth-child 계수 계산
     target_th_row0 = num_indices + level0_cols.index(highlight_phase) + 1
     target_th_row1_start = start_col + 1
     target_th_row1_end = end_col + 1
     td_start = start_col + 1
     td_end = end_col + 1
 
-    return f"""
-    <style>
-    #{table_id} thead tr:nth-child(1) th:nth-child({target_th_row0}) {{
-        border-top: 5px solid #c00000 !important;
-        border-left: 5px solid #c00000 !important;
-        border-right: 5px solid #c00000 !important;
-    }}
-    #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_start}) {{
-        border-left: 5px solid #c00000 !important;
-    }}
-    #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_end}) {{
-        border-right: 5px solid #c00000 !important;
-    }}
-    #{table_id} tbody td:nth-of-type({td_start}) {{
-        border-left: 5px solid #c00000 !important;
-    }}
-    #{table_id} tbody td:nth-of-type({td_end}) {{
-        border-right: 5px solid #c00000 !important;
-    }}
-    #{table_id} tbody tr:last-child td:nth-of-type(n+{td_start}):nth-of-type(-n+{td_end}) {{
-        border-bottom: 5px solid #c00000 !important;
-    }}
-    </style>
-    """
+    return f"<style>#{table_id} thead tr:nth-child(1) th:nth-child({target_th_row0}) {{ border-top: 5px solid #c00000 !important; border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:nth-of-type(n+{td_start}):nth-of-type(-n+{td_end}) {{ border-bottom: 5px solid #c00000 !important; }}</style>"
 
 def format_k_val(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
@@ -714,7 +573,6 @@ if uploaded_file:
         html_str = optimize_html_headers(html_str, df)
         html_str = post_process_html_styles(html_str)
         
-        # 동적으로 계산된 CSS 주입 (절대 빗나가지 않음)
         css_str = get_dynamic_highlight_css(table_id, df, phase_curr)
         return f'{css_str}<div id="{table_id}" class="table-container">{html_str}</div>'
 
