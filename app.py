@@ -107,16 +107,16 @@ def format_percentage_html(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
     pct_str = f"{val:.0%}"
     
-    # 입체감을 위한 그림자 효과 (크기 변경 없이 그림자만 추가)
+    # 입체감을 위한 그림자 효과
     shadow = "text-shadow: 1px 1px 1px rgba(0,0,0,0.3);"
     
     if 0.95 <= val <= 1.0:
         return f'<span style="color: #000000; font-weight: bold; font-style: italic;">{pct_str} <span style="display: inline-block; width: 10px; height: 4px; background-color: #cc7a00; vertical-align: middle; margin-left: 5px; box-shadow: 1px 1px 1px rgba(0,0,0,0.3);"></span></span>' 
     elif val > 1.0:
-        # 크기 변경 없이 색상과 그림자만 적용
-        return f'<span style="color: #2874A6; font-weight: bold; font-style: italic;">{pct_str} <span style="{shadow}">▲</span></span>'
+        # 파란색 대신 #1D8348 초록색 적용
+        return f'<span style="color: #1D8348; font-weight: bold; font-style: italic;">{pct_str} <span style="{shadow}">▲</span></span>'
     elif val > 0:
-        # 크기 변경 없이 색상과 그림자만 적용
+        # 빨간색 화살표는 유지 (감소 의미이므로)
         return f'<span style="color: #B03A2E; font-weight: bold; font-style: italic;">{pct_str} <span style="{shadow}">▼</span></span>'
     else:
         return f'<span style="font-style: italic; color: #555;">{pct_str}</span>'
