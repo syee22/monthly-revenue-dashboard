@@ -66,7 +66,7 @@ h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0
 # 2. 동적 테두리 생성
 # ==========================================
 def get_trend_highlight_css(table_id):
-    return f"<style>#{table_id} thead tr:nth-child(1) th:last-child {{ border-top: 5px solid #c00000 !important; border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important; }} #{table_id} tbody td:last-child {{ border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:last-child {{ border-bottom: 5px solid #c00000 !important; }}</style>"
+    return f"<style>#{table_id} thead tr:nth-child(1) th:last-child {{ border-top: 4px solid #c00000 !important; border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody td:last-child {{ border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:last-child {{ border-bottom: 4px solid #c00000 !important; }}</style>"
 
 def get_dynamic_highlight_css(table_id, df, highlight_phase):
     if not highlight_phase: return ""
