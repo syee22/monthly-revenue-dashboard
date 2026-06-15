@@ -109,18 +109,13 @@ def format_percentage_html(val):
     pct_str = f"{val:.0%}"
     shadow = "text-shadow: 1px 1px 1px rgba(0,0,0,0.3);"
     
-    # 조화로운 조정을 위한 스타일
-    # width를 약간 늘리고, margin-bottom으로 숫자 중앙선과 높이를 맞췄습니다.
+    # [수정] 95% 이상 100% 이하인 경우 가로 작대기(━) 표시
     if 0.95 <= val <= 1.0:
-        bar_html = '<span style="display:inline-block; width:10px; height:3px; background-color:#404040; vertical-align:middle; margin-bottom:1px; margin-left:3px;"></span>'
-        return f'<span style="color: #404040; font-style: italic; font-weight: 500;">{pct_str} {bar_html}</span>' 
-    
+        return f'<span style="color: #404040; font-style: italic;">{pct_str} <span style="{shadow}">━</span></span>' 
     elif val > 1.0:
-        return f'<span style="color: #145A32; font-style: italic; font-weight: 600;">{pct_str} <span style="{shadow}">▲</span></span>'
-    
+        return f'<span style="color: #145A32; font-style: italic;">{pct_str} <span style="{shadow}">▲</span></span>'
     elif val > 0:
-        return f'<span style="color: #B03A2E; font-style: italic; font-weight: 600;">{pct_str} <span style="{shadow}">▼</span></span>'
-    
+        return f'<span style="color: #B03A2E; font-style: italic;">{pct_str} <span style="{shadow}">▼</span></span>'
     return f'<span style="font-style: italic;">{pct_str}</span>'
 
 def format_percentage_html_no_trend(val):
@@ -253,19 +248,6 @@ def optimize_html_headers(html_str, df):
                 ths0[i] = f'<th rowspan="2" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; {width_style}">{name}</th>'
                 ths1[i] = ''
                 
-        # [완전 수정] 렌더링된 두 번째 행(ths1)의 텍스트를 직접 스캔하여 2, 3, 4번째 ACT 텍스트만 노란색 적용
-        act_count = 0
-        for i in range(len(ths1)):
-            if ths1[i] == '': continue
-            # 헤더 안에 ACT 텍스트가 정확히 존재하는지 검사
-            if re.search(r'>\s*ACT\s*<', ths1[i], re.IGNORECASE):
-                act_count += 1
-                if act_count > 1: # 1번째(전월 실적)는 건너뜀
-                    if 'style="' in ths1[i]:
-                        ths1[i] = re.sub(r'style="', r'style="color: #FFFF00 !important; ', ths1[i], count=1)
-                    else:
-                        ths1[i] = re.sub(r'<th', r'<th style="color: #FFFF00 !important;"', ths1[i], count=1)
-                        
         row0_new = "".join(ths0)
         row1_new = "".join(ths1)
         
