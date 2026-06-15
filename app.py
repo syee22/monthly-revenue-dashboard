@@ -463,7 +463,7 @@ if uploaded_file:
             p_prev = df[(df['BIZ Type'] == biz) & (df['Year'] == prev_year) & (df['Month'] == prev_month)].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             
             combined_dict = {(prev_phase_name, 'ACT'): p_prev.get('ACT', 0)}
-            for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
+            for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], f_fy)]:
                 for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data.get(c, 0)
                 num = pd.Series(data.get('ACT', 0))
                 den = pd.Series(data.get('26 FC1', 0))
@@ -506,10 +506,10 @@ if uploaded_file:
         
         results = []
         for brand in ['HYU', 'KIA', 'GM']:
-            # [수정] GM은 Group 1, Group 2, Project가 동시에 모두 'GM'인 경우만 필터링
+            # [수정] GM 데이터 필터링 기준을 명확하게 'Project == GM'으로 일치화
             if brand == 'GM':
-                brand_df = df_biz[(df_biz['Group 1'] == 'GM') & (df_biz['Group 2'] == 'GM') & (df_biz['Project'] == 'GM')].copy()
-                prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 1'] == 'GM') & (df['Group 2'] == 'GM') & (df['Project'] == 'GM')
+                brand_df = df_biz[df_biz['Project'] == 'GM'].copy()
+                prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Project'] == 'GM')
             else:
                 brand_df = df_biz[df_biz['Group 2'] == brand].copy()
                 prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)
@@ -547,7 +547,6 @@ if uploaded_file:
                 p_m, p_y, p_fy, p_prev = group_others(p_m), group_others(p_y), group_others(p_fy), group_others(p_prev)
                 idx = p_m.index
                 
-            # [보안] 판다스 시리즈 형태로 확실히 지정하여 데이터 결합 시 누락 및 강제 공백화 버그 방지
             combined_dict = {}
             combined_dict[(prev_phase_name, 'ACT')] = p_prev['ACT'] if 'ACT' in p_prev.columns else pd.Series(0, index=idx)
             
@@ -620,8 +619,8 @@ if uploaded_file:
             
             hyu_val = temp_df[temp_df['Group 2'] == 'HYU']['Rev. (€)'].sum()
             kia_val = temp_df[temp_df['Group 2'] == 'KIA']['Rev. (€)'].sum()
-            # [수정] Trend 리포트 필터링 조건도 Group 1, Group 2, Project가 모두 'GM'인 경우로 맞춤 동기화
-            gm_val = temp_df[(temp_df['Group 1'] == 'GM') & (temp_df['Group 2'] == 'GM') & (temp_df['Project'] == 'GM')]['Rev. (€)'].sum()
+            # [수정] Trend 리포트 필터링 조건도 Project == 'GM'인 경우로 일관성있게 변경
+            gm_val = temp_df[temp_df['Project'] == 'GM']['Rev. (€)'].sum()
             
             pivot_data[col_name] = {'HYU': hyu_val, 'KIA': kia_val, 'GM': gm_val}
             
