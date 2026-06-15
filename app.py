@@ -112,7 +112,7 @@ def format_percentage_html(val):
     # 조화로운 조정을 위한 스타일
     # width를 약간 늘리고, margin-bottom으로 숫자 중앙선과 높이를 맞췄습니다.
     if 0.95 <= val <= 1.0:
-        bar_html = '<span style="display:inline-block; width:10px; height:2.5px; background-color:#404040; vertical-align:middle; margin-bottom:1px; margin-left:3px;"></span>'
+        bar_html = '<span style="display:inline-block; width:10px; height:2.5px; background-color:#404040; vertical-align:middle; margin-bottom:1px; margin-left:3px;shadow;"></span>'
         return f'<span style="color: #404040; font-style: italic; font-weight: 500;">{pct_str} {bar_html}</span>' 
     
     elif val > 1.0:
