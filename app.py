@@ -1,4 +1,4 @@
-import streamlit st
+import streamlit as st
 import pandas as pd
 import numpy as np
 import io
@@ -510,7 +510,6 @@ if uploaded_file:
                 brand_df = df_biz[df_biz['Project'] == 'GM'].copy()
                 prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Project'] == 'GM')
                 
-                # [고도화 보완] GM의 경우 인덱스 피벗 결합 문제 없이 무조건 정확한 총합 소계 한 행이 생성되도록 유도
                 subtotal_dict = {}
                 prev_act = df[prev_mask & (df['Desc.'] == 'ACT')]['Rev. (€)'].sum() if not df[prev_mask].empty else 0.0
                 subtotal_dict[(prev_phase_name, 'ACT')] = prev_act
@@ -599,7 +598,6 @@ if uploaded_file:
 
         final_df = pd.concat(results)
         
-        # [수정 보완] 각 브랜드의 소계행들만을 합산하여 Grand Total을 계산 (GM 데이터 완벽 포함)
         grand_total = final_df[final_df.index.get_level_values(1).str.contains('소계', na=False)].sum(numeric_only=True)
         for p_name in phase_names:
             num = grand_total.get((p_name, 'ACT'), 0)
