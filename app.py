@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit st
 import pandas as pd
 import numpy as np
 import io
@@ -509,6 +509,27 @@ if uploaded_file:
             if brand == 'GM':
                 brand_df = df_biz[df_biz['Project'] == 'GM'].copy()
                 prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Project'] == 'GM')
+                
+                # [고도화 보완] GM의 경우 인덱스 피벗 결합 문제 없이 무조건 정확한 총합 소계 한 행이 생성되도록 유도
+                subtotal_dict = {}
+                prev_act = df[prev_mask & (df['Desc.'] == 'ACT')]['Rev. (€)'].sum() if not df[prev_mask].empty else 0.0
+                subtotal_dict[(prev_phase_name, 'ACT')] = prev_act
+                
+                df_m = brand_df[brand_df['Month'] == month]
+                for c in ['25 FC3', '26 FC1', 'ACT']: subtotal_dict[(phase_names[0], c)] = df_m[df_m['Desc.'] == c]['Rev. (€)'].sum()
+                subtotal_dict[(phase_names[0], 'ACHI %')] = subtotal_dict[(phase_names[0], 'ACT')] / subtotal_dict[(phase_names[0], '26 FC1')] if subtotal_dict[(phase_names[0], '26 FC1')] != 0 else 0.0
+                
+                df_y = brand_df[brand_df['Month'] <= month]
+                for c in ['25 FC3', '26 FC1', 'ACT']: subtotal_dict[(phase_names[1], c)] = df_y[df_y['Desc.'] == c]['Rev. (€)'].sum()
+                subtotal_dict[(phase_names[1], 'ACHI %')] = subtotal_dict[(phase_names[1], 'ACT')] / subtotal_dict[(phase_names[1], '26 FC1')] if subtotal_dict[(phase_names[1], '26 FC1')] != 0 else 0.0
+                
+                for c in ['25 FC3', '26 FC1', 'ACT']: subtotal_dict[(phase_names[2], c)] = brand_df[brand_df['Desc.'] == c]['Rev. (€)'].sum()
+                subtotal_dict[(phase_names[2], 'ACHI %')] = subtotal_dict[(phase_names[2], 'ACT')] / subtotal_dict[(phase_names[2], '26 FC1')] if subtotal_dict[(phase_names[2], '26 FC1')] != 0 else 0.0
+                
+                subtotal = pd.Series(subtotal_dict)
+                results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
+                continue
+                
             else:
                 brand_df = df_biz[df_biz['Group 2'] == brand].copy()
                 prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)
@@ -569,19 +590,17 @@ if uploaded_file:
                 den = subtotal.get((p_name, '26 FC1'), 0)
                 subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
                 
-            if brand == 'GM':
-                # GM은 상세 리스트 없이 집계(소계) 한 줄만 표시
-                results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
-            else:
-                combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
-                results.append(combined)
-                results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
+            combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
+            results.append(combined)
+            results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
             
         if not results:
             return pd.DataFrame(), phase_names
 
         final_df = pd.concat(results)
-        grand_total = final_df[~final_df.index.get_level_values(1).str.contains('소계', na=False)].sum(numeric_only=True)
+        
+        # [수정 보완] 각 브랜드의 소계행들만을 합산하여 Grand Total을 계산 (GM 데이터 완벽 포함)
+        grand_total = final_df[final_df.index.get_level_values(1).str.contains('소계', na=False)].sum(numeric_only=True)
         for p_name in phase_names:
             num = grand_total.get((p_name, 'ACT'), 0)
             den = grand_total.get((p_name, '26 FC1'), 0)
