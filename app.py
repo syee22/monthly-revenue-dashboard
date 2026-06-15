@@ -108,8 +108,10 @@ def format_percentage_html(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
     pct_str = f"{val:.0%}"
     shadow = "text-shadow: 1px 1px 1px rgba(0,0,0,0.3);"
+    
+    # [수정] 95% 이상 100% 이하인 경우 가로 작대기(━) 표시
     if 0.95 <= val <= 1.0:
-        return f'<span style="font-style: italic;">{pct_str}</span>' 
+        return f'<span style="color: #404040; font-style: italic;">{pct_str} <span style="{shadow}">━</span></span>' 
     elif val > 1.0:
         return f'<span style="color: #145A32; font-style: italic;">{pct_str} <span style="{shadow}">▲</span></span>'
     elif val > 0:
