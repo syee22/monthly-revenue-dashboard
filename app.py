@@ -508,11 +508,7 @@ if uploaded_file:
         prev_phase_name = f'{pm_str}. {prev_year}'
         
         results = []
-        if biz_type == 'Power':
-            brands = ['HYU', 'KIA']
-            
-        for brand in brands: 
-        #for brand in ['HYU', 'KIA', 'GM']:
+        for brand in ['HYU', 'KIA', 'GM']:
             if brand == 'GM':
                 brand_df = df_biz[df_biz['Project'] == 'GM'].copy()
                 prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Project'] == 'GM')
