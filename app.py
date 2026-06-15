@@ -111,7 +111,8 @@ def format_percentage_html(val):
     
     # [수정] 95% 이상 100% 이하인 경우 가로 작대기(━) 표시
     if 0.95 <= val <= 1.0:
-        return f'<span style="color: #404040; font-style: italic;">{pct_str} <span style="{shadow}">━</span></span>' 
+        bar_html = '<span style="display:inline-block; width:10px; height:2px; background-color:#404040; vertical-align:middle; margin-bottom:1px; margin-left:3px;"></span>'
+        return f'<span style="color: #404040; font-style: italic; font-weight: 500;">{pct_str} {bar_html}</span>'
     elif val > 1.0:
         return f'<span style="color: #145A32; font-style: italic;">{pct_str} <span style="{shadow}">▲</span></span>'
     elif val > 0:
