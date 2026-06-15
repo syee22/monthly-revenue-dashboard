@@ -463,7 +463,7 @@ if uploaded_file:
             p_prev = df[(df['BIZ Type'] == biz) & (df['Year'] == prev_year) & (df['Month'] == prev_month)].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             
             combined_dict = {(prev_phase_name, 'ACT'): p_prev.get('ACT', 0)}
-            for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], f_fy)]:
+            for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
                 for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data.get(c, 0)
                 num = pd.Series(data.get('ACT', 0))
                 den = pd.Series(data.get('26 FC1', 0))
@@ -506,7 +506,6 @@ if uploaded_file:
         
         results = []
         for brand in ['HYU', 'KIA', 'GM']:
-            # [수정] GM 데이터 필터링 기준을 명확하게 'Project == GM'으로 일치화
             if brand == 'GM':
                 brand_df = df_biz[df_biz['Project'] == 'GM'].copy()
                 prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Project'] == 'GM')
@@ -619,7 +618,6 @@ if uploaded_file:
             
             hyu_val = temp_df[temp_df['Group 2'] == 'HYU']['Rev. (€)'].sum()
             kia_val = temp_df[temp_df['Group 2'] == 'KIA']['Rev. (€)'].sum()
-            # [수정] Trend 리포트 필터링 조건도 Project == 'GM'인 경우로 일관성있게 변경
             gm_val = temp_df[temp_df['Project'] == 'GM']['Rev. (€)'].sum()
             
             pivot_data[col_name] = {'HYU': hyu_val, 'KIA': kia_val, 'GM': gm_val}
