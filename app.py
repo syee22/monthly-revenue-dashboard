@@ -109,14 +109,13 @@ def format_percentage_html(val):
     pct_str = f"{val:.0%}"
     shadow = "text-shadow: 1px 1px 1px rgba(0,0,0,0.3);"
     if 0.95 <= val <= 1.0:
-        return f'<font-style: italic;">{pct_str}</span>' 
+        return f'<span style="font-style: italic;">{pct_str}</span>' 
     elif val > 1.0:
-        return f'<span style="color: #145A32;  font-style: italic;">{pct_str} <span style="{shadow}">▲</span></span>'
+        return f'<span style="color: #145A32; font-style: italic;">{pct_str} <span style="{shadow}">▲</span></span>'
     elif val > 0:
         return f'<span style="color: #B03A2E; font-style: italic;">{pct_str} <span style="{shadow}">▼</span></span>'
     return f'<span style="font-style: italic;">{pct_str}</span>'
 
-# TTL 전용 기호 없는 포맷터
 def format_percentage_html_no_trend(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
     pct_str = f"{val:.0%}"
@@ -507,10 +506,14 @@ if uploaded_file:
         
         results = []
         for brand in ['HYU', 'KIA', 'GM']:
-            brand_df = df_biz[df_biz['Group 2'] == brand].copy()
-            prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)
+            # [수정] GM은 Group 1, Group 2, Project가 동시에 모두 'GM'인 경우만 필터링
+            if brand == 'GM':
+                brand_df = df_biz[(df_biz['Group 1'] == 'GM') & (df_biz['Group 2'] == 'GM') & (df_biz['Project'] == 'GM')].copy()
+                prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 1'] == 'GM') & (df['Group 2'] == 'GM') & (df['Project'] == 'GM')
+            else:
+                brand_df = df_biz[df_biz['Group 2'] == brand].copy()
+                prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)
 
-            # 해당 브랜드에 대해 이번 년도, 또는 이전 달 모두 데이터가 아예 없는 경우에만 스킵
             if brand_df.empty and df[prev_mask].empty: 
                 continue
             
@@ -519,35 +522,43 @@ if uploaded_file:
             p_fy = brand_df.pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             p_prev = df[prev_mask].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             
-            # [수정된 부분] 1월(당월) 실적이 아예 없더라도 YTD나 TTL에서 누락되지 않도록 전체 인덱스(프로젝트명)를 합집합으로 가져옵니다.
+            all_idx = set()
+            for p in [p_prev, p_m, p_y, p_fy]:
+                if not p.empty: all_idx.update(p.index.tolist())
+                
+            if not all_idx:
+                continue
+                
+            idx = pd.MultiIndex.from_tuples(sorted(list(all_idx)), names=['Project', 'Con.', 'SOP'])
+            p_prev = p_prev.reindex(idx, fill_value=0)
+            p_m = p_m.reindex(idx, fill_value=0)
+            p_y = p_y.reindex(idx, fill_value=0)
+            p_fy = p_fy.reindex(idx, fill_value=0)
+            
             if "Core" in biz_type and brand in ['HYU', 'KIA']:
-                top = p_m[p_m['ACT'] >= 10000].index if not p_m.empty and 'ACT' in p_m.columns else p_m.index
+                act_col = p_m['ACT'] if 'ACT' in p_m.columns else pd.Series(0, index=idx)
+                top = act_col[act_col >= 10000].index
                 def group_others(p):
                     if p.empty: return pd.DataFrame(columns=['25 FC3', '26 FC1', 'ACT']).reindex(pd.MultiIndex.from_tuples([], names=['Project', 'Con.', 'SOP']))
-                    main = p.loc[p.index.isin(top)]; oth = p.loc[~p.index.isin(top)].sum().to_frame().T; oth.index = pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP'])
+                    main = p.loc[p.index.isin(top)]
+                    oth = p.loc[~p.index.isin(top)].sum().to_frame().T
+                    oth.index = pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP'])
                     return pd.concat([main, oth])
                 p_m, p_y, p_fy, p_prev = group_others(p_m), group_others(p_y), group_others(p_fy), group_others(p_prev)
-                p_prev, p_y, p_fy = p_prev.reindex(p_m.index, fill_value=0), p_y.reindex(p_m.index, fill_value=0), p_fy.reindex(p_m.index, fill_value=0)
-            else:
-                all_idx = set()
-                for p in [p_prev, p_m, p_y, p_fy]:
-                    if not p.empty: all_idx.update(p.index.tolist())
-                if all_idx:
-                    idx = pd.MultiIndex.from_tuples(sorted(list(all_idx)), names=['Project', 'Con.', 'SOP'])
-                    p_prev = p_prev.reindex(idx, fill_value=0)
-                    p_m = p_m.reindex(idx, fill_value=0)
-                    p_y = p_y.reindex(idx, fill_value=0)
-                    p_fy = p_fy.reindex(idx, fill_value=0)
-            
-            combined_dict = {(prev_phase_name, 'ACT'): p_prev.get('ACT', 0)}
+                idx = p_m.index
+                
+            # [보안] 판다스 시리즈 형태로 확실히 지정하여 데이터 결합 시 누락 및 강제 공백화 버그 방지
+            combined_dict = {}
+            combined_dict[(prev_phase_name, 'ACT')] = p_prev['ACT'] if 'ACT' in p_prev.columns else pd.Series(0, index=idx)
             
             for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
-                for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data.get(c, 0)
-                num = pd.Series(data.get('ACT', 0))
-                den = pd.Series(data.get('26 FC1', 0))
+                for c in ['25 FC3', '26 FC1', 'ACT']:
+                    combined_dict[(phase_name, c)] = data[c] if c in data.columns else pd.Series(0, index=idx)
+                num = pd.Series(combined_dict[(phase_name, 'ACT')])
+                den = pd.Series(combined_dict[(phase_name, '26 FC1')])
                 combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
                 
-            combined = pd.DataFrame(combined_dict, index=p_m.index)
+            combined = pd.DataFrame(combined_dict, index=idx)
             if ('Others', '', '') in combined.index: 
                 combined = pd.concat([combined.drop(index=('Others', '', '')).sort_values(by=(phase_names[0], 'ACT'), ascending=False), combined.loc[[('Others', '', '')]]])
             else: 
@@ -555,7 +566,6 @@ if uploaded_file:
                     combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
                 
             subtotal = combined.sum(numeric_only=True) if not combined.empty else pd.Series(0, index=combined.columns)
-            
             for p_name in phase_names:
                 num = subtotal.get((p_name, 'ACT'), 0)
                 den = subtotal.get((p_name, '26 FC1'), 0)
@@ -569,10 +579,10 @@ if uploaded_file:
                 results.append(combined)
                 results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
             
-        final_df = pd.concat(results) if results else pd.DataFrame()
-        if final_df.empty:
+        if not results:
             return pd.DataFrame(), phase_names
 
+        final_df = pd.concat(results)
         grand_total = final_df[~final_df.index.get_level_values(1).str.contains('소계', na=False)].sum(numeric_only=True)
         for p_name in phase_names:
             num = grand_total.get((p_name, 'ACT'), 0)
@@ -610,7 +620,8 @@ if uploaded_file:
             
             hyu_val = temp_df[temp_df['Group 2'] == 'HYU']['Rev. (€)'].sum()
             kia_val = temp_df[temp_df['Group 2'] == 'KIA']['Rev. (€)'].sum()
-            gm_val = temp_df[temp_df['Group 2'] == 'GM']['Rev. (€)'].sum()
+            # [수정] Trend 리포트 필터링 조건도 Group 1, Group 2, Project가 모두 'GM'인 경우로 맞춤 동기화
+            gm_val = temp_df[(temp_df['Group 1'] == 'GM') & (temp_df['Group 2'] == 'GM') & (temp_df['Project'] == 'GM')]['Rev. (€)'].sum()
             
             pivot_data[col_name] = {'HYU': hyu_val, 'KIA': kia_val, 'GM': gm_val}
             
