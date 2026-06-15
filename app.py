@@ -507,12 +507,16 @@ if uploaded_file:
         phase_names = [f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL']
         prev_phase_name = f'{pm_str}. {prev_year}'
         
+        # [수정] Power 타입일 경우 GM 제외
+        brands = ['HYU', 'KIA', 'GM']
+        if biz_type == 'Power':
+            brands = ['HYU', 'KIA']
+        
         results = []
-        for brand in ['HYU', 'KIA', 'GM']:
+        for brand in brands:
             if brand == 'GM':
                 brand_df = df_biz[df_biz['Project'] == 'GM'].copy()
                 prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Project'] == 'GM')
-                
                 subtotal_dict = {}
                 prev_act = df[prev_mask & (df['Desc.'] == 'ACT')]['Rev. (€)'].sum() if not df[prev_mask].empty else 0.0
                 subtotal_dict[(prev_phase_name, 'ACT')] = prev_act
@@ -531,74 +535,66 @@ if uploaded_file:
                 subtotal = pd.Series(subtotal_dict)
                 results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
                 continue
-                
             else:
                 brand_df = df_biz[df_biz['Group 2'] == brand].copy()
                 prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)
-
-            if brand_df.empty and df[prev_mask].empty: 
-                continue
-            
-            p_m = brand_df[brand_df['Month'] == month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-            p_y = brand_df[brand_df['Month'] <= month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-            p_fy = brand_df.pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-            p_prev = df[prev_mask].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-            
-            all_idx = set()
-            for p in [p_prev, p_m, p_y, p_fy]:
-                if not p.empty: all_idx.update(p.index.tolist())
+                if brand_df.empty and df[prev_mask].empty: continue
                 
-            if not all_idx:
-                continue
+                p_m = brand_df[brand_df['Month'] == month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+                p_y = brand_df[brand_df['Month'] <= month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+                p_fy = brand_df.pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+                p_prev = df[prev_mask].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
                 
-            idx = pd.MultiIndex.from_tuples(sorted(list(all_idx)), names=['Project', 'Con.', 'SOP'])
-            p_prev = p_prev.reindex(idx, fill_value=0)
-            p_m = p_m.reindex(idx, fill_value=0)
-            p_y = p_y.reindex(idx, fill_value=0)
-            p_fy = p_fy.reindex(idx, fill_value=0)
-            
-            if "Core" in biz_type and brand in ['HYU', 'KIA']:
-                act_col = p_m['ACT'] if 'ACT' in p_m.columns else pd.Series(0, index=idx)
-                top = act_col[act_col >= 10000].index
-                def group_others(p):
-                    if p.empty: return pd.DataFrame(columns=['25 FC3', '26 FC1', 'ACT']).reindex(pd.MultiIndex.from_tuples([], names=['Project', 'Con.', 'SOP']))
-                    main = p.loc[p.index.isin(top)]
-                    oth = p.loc[~p.index.isin(top)].sum().to_frame().T
-                    oth.index = pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP'])
-                    return pd.concat([main, oth])
-                p_m, p_y, p_fy, p_prev = group_others(p_m), group_others(p_y), group_others(p_fy), group_others(p_prev)
-                idx = p_m.index
+                all_idx = set()
+                for p in [p_prev, p_m, p_y, p_fy]:
+                    if not p.empty: all_idx.update(p.index.tolist())
+                if not all_idx: continue
                 
-            combined_dict = {}
-            combined_dict[(prev_phase_name, 'ACT')] = p_prev['ACT'] if 'ACT' in p_prev.columns else pd.Series(0, index=idx)
-            
-            for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
-                for c in ['25 FC3', '26 FC1', 'ACT']:
-                    combined_dict[(phase_name, c)] = data[c] if c in data.columns else pd.Series(0, index=idx)
-                num = pd.Series(combined_dict[(phase_name, 'ACT')])
-                den = pd.Series(combined_dict[(phase_name, '26 FC1')])
-                combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
+                idx = pd.MultiIndex.from_tuples(sorted(list(all_idx)), names=['Project', 'Con.', 'SOP'])
+                p_prev = p_prev.reindex(idx, fill_value=0)
+                p_m = p_m.reindex(idx, fill_value=0)
+                p_y = p_y.reindex(idx, fill_value=0)
+                p_fy = p_fy.reindex(idx, fill_value=0)
                 
-            combined = pd.DataFrame(combined_dict, index=idx)
-            if ('Others', '', '') in combined.index: 
-                combined = pd.concat([combined.drop(index=('Others', '', '')).sort_values(by=(phase_names[0], 'ACT'), ascending=False), combined.loc[[('Others', '', '')]]])
-            else: 
-                if not combined.empty and (phase_names[0], 'ACT') in combined.columns:
-                    combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
+                if "Core" in biz_type and brand in ['HYU', 'KIA']:
+                    act_col = p_m['ACT'] if 'ACT' in p_m.columns else pd.Series(0, index=idx)
+                    top = act_col[act_col >= 10000].index
+                    def group_others(p):
+                        if p.empty: return pd.DataFrame(columns=['25 FC3', '26 FC1', 'ACT']).reindex(pd.MultiIndex.from_tuples([], names=['Project', 'Con.', 'SOP']))
+                        main = p.loc[p.index.isin(top)]
+                        oth = p.loc[~p.index.isin(top)].sum().to_frame().T
+                        oth.index = pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP'])
+                        return pd.concat([main, oth])
+                    p_m, p_y, p_fy, p_prev = group_others(p_m), group_others(p_y), group_others(p_fy), group_others(p_prev)
+                    idx = p_m.index
+                    
+                combined_dict = {}
+                combined_dict[(prev_phase_name, 'ACT')] = p_prev['ACT'] if 'ACT' in p_prev.columns else pd.Series(0, index=idx)
+                for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
+                    for c in ['25 FC3', '26 FC1', 'ACT']:
+                        combined_dict[(phase_name, c)] = data[c] if c in data.columns else pd.Series(0, index=idx)
+                    num = pd.Series(combined_dict[(phase_name, 'ACT')])
+                    den = pd.Series(combined_dict[(phase_name, '26 FC1')])
+                    combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
                 
-            subtotal = combined.sum(numeric_only=True) if not combined.empty else pd.Series(0, index=combined.columns)
-            for p_name in phase_names:
-                num = subtotal.get((p_name, 'ACT'), 0)
-                den = subtotal.get((p_name, '26 FC1'), 0)
-                subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
+                combined = pd.DataFrame(combined_dict, index=idx)
+                if ('Others', '', '') in combined.index: 
+                    combined = pd.concat([combined.drop(index=('Others', '', '')).sort_values(by=(phase_names[0], 'ACT'), ascending=False), combined.loc[[('Others', '', '')]]])
+                else: 
+                    if not combined.empty and (phase_names[0], 'ACT') in combined.columns:
+                        combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
                 
-            combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
-            results.append(combined)
-            results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
-            
-        if not results:
-            return pd.DataFrame(), phase_names
-
+                subtotal = combined.sum(numeric_only=True) if not combined.empty else pd.Series(0, index=combined.columns)
+                for p_name in phase_names:
+                    num = subtotal.get((p_name, 'ACT'), 0)
+                    den = subtotal.get((p_name, '26 FC1'), 0)
+                    subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
+                
+                combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
+                results.append(combined)
+                results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
+                
+        if not results: return pd.DataFrame(), phase_names
         final_df = pd.concat(results)
         
         grand_total = final_df[final_df.index.get_level_values(1).str.contains('소계', na=False)].sum(numeric_only=True)
@@ -608,14 +604,7 @@ if uploaded_file:
             grand_total[(p_name, 'ACHI %')] = num / den if den != 0 else 0
             
         grand_label = f'{BIZ_CONFIG.get(biz_type, biz_type)} Rev. TTL (K.€)'
-        grand_row = pd.DataFrame(
-            [grand_total], 
-            index=pd.MultiIndex.from_tuples(
-                [(f'GRAND_TOTAL_MERGE_START{grand_label}', 'GRAND_TOTAL_MERGE_DEL', 'GRAND_TOTAL_MERGE_DEL', 'GRAND_TOTAL_MERGE_DEL')], 
-                names=['Cust. GR', 'Project', 'Con.', 'SOP']
-            )
-        )
-        
+        grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([(f'GRAND_TOTAL_MERGE_START{grand_label}', 'GRAND_TOTAL_MERGE_DEL', 'GRAND_TOTAL_MERGE_DEL', 'GRAND_TOTAL_MERGE_DEL')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
         return pd.concat([final_df, grand_row]), phase_names
 
     def build_trend_report(df, end_year, end_month):
