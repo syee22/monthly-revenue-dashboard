@@ -507,17 +507,19 @@ if uploaded_file:
         
         results = []
         for brand in ['HYU', 'KIA', 'GM']:
-            # GM 데이터를 포함한 모든 브랜드를 Group 2 기준으로 필터링하도록 원복
             brand_df = df_biz[df_biz['Group 2'] == brand].copy()
             prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)
 
-            if brand_df.empty: continue
+            # 해당 브랜드에 대해 이번 년도, 또는 이전 달 모두 데이터가 아예 없는 경우에만 스킵
+            if brand_df.empty and df[prev_mask].empty: 
+                continue
             
             p_m = brand_df[brand_df['Month'] == month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             p_y = brand_df[brand_df['Month'] <= month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             p_fy = brand_df.pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             p_prev = df[prev_mask].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             
+            # [수정된 부분] 1월(당월) 실적이 아예 없더라도 YTD나 TTL에서 누락되지 않도록 전체 인덱스(프로젝트명)를 합집합으로 가져옵니다.
             if "Core" in biz_type and brand in ['HYU', 'KIA']:
                 top = p_m[p_m['ACT'] >= 10000].index if not p_m.empty and 'ACT' in p_m.columns else p_m.index
                 def group_others(p):
@@ -525,8 +527,18 @@ if uploaded_file:
                     main = p.loc[p.index.isin(top)]; oth = p.loc[~p.index.isin(top)].sum().to_frame().T; oth.index = pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP'])
                     return pd.concat([main, oth])
                 p_m, p_y, p_fy, p_prev = group_others(p_m), group_others(p_y), group_others(p_fy), group_others(p_prev)
-                
-            p_prev, p_y, p_fy = p_prev.reindex(p_m.index, fill_value=0), p_y.reindex(p_m.index, fill_value=0), p_fy.reindex(p_m.index, fill_value=0)
+                p_prev, p_y, p_fy = p_prev.reindex(p_m.index, fill_value=0), p_y.reindex(p_m.index, fill_value=0), p_fy.reindex(p_m.index, fill_value=0)
+            else:
+                all_idx = set()
+                for p in [p_prev, p_m, p_y, p_fy]:
+                    if not p.empty: all_idx.update(p.index.tolist())
+                if all_idx:
+                    idx = pd.MultiIndex.from_tuples(sorted(list(all_idx)), names=['Project', 'Con.', 'SOP'])
+                    p_prev = p_prev.reindex(idx, fill_value=0)
+                    p_m = p_m.reindex(idx, fill_value=0)
+                    p_y = p_y.reindex(idx, fill_value=0)
+                    p_fy = p_fy.reindex(idx, fill_value=0)
+            
             combined_dict = {(prev_phase_name, 'ACT'): p_prev.get('ACT', 0)}
             
             for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
@@ -539,9 +551,11 @@ if uploaded_file:
             if ('Others', '', '') in combined.index: 
                 combined = pd.concat([combined.drop(index=('Others', '', '')).sort_values(by=(phase_names[0], 'ACT'), ascending=False), combined.loc[[('Others', '', '')]]])
             else: 
-                combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
+                if not combined.empty and (phase_names[0], 'ACT') in combined.columns:
+                    combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
                 
-            subtotal = combined.sum(numeric_only=True)
+            subtotal = combined.sum(numeric_only=True) if not combined.empty else pd.Series(0, index=combined.columns)
+            
             for p_name in phase_names:
                 num = subtotal.get((p_name, 'ACT'), 0)
                 den = subtotal.get((p_name, '26 FC1'), 0)
@@ -555,7 +569,10 @@ if uploaded_file:
                 results.append(combined)
                 results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
             
-        final_df = pd.concat(results)
+        final_df = pd.concat(results) if results else pd.DataFrame()
+        if final_df.empty:
+            return pd.DataFrame(), phase_names
+
         grand_total = final_df[~final_df.index.get_level_values(1).str.contains('소계', na=False)].sum(numeric_only=True)
         for p_name in phase_names:
             num = grand_total.get((p_name, 'ACT'), 0)
@@ -591,7 +608,6 @@ if uploaded_file:
             col_name = f"{MONTH_NAMES[m]}.{str(y)[-2:]}"
             temp_df = df_act[(df_act['Year'] == y) & (df_act['Month'] == m)]
             
-            # 모든 브랜드를 Group 2 기준으로 일관되게 집계하도록 원복
             hyu_val = temp_df[temp_df['Group 2'] == 'HYU']['Rev. (€)'].sum()
             kia_val = temp_df[temp_df['Group 2'] == 'KIA']['Rev. (€)'].sum()
             gm_val = temp_df[temp_df['Group 2'] == 'GM']['Rev. (€)'].sum()
