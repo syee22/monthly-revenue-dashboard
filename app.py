@@ -31,6 +31,7 @@ h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0
 .report-table tr.total-row th, .report-table tr.total-row td { background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
 .report-table tr.total-row-hyu th, .report-table tr.total-row-hyu td { background-color: #e6f2ff !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
 .report-table tr.total-row-kia th, .report-table tr.total-row-kia td { background-color: #ffe6e6 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
+.report-table tr.total-row-gm th, .report-table tr.total-row-gm td { background-color: #e6e6e6 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
 .report-table tr.total-row-direct th, .report-table tr.total-row-direct td { background-color: #99caff !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
 .report-table tr.total-row-comm th, .report-table tr.total-row-comm td { background-color: #d0d0d0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
 .report-table.biz-table .row_heading { text-align: center !important; padding-left: 4px !important; padding-right: 4px !important; }
@@ -125,6 +126,7 @@ def color_index_cells(v):
     val_str = str(v)
     if val_str == 'HYU': return 'background-color: #e6f2ff;'  
     if val_str == 'KIA': return 'background-color: #ffe6e6;'  
+    if val_str == 'GM': return 'background-color: #e6e6e6;'
     if val_str == 'DIRECT': return 'background-color: #e6f2ff;' 
     if val_str == 'COMM': return 'background-color: #f2f2f2;' 
     return ''
@@ -139,6 +141,8 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
             base_style = f'background-color: #e6f2ff{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
         elif 'KIA_소계' in row_str:
             base_style = f'background-color: #ffe6e6{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+        elif 'GM_소계' in row_str:
+            base_style = f'background-color: #e6e6e6{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
         elif 'DIRECT_Subtotal_숨김' in row_str:
             base_style = f'background-color: #e6f2ff{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
         elif 'COMM_Subtotal_숨김' in row_str:
@@ -163,6 +167,8 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
                     res.append(f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
                 elif 'KIA_소계' in label_str: 
                     res.append(f'background-color: #ffe6e6{imp}; color: #ffe6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
+                elif 'GM_소계' in label_str: 
+                    res.append(f'background-color: #e6e6e6{imp}; color: #e6e6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
                 elif 'DIRECT_Subtotal_숨김' in label_str:
                     res.append(f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
                 elif 'COMM_Subtotal_숨김' in label_str:
@@ -184,6 +190,8 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
                 return f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
             elif 'KIA_소계' in val_str:
                 return f'background-color: #ffe6e6{imp}; color: #ffe6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+            elif 'GM_소계' in val_str:
+                return f'background-color: #e6e6e6{imp}; color: #e6e6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
             elif 'DIRECT_Subtotal_숨김' in val_str:
                 return f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
             elif 'COMM_Subtotal_숨김' in val_str:
@@ -258,6 +266,9 @@ def post_process_html_styles(html_str):
         elif 'KIA_소계' in row:
             row = row.replace('KIA_소계', '') 
             row = re.sub(r'^<tr', r'<tr class="total-row-kia"', row)
+        elif 'GM_소계' in row:
+            row = row.replace('GM_소계', '') 
+            row = re.sub(r'^<tr', r'<tr class="total-row-gm"', row)
         elif 'DIRECT_Subtotal_숨김' in row:
             row = row.replace('DIRECT_Subtotal_숨김', '') 
             row = re.sub(r'^<tr', r'<tr class="total-row-direct"', row) 
@@ -534,10 +545,12 @@ if uploaded_file:
                 den = subtotal.get((p_name, '26 FC1'), 0)
                 subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
                 
-            combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
-            results.append(combined)
-            
-            if brand != 'GM': 
+            if brand == 'GM':
+                # GM은 상세 리스트 없이 집계(소계) 한 줄만 표시
+                results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
+            else:
+                combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
+                results.append(combined)
                 results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
             
         final_df = pd.concat(results)
