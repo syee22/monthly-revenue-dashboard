@@ -359,7 +359,6 @@ if uploaded_file:
         
         df.loc[(df['Item'] == 'VCMS') & (df['Source'] == 'KEM-KR'), 'Business Type'] = 'Power electronics'
         df.loc[(df['Item'] == 'VCMS') & (df['Source'] == 'KOASIA'), 'Business Type'] = 'Core Business'
-        # df.loc[df['Group 1'] == 'GM', 'Group 2'] = 'GM'  # <- 해당 줄 삭제 (원본 Group 2 보존)
         
         df = df.replace([np.inf, -np.inf], 0)
         df['Year'] = df['Year'].astype(int)
@@ -509,8 +508,9 @@ if uploaded_file:
         results = []
         for brand in ['HYU', 'KIA', 'GM']:
             if brand == 'GM':
-                brand_df = df_biz[df_biz['Group 1'] == 'GM'].copy()
-                prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 1'] == 'GM')
+                # GM 데이터 필터링 기준을 'Project == GM'으로 변경
+                brand_df = df_biz[df_biz['Project'] == 'GM'].copy()
+                prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Project'] == 'GM')
             else:
                 brand_df = df_biz[df_biz['Group 2'] == brand].copy()
                 prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)
@@ -595,10 +595,10 @@ if uploaded_file:
             col_name = f"{MONTH_NAMES[m]}.{str(y)[-2:]}"
             temp_df = df_act[(df_act['Year'] == y) & (df_act['Month'] == m)]
             
-            # Group 2에서 HYU, KIA 찾고, Group 1에서 GM 찾기
+            # Group 2에서 HYU, KIA를 추출하고, Project에서 GM을 필터링하도록 변경
             hyu_val = temp_df[temp_df['Group 2'] == 'HYU']['Rev. (€)'].sum()
             kia_val = temp_df[temp_df['Group 2'] == 'KIA']['Rev. (€)'].sum()
-            gm_val = temp_df[temp_df['Group 1'] == 'GM']['Rev. (€)'].sum()
+            gm_val = temp_df[temp_df['Project'] == 'GM']['Rev. (€)'].sum()
             
             pivot_data[col_name] = {'HYU': hyu_val, 'KIA': kia_val, 'GM': gm_val}
             
@@ -613,9 +613,9 @@ if uploaded_file:
         trend_df.columns = [col.strip() for col in trend_df.columns.values]
         return trend_df
 
-    # ==========================================
-    # 5. 스타일링 및 렌더링
-    # ==========================================
+# ==========================================
+# 5. 스타일링 및 렌더링
+# ==========================================
     def render_html_view(df, phase_curr, apply_color=False, title=None):
         table_id = f"table_{uuid.uuid4().hex[:8]}"
         df_display = df.replace(0, '')
