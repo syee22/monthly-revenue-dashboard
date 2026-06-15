@@ -359,7 +359,7 @@ if uploaded_file:
         
         df.loc[(df['Item'] == 'VCMS') & (df['Source'] == 'KEM-KR'), 'Business Type'] = 'Power electronics'
         df.loc[(df['Item'] == 'VCMS') & (df['Source'] == 'KOASIA'), 'Business Type'] = 'Core Business'
-        df.loc[df['Group 1'] == 'GM', 'Group 2'] = 'GM'
+        # df.loc[df['Group 1'] == 'GM', 'Group 2'] = 'GM'  # <- 해당 줄 삭제 (원본 Group 2 보존)
         
         df = df.replace([np.inf, -np.inf], 0)
         df['Year'] = df['Year'].astype(int)
@@ -508,13 +508,19 @@ if uploaded_file:
         
         results = []
         for brand in ['HYU', 'KIA', 'GM']:
-            brand_df = df_biz[df_biz['Group 2'] == brand].copy()
+            if brand == 'GM':
+                brand_df = df_biz[df_biz['Group 1'] == 'GM'].copy()
+                prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 1'] == 'GM')
+            else:
+                brand_df = df_biz[df_biz['Group 2'] == brand].copy()
+                prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)
+
             if brand_df.empty: continue
             
             p_m = brand_df[brand_df['Month'] == month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             p_y = brand_df[brand_df['Month'] <= month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             p_fy = brand_df.pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-            p_prev = df[(df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+            p_prev = df[prev_mask].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
             
             if "Core" in biz_type and brand in ['HYU', 'KIA']:
                 top = p_m[p_m['ACT'] >= 10000].index if not p_m.empty and 'ACT' in p_m.columns else p_m.index
@@ -588,7 +594,13 @@ if uploaded_file:
         for y, m in months:
             col_name = f"{MONTH_NAMES[m]}.{str(y)[-2:]}"
             temp_df = df_act[(df_act['Year'] == y) & (df_act['Month'] == m)]
-            pivot_data[col_name] = temp_df.groupby('Group 2')['Rev. (€)'].sum()
+            
+            # Group 2에서 HYU, KIA 찾고, Group 1에서 GM 찾기
+            hyu_val = temp_df[temp_df['Group 2'] == 'HYU']['Rev. (€)'].sum()
+            kia_val = temp_df[temp_df['Group 2'] == 'KIA']['Rev. (€)'].sum()
+            gm_val = temp_df[temp_df['Group 1'] == 'GM']['Rev. (€)'].sum()
+            
+            pivot_data[col_name] = {'HYU': hyu_val, 'KIA': kia_val, 'GM': gm_val}
             
         trend_df = pd.DataFrame(pivot_data)
         row_order = ['HYU', 'KIA', 'GM']
@@ -608,7 +620,6 @@ if uploaded_file:
         table_id = f"table_{uuid.uuid4().hex[:8]}"
         df_display = df.replace(0, '')
         
-        # [수정] TTL 열이면 기호 없는 함수 적용, 그 외엔 원래 함수 적용
         format_dict = {}
         for col in df.columns:
             if 'ACHI' in str(col[1]):
@@ -640,7 +651,6 @@ if uploaded_file:
         table_id = f"table_{uuid.uuid4().hex[:8]}"
         df_display = df.replace(0, '')
         
-        # [수정] TTL 열이면 기호 없는 함수 적용, 그 외엔 원래 함수 적용
         format_dict = {}
         for col in df.columns:
             if 'ACHI' in str(col[1]):
