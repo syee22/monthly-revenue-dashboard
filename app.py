@@ -8,7 +8,7 @@ import uuid
 # ==========================================
 # 1. 페이지 설정 및 전역 변수 설정
 # ==========================================
-st.set_page_config(page_title="Sales Revenue & Market Report", layout="wide")
+st.set_page_config(page_title="Sales Revenue & Price Report", layout="wide")
 
 MONTH_NAMES = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
 BIZ_CONFIG = {"Power": "PE Biz", "Core": "Core Biz"}
@@ -328,10 +328,10 @@ def to_excel_multiple(df_dict):
 
 
 # ==========================================
-# 3. 사이드바 메뉴 설정
+# 3. 사이드바 메뉴 설정 (시장동향분석 -> 판매가 조회 변경)
 # ==========================================
 st.sidebar.title("📌 메뉴 설정")
-selected_menu = st.sidebar.radio("원하시는 작업을 선택하세요.", ["매출 보고서", "시장 동향 분석"])
+selected_menu = st.sidebar.radio("원하시는 작업을 선택하세요.", ["매출 보고서", "판매가 조회"])
 st.sidebar.divider()
 
 # ==========================================
@@ -785,23 +785,69 @@ if selected_menu == "매출 보고서":
         st.info("👈 좌측 메뉴에서 '월간 회의용 엑셀 파일'을 업로드하시면 요약 리포트가 생성됩니다.")
 
 # ==========================================
-# 5. 시장 동향 분석 메뉴 로직
+# 5. 판매가 조회 메뉴 로직 (.txt 다중 업로드 및 데이터 통합 기능)
 # ==========================================
-elif selected_menu == "시장 동향 분석":
+elif selected_menu == "판매가 조회":
     
-    st.title("📈 시장 동향 분석 (Market Trend)")
+    st.title("💰 판매가 조회 (Price Lookup)")
     
-    market_file = st.sidebar.file_uploader("시장 동향 분석용 엑셀 데이터를 업로드하세요.", type=['xlsx', 'xls'], key="market_uploader")
+    # 여러 개의 .txt 파일을 한 번에 업로드할 수 있도록 accept_multiple_files=True 설정
+    uploaded_txt_files = st.sidebar.file_uploader(
+        "판매가 TXT 파일들을 업로드하세요. (다중 선택 가능)", 
+        type=['txt'], 
+        accept_multiple_files=True, 
+        key="price_uploader"
+    )
     
-    if market_file:
-        st.success("데이터가 성공적으로 업로드되었습니다! 아래에 분석 결과를 확인하세요.")
+    if uploaded_txt_files:
+        st.success(f"📂 총 {len(uploaded_txt_files)}개의 TXT 파일이 업로드되었습니다.")
         
-        # 향후 이 부분에 데이터 전처리 로직을 추가하시면 됩니다.
-        # 예시: 
-        # df_market = pd.read_excel(market_file)
-        # st.dataframe(df_market)
+        # 파일 내용을 읽어서 하나의 통합 DataFrame으로 구성하는 프레임워크 구축
+        combined_rows = []
         
-        st.info("추후 시장 동향 데이터 분석 차트 및 표가 이 공간에 추가될 예정입니다.")
+        for txt_file in uploaded_txt_files:
+            # 한글 및 유니코드 인코딩 예외 처리
+            try:
+                file_content = txt_file.getvalue().decode("utf-8")
+            except UnicodeDecodeError:
+                file_content = txt_file.getvalue().decode("cp949")  # 윈도우 인코딩 대응
+            
+            # 각 파일 안의 내용을 라인별로 정리하는 기본 예시 구조
+            lines = file_content.split('\n')
+            for line_idx, line in enumerate(lines):
+                if line.strip():  # 빈 줄은 통합에서 제외
+                    combined_rows.append({
+                        "Source_File": txt_file.name,
+                        "Line_No": line_idx + 1,
+                        "Raw_Text": line.strip()
+                    })
+        
+        df_combined = pd.DataFrame(combined_rows)
+        
+        st.subheader("📋 업로드된 TXT 파일 통합 데이터 미리보기")
+        st.dataframe(df_combined, use_container_width=True)
+        
+        # 통합본 엑셀 변환 로직
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df_combined.to_excel(writer, sheet_name="Combined_Data", index=False)
+            
+            # 간단한 열 너비 자동 조정
+            worksheet = writer.sheets["Combined_Data"]
+            worksheet.set_column(0, 0, 25)  # 파일명 열
+            worksheet.set_column(1, 1, 10)  # 라인 번호 열
+            worksheet.set_column(2, 2, 70)  # 내용 열
+            
+        excel_data = output.getvalue()
+        
+        st.write("---")
+        st.download_button(
+            "📥 통합 결과 엑셀 파일로 다운로드", 
+            data=excel_data, 
+            file_name="Integrated_Price_Lookup_Data.xlsx", 
+            use_container_width=True
+        )
+        st.info("💡 추후 텍스트 구성 포맷에 맞는 상세 분리 및 정제 로직(원하시는 분석 조건)을 상기 코드 영역에 배치할 수 있습니다.")
         
     else:
-        st.info("👈 좌측 사이드바에서 '시장 동향 분석용 엑셀 파일'을 업로드해 주세요.")
+        st.info("👈 좌측 사이드바에서 통합하여 정리할 '.txt' 파일들을 드래그 앤 드롭 하거나 여러 개 선택하여 업로드해 주세요.")
