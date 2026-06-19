@@ -14,7 +14,7 @@ MONTH_NAMES = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:
 BIZ_CONFIG = {"Power": "PE Biz", "Core": "Core Biz"}
 
 # ==========================================
-# 전역 CSS 주입 (마크다운 오류 방지용 압축 및 높이/너비 고정)
+# 전역 CSS 주입
 # ==========================================
 st.markdown("""<style>
 .block-container { padding: 2rem 3rem; }
@@ -328,14 +328,14 @@ def to_excel_multiple(df_dict):
 
 
 # ==========================================
-# 3. 사이드바 메뉴 설정 (시장동향분석 -> 판매가 조회 변경)
+# 3. 사이드바 메뉴 설정 
 # ==========================================
 st.sidebar.title("📌 메뉴 설정")
 selected_menu = st.sidebar.radio("원하시는 작업을 선택하세요.", ["매출 보고서", "판매가 조회"])
 st.sidebar.divider()
 
 # ==========================================
-# 4. 메뉴별 메인 로직 분기
+# 4. 메뉴별 메인 로직 분기 (1. 매출 보고서)
 # ==========================================
 if selected_menu == "매출 보고서":
     
@@ -791,7 +791,6 @@ elif selected_menu == "판매가 조회":
     
     st.title("💰 판매가 조회 (Price Lookup)")
     
-    # 여러 개의 .txt 파일을 한 번에 업로드할 수 있도록 accept_multiple_files=True 설정
     uploaded_txt_files = st.sidebar.file_uploader(
         "판매가 TXT 파일들을 업로드하세요. (다중 선택 가능)", 
         type=['txt'], 
@@ -800,54 +799,120 @@ elif selected_menu == "판매가 조회":
     )
     
     if uploaded_txt_files:
-        st.success(f"📂 총 {len(uploaded_txt_files)}개의 TXT 파일이 업로드되었습니다.")
+        st.success(f"📂 총 {len(uploaded_txt_files)}개의 TXT 파일이 업로드되어 규칙에 맞게 처리되었습니다.")
         
-        # 파일 내용을 읽어서 하나의 통합 DataFrame으로 구성하는 프레임워크 구축
-        combined_rows = []
-        
+        parsed_data = []
         for txt_file in uploaded_txt_files:
-            # 한글 및 유니코드 인코딩 예외 처리
             try:
-                file_content = txt_file.getvalue().decode("utf-8")
+                content = txt_file.getvalue().decode('utf-8')
             except UnicodeDecodeError:
-                file_content = txt_file.getvalue().decode("cp949")  # 윈도우 인코딩 대응
+                content = txt_file.getvalue().decode('cp949')  # 한국어 윈도우 인코딩 대응
             
-            # 각 파일 안의 내용을 라인별로 정리하는 기본 예시 구조
-            lines = file_content.split('\n')
-            for line_idx, line in enumerate(lines):
-                if line.strip():  # 빈 줄은 통합에서 제외
-                    combined_rows.append({
-                        "Source_File": txt_file.name,
-                        "Line_No": line_idx + 1,
-                        "Raw_Text": line.strip()
-                    })
-        
-        df_combined = pd.DataFrame(combined_rows)
-        
-        st.subheader("📋 업로드된 TXT 파일 통합 데이터 미리보기")
-        st.dataframe(df_combined, use_container_width=True)
-        
-        # 통합본 엑셀 변환 로직
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df_combined.to_excel(writer, sheet_name="Combined_Data", index=False)
+            lines = content.split('\n')
+            sales_org = ""
+            distr_channel = ""
+            current_customer = ""
             
-            # 간단한 열 너비 자동 조정
-            worksheet = writer.sheets["Combined_Data"]
-            worksheet.set_column(0, 0, 25)  # 파일명 열
-            worksheet.set_column(1, 1, 10)  # 라인 번호 열
-            worksheet.set_column(2, 2, 70)  # 내용 열
+            for line in lines:
+                line = line.strip('\r')
+                
+                # 규칙 1: Sales Org. 추출
+                if line.startswith("Sales Org."):
+                    m = re.search(r'Sales Org\.\s+(\d+)', line)
+                    if m: sales_org = m.group(1)
+                
+                # 규칙 2: Distr. Channel 추출
+                elif line.startswith("Distr. Channel"):
+                    m = re.search(r'Distr\. Channel\s+(\d+)', line)
+                    if m: distr_channel = m.group(1)
+                
+                # 규칙 3: 데이터 행 파싱 (탭으로 시작하는 행)
+                elif line.startswith("\t"):
+                    parts = line.split('\t')
+                    # 시작 탭 제거 처리
+                    if len(parts) > 0 and parts[0] == '': 
+                        parts = parts[1:]
+                    
+                    # 3-1: 고객 정보 인식 (숫자 코드만 있고 Condition Type이 비어있는 줄)
+                    if len(parts) >= 3 and parts[0].isdigit() and parts[1] == '':
+                        current_customer = parts[0].strip()
+                    
+                    # 3-2: 단가(YPR0) 조건 라인 인식
+                    elif len(parts) >= 16 and parts[1] == 'YPR0':
+                        amt_str = parts[10].strip().replace(',', '')
+                        per_str = parts[12].strip().replace(',', '')
+                        
+                        try:
+                            # 규칙 4: PRICE 단가 계산 로직 (Amount / Unit size)
+                            amt = float(amt_str)
+                            per = float(per_str)
+                            price = int(amt / per) if (amt / per).is_integer() else round(amt / per, 2)
+                        except ValueError:
+                            amt = parts[10].strip()
+                            per = parts[12].strip()
+                            price = ""
+                            
+                        parsed_data.append({
+                            "Sales Org.": sales_org,
+                            "Distr. Channel": distr_channel,
+                            "Customer": current_customer,
+                            "CnTy": parts[1],
+                            "Condition Type": parts[2],
+                            "Blank1": "",  # 임시 공백 컬럼 1
+                            "Blank2": "",  # 임시 공백 컬럼 2
+                            "Material": parts[5],
+                            "Material_Desc": parts[6],
+                            "Amount": amt,
+                            "Unit": parts[11],
+                            "Unit_Size": per,
+                            "UoM": parts[13],
+                            "Valid From": parts[14],
+                            "Valid to": parts[15],
+                            "PRICE": price
+                        })
+        
+        # 처리된 데이터가 존재할 경우
+        if parsed_data:
+            df_combined = pd.DataFrame(parsed_data)
             
-        excel_data = output.getvalue()
-        
-        st.write("---")
-        st.download_button(
-            "📥 통합 결과 엑셀 파일로 다운로드", 
-            data=excel_data, 
-            file_name="Integrated_Price_Lookup_Data.xlsx", 
-            use_container_width=True
-        )
-        st.info("💡 추후 텍스트 구성 포맷에 맞는 상세 분리 및 정제 로직(원하시는 분석 조건)을 상기 코드 영역에 배치할 수 있습니다.")
-        
+            st.subheader("📋 정리된 단가(YPR0) 데이터 미리보기")
+            st.dataframe(df_combined, use_container_width=True)
+            
+            # 규칙 5: 결과물 구조와 동일하게 엑셀 출력 준비
+            df_export = df_combined.copy()
+            # 엑셀의 중복 컬럼명, 빈 컬럼명도 결과 파일처럼 그대로 구현 (공백 개수로 차이 부여)
+            df_export.columns = [
+                'Sales Org.', 'Distr. Channel', 'Customer', 'CnTy', 'Condition Type', 
+                '', ' ', 'Material', 'Material ', '     Amount', 'Unit', '  Unit', 'UoM', 'Valid From', 'Valid to', 'PRICE'
+            ]
+            
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                # 규칙 5-1: 결과 엑셀처럼 위에 3행의 빈 공백행을 남기고 시작
+                df_export.to_excel(writer, sheet_name="Result", index=False, startrow=3)
+                
+                # 컬럼 너비 조정 (가독성 최적화)
+                worksheet = writer.sheets["Result"]
+                worksheet.set_column('A:B', 12)
+                worksheet.set_column('C:C', 10)
+                worksheet.set_column('D:E', 15)
+                worksheet.set_column('H:H', 15)
+                worksheet.set_column('I:I', 45) # Material Description 넓게
+                worksheet.set_column('J:J', 13) 
+                worksheet.set_column('N:O', 12) 
+                worksheet.set_column('P:P', 10) 
+                
+            excel_data = output.getvalue()
+            
+            st.write("---")
+            st.download_button(
+                "📥 단가 조회 통합 결과 엑셀 다운로드", 
+                data=excel_data, 
+                file_name="결과.xlsx", 
+                use_container_width=True
+            )
+        else:
+            st.warning("분석할 수 있는 유효한 단가(YPR0) 데이터가 파일에 없습니다.")
+            
     else:
-        st.info("👈 좌측 사이드바에서 통합하여 정리할 '.txt' 파일들을 드래그 앤 드롭 하거나 여러 개 선택하여 업로드해 주세요.")
+        st.info("👈 좌측 사이드바에서 통합하여 정리할 '.txt' 파일들을 여러 개 선택하거나 드래그 앤 드롭 하세요.")
