@@ -829,78 +829,79 @@ elif selected_menu == "판매가 조회":
                 # 규칙 3: 데이터 행 파싱 (탭으로 시작하는 행)
                 elif line.startswith("\t"):
                     parts = line.split('\t')
-                    # 시작 탭 제거 처리
-                    if len(parts) > 0 and parts[0] == '': 
+                    # 시작 탭 공백 제거
+                    if len(parts) > 1:
                         parts = parts[1:]
-                    
-                    # 3-1: 고객 정보 인식 (숫자 코드만 있고 Condition Type이 비어있는 줄)
-                    if len(parts) >= 3 and parts[0].isdigit() and parts[1] == '':
-                        current_customer = parts[0].strip()
-                    
-                    # 3-2: 단가(YPR0) 조건 라인 인식
-                    elif len(parts) >= 16 and parts[1] == 'YPR0':
-                        amt_str = parts[10].strip().replace(',', '')
-                        per_str = parts[12].strip().replace(',', '')
                         
-                        try:
-                            # 규칙 4: PRICE 단가 계산 로직 (Amount / Unit size)
-                            amt = float(amt_str)
-                            per = float(per_str)
-                            price = int(amt / per) if (amt / per).is_integer() else round(amt / per, 2)
-                        except ValueError:
-                            amt = parts[10].strip()
-                            per = parts[12].strip()
-                            price = ""
+                        # 3-1: 고객 정보 인식 (숫자 코드만 있고 다음 항목이 비어있는 줄)
+                        if parts[0].isdigit() and (len(parts) < 2 or parts[1] == ''):
+                            current_customer = parts[0].strip()
+                        
+                        # 3-2: 단가 조건(YPR0, ZADD 등)이 포함된 데이터 라인 인식
+                        # Material(parts[4])과 Amount(parts[9]) 값이 비어있지 않은지 검사
+                        elif len(parts) >= 15 and parts[4].strip() != '' and parts[9].strip() != '':
+                            cnty = parts[0].strip()
+                            cond_type = parts[1].strip()
+                            mat = parts[4].strip()
+                            mat_desc = parts[5].strip()
+                            amt_str = parts[9].strip().replace(',', '')
+                            unit1 = parts[10].strip()
+                            per_str = parts[11].strip().replace(',', '')
+                            uom = parts[12].strip()
+                            v_from = parts[13].strip()
+                            v_to = parts[14].strip()
                             
-                        parsed_data.append({
-                            "Sales Org.": sales_org,
-                            "Distr. Channel": distr_channel,
-                            "Customer": current_customer,
-                            "CnTy": parts[1],
-                            "Condition Type": parts[2],
-                            "Blank1": "",  # 임시 공백 컬럼 1
-                            "Blank2": "",  # 임시 공백 컬럼 2
-                            "Material": parts[5],
-                            "Material_Desc": parts[6],
-                            "Amount": amt,
-                            "Unit": parts[11],
-                            "Unit_Size": per,
-                            "UoM": parts[13],
-                            "Valid From": parts[14],
-                            "Valid to": parts[15],
-                            "PRICE": price
-                        })
+                            try:
+                                # 규칙 4: PRICE 단가 계산 로직 (Amount / Unit size)
+                                amt = float(amt_str)
+                                per = float(per_str)
+                                price = int(amt / per) if (amt / per).is_integer() else round(amt / per, 2)
+                            except ValueError:
+                                amt = parts[9].strip()
+                                per = parts[11].strip()
+                                price = ""
+                                
+                            parsed_data.append({
+                                "Sales Org.": sales_org,
+                                "Distr. Channel": distr_channel,
+                                "Customer": current_customer,
+                                "CnTy": cnty,
+                                "Condition Type": cond_type,
+                                "Material": mat,
+                                "Material ": mat_desc,  # 중복 열 이름 방지용 공백
+                                "     Amount": amt,
+                                "Unit": unit1,
+                                "  Unit": per,          # 중복 열 이름 방지용 공백
+                                "UoM": uom,
+                                "Valid From": v_from,
+                                "Valid to": v_to,
+                                "Price": price
+                            })
         
         # 처리된 데이터가 존재할 경우
         if parsed_data:
-            df_combined = pd.DataFrame(parsed_data)
+            df_export = pd.DataFrame(parsed_data)
             
-            st.subheader("📋 정리된 단가(YPR0) 데이터 미리보기")
-            st.dataframe(df_combined, use_container_width=True)
-            
-            # 규칙 5: 결과물 구조와 동일하게 엑셀 출력 준비
-            df_export = df_combined.copy()
-            # 엑셀의 중복 컬럼명, 빈 컬럼명도 결과 파일처럼 그대로 구현 (공백 개수로 차이 부여)
-            df_export.columns = [
-                'Sales Org.', 'Distr. Channel', 'Customer', 'CnTy', 'Condition Type', 
-                '', ' ', 'Material', 'Material ', '     Amount', 'Unit', '  Unit', 'UoM', 'Valid From', 'Valid to', 'PRICE'
-            ]
+            st.subheader("📋 정리된 통합 데이터 미리보기")
+            st.dataframe(df_export, use_container_width=True)
             
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                # 규칙 5-1: 결과 엑셀처럼 위에 3행의 빈 공백행을 남기고 시작
-                df_export.to_excel(writer, sheet_name="Result", index=False, startrow=3)
+                # 규칙 5: Sheet2 구조와 동일하게 상단에 2줄의 공백행을 남기고 시작 (startrow=2)
+                df_export.to_excel(writer, sheet_name="Sheet2", index=False, startrow=2)
                 
                 # 컬럼 너비 조정 (가독성 최적화)
-                worksheet = writer.sheets["Result"]
+                worksheet = writer.sheets["Sheet2"]
                 worksheet.set_column('A:B', 12)
                 worksheet.set_column('C:C', 10)
                 worksheet.set_column('D:E', 15)
-                worksheet.set_column('H:H', 15)
-                worksheet.set_column('I:I', 45) # Material Description 넓게
-                worksheet.set_column('J:J', 13) 
-                worksheet.set_column('N:O', 12) 
-                worksheet.set_column('P:P', 10) 
+                worksheet.set_column('F:F', 12)
+                worksheet.set_column('G:G', 45) # Material Description 넓게
+                worksheet.set_column('H:H', 13) 
+                worksheet.set_column('I:J', 8) 
+                worksheet.set_column('K:K', 5) 
+                worksheet.set_column('L:M', 12) 
+                worksheet.set_column('N:N', 10) 
                 
             excel_data = output.getvalue()
             
@@ -912,7 +913,7 @@ elif selected_menu == "판매가 조회":
                 use_container_width=True
             )
         else:
-            st.warning("분석할 수 있는 유효한 단가(YPR0) 데이터가 파일에 없습니다.")
+            st.warning("분석할 수 있는 유효한 데이터가 파일에 없습니다.")
             
     else:
         st.info("👈 좌측 사이드바에서 통합하여 정리할 '.txt' 파일들을 여러 개 선택하거나 드래그 앤 드롭 하세요.")
