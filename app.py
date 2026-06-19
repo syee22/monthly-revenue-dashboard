@@ -788,25 +788,24 @@ if selected_menu == "매출 보고서":
 # 5. 판매가 조회 메뉴 로직 (.txt 다중 업로드 및 데이터 통합 기능)
 # ==========================================
 elif selected_menu == "판매가 조회":
-    
     st.title("💰 판매가 조회 (Price Lookup)")
     
     uploaded_txt_files = st.sidebar.file_uploader(
-        "판매가 TXT 파일들을 업로드하세요. (다중 선택 가능)", 
+        "판매가 TXT 파일들을 업로드하세요.", 
         type=['txt'], 
         accept_multiple_files=True, 
         key="price_uploader"
     )
     
     if uploaded_txt_files:
-        st.success(f"📂 총 {len(uploaded_txt_files)}개의 TXT 파일이 업로드되어 규칙에 맞게 처리되었습니다.")
+        st.success(f"📂 총 {len(uploaded_txt_files)}개의 파일을 처리 중입니다.")
         
         parsed_data = []
         for txt_file in uploaded_txt_files:
             try:
                 content = txt_file.getvalue().decode('utf-8')
             except UnicodeDecodeError:
-                content = txt_file.getvalue().decode('cp949')  # 한국어 윈도우 인코딩 대응
+                content = txt_file.getvalue().decode('cp949')
             
             lines = content.split('\n')
             sales_org = ""
@@ -816,49 +815,44 @@ elif selected_menu == "판매가 조회":
             for line in lines:
                 line = line.strip('\r')
                 
-                # 규칙 1: Sales Org. 추출
+                # Sales Org 및 Distr. Channel 추출
                 if line.startswith("Sales Org."):
                     m = re.search(r'Sales Org\.\s+(\d+)', line)
                     if m: sales_org = m.group(1)
-                
-                # 규칙 2: Distr. Channel 추출
                 elif line.startswith("Distr. Channel"):
                     m = re.search(r'Distr\. Channel\s+(\d+)', line)
                     if m: distr_channel = m.group(1)
                 
-                # 규칙 3: 데이터 행 파싱 (탭으로 시작하는 행)
+                # 데이터 행 파싱 (탭으로 시작하는 행)
                 elif line.startswith("\t"):
                     parts = line.split('\t')
-                    # 시작 탭 공백 제거
                     if len(parts) > 1:
-                        parts = parts[1:]
+                        # 탭 제거 후 데이터 정렬
+                        parts = [p.strip() for p in parts]
                         
-                        # 3-1: 고객 정보 인식 (숫자 코드만 있고 다음 항목이 비어있는 줄)
-                        if parts[0].isdigit() and (len(parts) < 2 or parts[1] == ''):
-                            current_customer = parts[0].strip()
+                        # 1. 고객 정보 행 인식 (첫 칸이 숫자이고, 두 번째 칸이 비어있는 경우)
+                        if parts[1].isdigit() and parts[2] == '':
+                            current_customer = parts[1]
                         
-                        # 3-2: 단가 조건(YPR0, ZADD 등)이 포함된 데이터 라인 인식
-                        # Material(parts[4])과 Amount(parts[9]) 값이 비어있지 않은지 검사
-                        elif len(parts) >= 15 and parts[4].strip() != '' and parts[9].strip() != '':
-                            cnty = parts[0].strip()
-                            cond_type = parts[1].strip()
-                            mat = parts[4].strip()
-                            mat_desc = parts[5].strip()
-                            amt_str = parts[9].strip().replace(',', '')
-                            unit1 = parts[10].strip()
-                            per_str = parts[11].strip().replace(',', '')
-                            uom = parts[12].strip()
-                            v_from = parts[13].strip()
-                            v_to = parts[14].strip()
+                        # 2. 데이터 행 인식 (Condition Type이 YPR0, ZADD 등 유효한 값인 경우만)
+                        # 이전처럼 막연한 체크가 아니라, Condition Type 위치(parts[2])를 검사합니다.
+                        elif len(parts) >= 16 and parts[2] in ['YPR0', 'ZADD']:
+                            cnty = parts[1]
+                            cond_type = parts[2]
+                            mat = parts[5]
+                            mat_desc = parts[6]
+                            amt_str = parts[10].replace(',', '')
+                            unit1 = parts[11]
+                            per_str = parts[12].replace(',', '')
+                            uom = parts[13]
+                            v_from = parts[14]
+                            v_to = parts[15]
                             
                             try:
-                                # 규칙 4: PRICE 단가 계산 로직 (Amount / Unit size)
                                 amt = float(amt_str)
                                 per = float(per_str)
                                 price = int(amt / per) if (amt / per).is_integer() else round(amt / per, 2)
-                            except ValueError:
-                                amt = parts[9].strip()
-                                per = parts[11].strip()
+                            except:
                                 price = ""
                                 
                             parsed_data.append({
@@ -868,52 +862,38 @@ elif selected_menu == "판매가 조회":
                                 "CnTy": cnty,
                                 "Condition Type": cond_type,
                                 "Material": mat,
-                                "Material ": mat_desc,  # 중복 열 이름 방지용 공백
-                                "     Amount": amt,
+                                "Material Description": mat_desc,
+                                "Amount": amt if isinstance(amt, float) else 0,
                                 "Unit": unit1,
-                                "  Unit": per,          # 중복 열 이름 방지용 공백
+                                "Unit Size": per if isinstance(per, float) else 0,
                                 "UoM": uom,
                                 "Valid From": v_from,
                                 "Valid to": v_to,
                                 "Price": price
                             })
         
-        # 처리된 데이터가 존재할 경우
         if parsed_data:
-            df_export = pd.DataFrame(parsed_data)
+            df_final = pd.DataFrame(parsed_data)
             
-            st.subheader("📋 정리된 통합 데이터 미리보기")
-            st.dataframe(df_export, use_container_width=True)
+            st.subheader("📋 정제된 단가 데이터")
+            st.dataframe(df_final, use_container_width=True)
             
+            # 엑셀 다운로드 (상단 2행 공백)
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                # 규칙 5: Sheet2 구조와 동일하게 상단에 2줄의 공백행을 남기고 시작 (startrow=2)
-                df_export.to_excel(writer, sheet_name="Sheet2", index=False, startrow=2)
+                df_final.to_excel(writer, sheet_name="Sheet2", index=False, startrow=2)
                 
-                # 컬럼 너비 조정 (가독성 최적화)
-                worksheet = writer.sheets["Sheet2"]
-                worksheet.set_column('A:B', 12)
-                worksheet.set_column('C:C', 10)
-                worksheet.set_column('D:E', 15)
-                worksheet.set_column('F:F', 12)
-                worksheet.set_column('G:G', 45) # Material Description 넓게
-                worksheet.set_column('H:H', 13) 
-                worksheet.set_column('I:J', 8) 
-                worksheet.set_column('K:K', 5) 
-                worksheet.set_column('L:M', 12) 
-                worksheet.set_column('N:N', 10) 
+                # 열 너비 조정 및 포맷팅
+                ws = writer.sheets["Sheet2"]
+                ws.set_column('A:B', 12)
+                ws.set_column('C:C', 10)
+                ws.set_column('G:G', 40)
                 
-            excel_data = output.getvalue()
-            
-            st.write("---")
             st.download_button(
-                "📥 단가 조회 통합 결과 엑셀 다운로드", 
-                data=excel_data, 
+                "📥 통합 결과 엑셀 다운로드", 
+                data=output.getvalue(), 
                 file_name="결과.xlsx", 
                 use_container_width=True
             )
         else:
-            st.warning("분석할 수 있는 유효한 데이터가 파일에 없습니다.")
-            
-    else:
-        st.info("👈 좌측 사이드바에서 통합하여 정리할 '.txt' 파일들을 여러 개 선택하거나 드래그 앤 드롭 하세요.")
+            st.warning("분석할 수 있는 데이터가 없습니다. txt 파일 형식을 확인해주세요.")
