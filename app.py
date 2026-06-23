@@ -426,9 +426,12 @@ if selected_menu == "매출 보고서":
                 
                 # 3. Top 5 선정 및 Others 처리 (기준: 월간 ACT)
                 top_n = 5
-                # 0이 아닌 것들 중 상위 5개
-                active_projects = df_all[df_all[(p_curr, 'ACT')] > 0]
-                top_indices = active_projects.sort_values(by=(p_curr, 'ACT'), ascending=False).head(top_n).index
+                # [수정] 해당 컬럼이 존재하는지 체크
+                if (p_curr, 'ACT') in df_all.columns:
+                    active_projects = df_all[df_all[(p_curr, 'ACT')] > 0]
+                    top_indices = active_projects.sort_values(by=(p_curr, 'ACT'), ascending=False).head(top_n).index
+                else:
+                    top_indices = []
                 
                 top_df = df_all.loc[df_all.index.isin(top_indices)].sort_values(by=(p_curr, 'ACT'), ascending=False)
                 others_df = df_all.loc[~df_all.index.isin(top_indices)].sum().to_frame().T
@@ -446,7 +449,6 @@ if selected_menu == "매출 보고서":
                 
                 # 4. 안전한 인덱스 재구성
                 new_index = []
-                # 마지막 행은 소계임이 보장됨
                 for i, idx in enumerate(final_brand_df.index):
                     if i == len(final_brand_df) - 1:
                         new_index.append((brand, f'{brand}_소계', '', ''))
