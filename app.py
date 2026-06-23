@@ -412,16 +412,19 @@ if selected_menu == "매출 보고서":
                     if not all_idx: continue
                     
                     idx = pd.MultiIndex.from_tuples(sorted(list(all_idx)), names=['Project', 'Con.', 'SOP'])
-                    p_prev, p_m, p_y, p_fy = p_prev.reindex(idx, fill_value=0), p_m.reindex(idx, fill_value=0), p_y.reindex(idx, fill_value=0), p_fy.reindex(idx, fill_value=0)
+                    p_prev, p_m, p_y, p_fy = [d.reindex(idx, fill_value=0) for d in [p_prev, p_m, p_y, p_fy]]
                     
+                    # [수정된 로직] Core Biz의 경우, 월간 ACT 기준으로 Top을 고정함
                     if "Core" in biz_type and brand in ['HYU', 'KIA']:
-                        top = (p_m['ACT'] if 'ACT' in p_m.columns else pd.Series(0, index=idx))[lambda x: x >= 10000].index
-                        def group_others(p):
-                            if p.empty: return pd.DataFrame(columns=['25 FC3', '26 FC1', 'ACT']).reindex(pd.MultiIndex.from_tuples([], names=['Project', 'Con.', 'SOP']))
-                            oth = p.loc[~p.index.isin(top)].sum().to_frame().T
-                            oth.index = pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP'])
-                            return pd.concat([p.loc[p.index.isin(top)], oth])
-                        p_m, p_y, p_fy, p_prev = group_others(p_m), group_others(p_y), group_others(p_fy), group_others(p_prev)
+                        top_indices = p_m.loc[p_m.get('ACT', 0) >= 10000].index
+                        
+                        def process_with_others(df_subset, tops):
+                            top_df = df_subset.loc[df_subset.index.isin(tops)]
+                            others_df = df_subset.loc[~df_subset.index.isin(tops)].sum().to_frame().T
+                            others_df.index = pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP'])
+                            return pd.concat([top_df, others_df])
+                        
+                        p_m, p_y, p_fy, p_prev = [process_with_others(d, top_indices) for d in [p_m, p_y, p_fy, p_prev]]
                         idx = p_m.index
                         
                     combined_dict = {(prev_phase_name, 'ACT'): p_prev['ACT'] if 'ACT' in p_prev.columns else pd.Series(0, index=idx)}
@@ -430,8 +433,12 @@ if selected_menu == "매출 보고서":
                         combined_dict[(phase_name, 'ACHI %')] = pd.Series(combined_dict[(phase_name, 'ACT')]).div(pd.Series(combined_dict[(phase_name, '26 FC1')])).replace([np.inf, -np.inf], 0).fillna(0)
                     
                     combined = pd.DataFrame(combined_dict, index=idx)
-                    if ('Others', '', '') in combined.index: combined = pd.concat([combined.drop(index=('Others', '', '')).sort_values(by=(phase_names[0], 'ACT'), ascending=False), combined.loc[[('Others', '', '')]]])
-                    elif not combined.empty and (phase_names[0], 'ACT') in combined.columns: combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
+                    # 정렬: 'Others'는 항상 맨 아래로
+                    if ('Others', '', '') in combined.index: 
+                        others_row = combined.loc[[('Others', '', '')]]
+                        combined = pd.concat([combined.drop(index=('Others', '', '')).sort_values(by=(phase_names[0], 'ACT'), ascending=False), others_row])
+                    elif not combined.empty and (phase_names[0], 'ACT') in combined.columns: 
+                        combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
                     
                     subtotal = combined.sum(numeric_only=True) if not combined.empty else pd.Series(0, index=combined.columns)
                     for p_name in phase_names:
