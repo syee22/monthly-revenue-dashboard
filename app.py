@@ -526,22 +526,36 @@ if selected_menu == "매출 보고서":
                 if '26 FC1' not in chart2_pivot.columns: chart2_pivot['26 FC1'] = 0
                 if 'ACT' not in chart2_pivot.columns: chart2_pivot['ACT'] = 0
                 
-                # --- [추가/수정] Hover 툴팁에 상위 5개 프로젝트 내역 추가 ---
+                # --- [수정] FC1 데이터와 ACT 데이터를 각각 개별 정렬 및 맵핑 생성 ---
+                fc1_proj_df = df_chart2[df_chart2['Desc.'] == '26 FC1'].groupby(['CPS', 'Project'])['Rev. (€)'].sum().reset_index()
                 act_proj_df = df_chart2[df_chart2['Desc.'] == 'ACT'].groupby(['CPS', 'Project'])['Rev. (€)'].sum().reset_index()
                 
-                hover_texts = []
-                for cps in chart2_pivot['CPS']:
-                    cps_projs = act_proj_df[act_proj_df['CPS'] == cps].sort_values(by='Rev. (€)', ascending=False).head(5)
-                    if not cps_projs.empty:
-                        text_lines = ["<br><b>[Top 5 Projects (ACT)]</b>"]
-                        for rank, (_, row) in enumerate(cps_projs.iterrows(), 1):
-                            val_k = row['Rev. (€)'] / 1000.0
-                            text_lines.append(f"{rank}. {row['Project']} : {val_k:,.0f} K.€")
-                        hover_texts.append("<br>".join(text_lines))
-                    else:
-                        hover_texts.append("<br><b>[No ACT Data]</b>")
+                fc1_hover_texts = []
+                act_hover_texts = []
                 
-                chart2_pivot['hover_text'] = hover_texts
+                for cps in chart2_pivot['CPS']:
+                    # 1. FC1 기준 상위 5개 프로젝트 추출
+                    cps_fc1 = fc1_proj_df[fc1_proj_df['CPS'] == cps].sort_values(by='Rev. (€)', ascending=False).head(5)
+                    if not cps_fc1.empty:
+                        lines = ["<br><b>[Top 5 Projects (FC1 Target)]</b>"]
+                        for rank, (_, row) in enumerate(cps_fc1.iterrows(), 1):
+                            lines.append(f"{rank}. {row['Project']} : {row['Rev. (€)'] / 1000.0:,.0f} K.€")
+                        fc1_hover_texts.append("<br>".join(lines))
+                    else:
+                        fc1_hover_texts.append("<br><b>[No FC1 Data]</b>")
+                        
+                    # 2. ACT 기준 상위 5개 프로젝트 추출
+                    cps_act = act_proj_df[act_proj_df['CPS'] == cps].sort_values(by='Rev. (€)', ascending=False).head(5)
+                    if not cps_act.empty:
+                        lines = ["<br><b>[Top 5 Projects (ACT Actual)]</b>"]
+                        for rank, (_, row) in enumerate(cps_act.iterrows(), 1):
+                            lines.append(f"{rank}. {row['Project']} : {row['Rev. (€)'] / 1000.0:,.0f} K.€")
+                        act_hover_texts.append("<br>".join(lines))
+                    else:
+                        act_hover_texts.append("<br><b>[No ACT Data]</b>")
+                
+                chart2_pivot['fc1_hover'] = fc1_hover_texts
+                chart2_pivot['act_hover'] = act_hover_texts
                 # -------------------------------------------------------------
                 
                 fig2 = go.Figure(data=[
@@ -549,13 +563,13 @@ if selected_menu == "매출 보고서":
                            x=chart2_pivot['CPS'], 
                            y=chart2_pivot['26 FC1'], 
                            marker_color='#c7c7c7',
-                           customdata=chart2_pivot['hover_text'],
+                           customdata=chart2_pivot['fc1_hover'],
                            hovertemplate="<b>CPS: %{x}</b><br>FC1: %{y:,.0f} K.€%{customdata}<extra></extra>"),
                     go.Bar(name='ACT', 
                            x=chart2_pivot['CPS'], 
                            y=chart2_pivot['ACT'], 
                            marker_color='#1f77b4',
-                           customdata=chart2_pivot['hover_text'],
+                           customdata=chart2_pivot['act_hover'],
                            hovertemplate="<b>CPS: %{x}</b><br>ACT: %{y:,.0f} K.€%{customdata}<extra></extra>")
                 ])
                 fig2.update_layout(barmode='group', title=f'[{MONTH_NAMES.get(selected_month)}] FC1 vs ACT by CPS (K.€)',
