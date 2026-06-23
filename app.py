@@ -317,7 +317,8 @@ def to_excel_multiple(df_dict):
                 df.index = pd.MultiIndex.from_tuples(new_tuples, names=df.index.names)
             
             styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
-            apply_color = sheet_name in ["PE_HKMC_Summary", "PE_Biz_Detailed", "Core_Biz", "Biz_Type_Summary"]
+            # 새로 추가되는 시트들에도 공통 색상이 반영되도록 설정합니다.
+            apply_color = sheet_name in ["PE_HKMC_Summary", "PE_Biz_Detailed", "Core_Biz", "Biz_Type_Summary", "Group2_Project_Summary"]
             styler = apply_common_styles(styler, apply_hkmc_color=apply_color, is_export=True)
             
             styler.to_excel(writer, sheet_name=sheet_name[:31])
@@ -742,6 +743,28 @@ if selected_menu == "매출 보고서":
             st.markdown(render_html_view(df_item, c_col, apply_color=False), unsafe_allow_html=True)
             reports_to_download["Item_Summary"] = df_item
 
+        # ==========================================
+        # [신규 추가] 세부 매출 리포트
+        # ==========================================
+        st.subheader("📌 Group 2 & Project별 매출액 요약")
+        df_group2_proj, p_col, c_col = build_summary_report(raw_df, ['Group 2', 'Project'], selected_year, selected_month, 'TTL (K.€)', sort_by_current_act=True)
+        if not df_group2_proj.empty:
+            st.markdown(render_html_view(df_group2_proj, c_col, apply_color=True), unsafe_allow_html=True)
+            reports_to_download["Group2_Project_Summary"] = df_group2_proj
+
+        st.subheader("📌 Platform(PF)별 매출액 요약")
+        df_pf, p_col, c_col = build_summary_report(raw_df, ['PF'], selected_year, selected_month, 'TTL (K.€)', sort_by_current_act=True)
+        if not df_pf.empty:
+            st.markdown(render_html_view(df_pf, c_col, apply_color=False), unsafe_allow_html=True)
+            reports_to_download["PF_Summary"] = df_pf
+            
+        st.subheader("📌 통화(Currency)별 매출액 요약")
+        df_curr, p_col, c_col = build_summary_report(raw_df, ['Curr.'], selected_year, selected_month, 'TTL (K.€)', sort_by_current_act=True)
+        if not df_curr.empty:
+            st.markdown(render_html_view(df_curr, c_col, apply_color=False), unsafe_allow_html=True)
+            reports_to_download["Currency_Summary"] = df_curr
+        # ==========================================
+
         st.subheader("📌 DIRECT & COMMISSION 매출액 요약")
         df_biz_type, c_col = get_biz_type_detailed_report(raw_df, selected_year, selected_month)
         if not df_biz_type.empty: 
@@ -835,7 +858,6 @@ elif selected_menu == "판매가 조회":
                             current_customer = parts[1]
                         
                         # 2. 데이터 행 인식 (Condition Type이 YPR0, ZADD 등 유효한 값인 경우만)
-                        # 이전처럼 막연한 체크가 아니라, Condition Type 위치(parts[2])를 검사합니다.
                         elif len(parts) >= 16 and parts[2] in ['YPR0', 'ZADD']:
                             cnty = parts[1]
                             cond_type = parts[2]
