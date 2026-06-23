@@ -222,7 +222,46 @@ def to_excel_multiple(df_dict):
             for i in range(len(df.columns)): worksheet.set_column(i+1, i+1, 15)
     return output.getvalue()
 
-
+def render_biz_html_table(df, phase_curr, apply_color=False):
+    """
+    Business Unit별 상세 데이터를 HTML 표로 렌더링하는 함수입니다.
+    데이터프레임의 인덱스 구조와 기간별 매출 정보를 시각화합니다.
+    """
+    table_id = f"table_{uuid.uuid4().hex[:8]}"
+    df_display = df.replace(0, '')
+    
+    # 1. 컬럼별 포맷팅 설정
+    # (ACHI는 퍼센트 포맷, 나머지는 K.€ 포맷 적용)
+    format_dict = {}
+    for col in df.columns:
+        # col은 (Period, Metric) 형태의 튜플임
+        if 'ACHI' in str(col[1]):
+            if 'TTL' in str(col[0]):
+                format_dict[col] = format_percentage_html_no_trend
+            else:
+                format_dict[col] = format_percentage_html
+        else:
+            format_dict[col] = format_k_val
+            
+    # 2. Styler 객체 생성 및 기본 속성 부여
+    styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table biz-table"')
+    
+    # 3. 숫자 컬럼 우측 정렬
+    numeric_cols = get_numeric_cols(df)
+    styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
+    
+    # 4. 공통 스타일 적용 (소계 색상 등)
+    styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
+    
+    # 5. HTML 변환 및 구조 최적화
+    html_str = styler.to_html()
+    html_str = optimize_html_headers(html_str, df)
+    html_str = post_process_html_styles(html_str)
+    
+    # 6. 동적 CSS 스타일 주입 (선택된 기간 강조)
+    css_str = get_dynamic_highlight_css(table_id, df, phase_curr)
+    
+    return f'{css_str}<div id="{table_id}" class="table-container">{html_str}</div>'
 # ==========================================
 # 3. 사이드바 메뉴 설정 
 # ==========================================
