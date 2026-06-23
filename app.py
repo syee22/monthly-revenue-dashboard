@@ -4,6 +4,8 @@ import numpy as np
 import io
 import re
 import uuid
+import plotly.express as px
+import plotly.graph_objects as go
 
 # ==========================================
 # 1. 페이지 설정 및 전역 변수 설정
@@ -36,31 +38,11 @@ h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0
 .report-table tr.total-row-comm th, .report-table tr.total-row-comm td { background-color: #d0d0d0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
 .report-table.biz-table .row_heading { text-align: center !important; padding-left: 4px !important; padding-right: 4px !important; }
 
-/* Con. 및 SOP 열 (인덱스 레벨 2, 3) 50px 강제 고정 CSS */
 .report-table th.level2, .report-table th.level3, .report-table.biz-table th.level2, .report-table.biz-table th.level3 { 
-    width: 50px !important; 
-    min-width: 50px !important; 
-    max-width: 50px !important; 
-    padding-left: 2px !important; 
-    padding-right: 2px !important; 
-    text-align: center !important; 
-    font-size: 11px !important; 
-    white-space: normal !important; 
-    word-break: break-all !important; 
+    width: 50px !important; min-width: 50px !important; max-width: 50px !important; padding-left: 2px !important; padding-right: 2px !important; text-align: center !important; font-size: 11px !important; white-space: normal !important; word-break: break-all !important; 
 }
-
-/* 데이터가 담긴 행(tbody) 높이 15px 강제 고정 */
-.report-table tbody tr { 
-    height: 15px !important; 
-    max-height: 15px !important;
-}
-.report-table tbody td, .report-table tbody th { 
-    height: 15px !important; 
-    max-height: 15px !important;
-    padding-top: 0px !important; 
-    padding-bottom: 0px !important; 
-    line-height: 15px !important; 
-}
+.report-table tbody tr { height: 15px !important; max-height: 15px !important; }
+.report-table tbody td, .report-table tbody th { height: 15px !important; max-height: 15px !important; padding-top: 0px !important; padding-bottom: 0px !important; line-height: 15px !important; }
 </style>""", unsafe_allow_html=True)
 
 # ==========================================
@@ -71,28 +53,22 @@ def get_trend_highlight_css(table_id):
 
 def get_dynamic_highlight_css(table_id, df, highlight_phase):
     if not highlight_phase: return ""
-    
     cols = list(df.columns)
     start_col, end_col = -1, -1
     level0_cols = []
-
     for i, col in enumerate(cols):
         c0 = col[0] if isinstance(col, tuple) else str(col)
-        if not level0_cols or level0_cols[-1] != c0:
-            level0_cols.append(c0)
+        if not level0_cols or level0_cols[-1] != c0: level0_cols.append(c0)
         if c0 == highlight_phase:
             if start_col == -1: start_col = i
             end_col = i
-
     if start_col == -1: return ""
-
     num_indices = df.index.nlevels
     target_th_row0 = num_indices + level0_cols.index(highlight_phase) + 1
     target_th_row1_start = start_col + 1
     target_th_row1_end = end_col + 1
     td_start = start_col + 1
     td_end = end_col + 1
-
     return f"<style>#{table_id} thead tr:nth-child(1) th:nth-child({target_th_row0}) {{ border-top: 5px solid #c00000 !important; border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:nth-of-type(n+{td_start}):nth-of-type(-n+{td_end}) {{ border-bottom: 5px solid #c00000 !important; }}</style>"
 
 def format_k_val(val):
@@ -108,20 +84,16 @@ def format_percentage_html(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
     pct_str = f"{val:.0%}"
     shadow = "text-shadow: 1px 1px 1px rgba(0,0,0,0.3);"
-    
     if 0.95 <= val <= 1.0:
         bar_html = '<span style="display:inline-block; width:9.5px; height:2px; background-color:#404040; vertical-align:middle; margin-bottom:1px; margin-left:3px;"></span>'
         return f'<span style="color: #404040; font-style: italic;">{pct_str} {bar_html}</span>'
-    elif val > 1.0:
-        return f'<span style="color: #145A32; font-style: italic;">{pct_str} <span style="{shadow}">▲</span></span>'
-    elif val > 0:
-        return f'<span style="color: #B03A2E; font-style: italic;">{pct_str} <span style="{shadow}">▼</span></span>'
+    elif val > 1.0: return f'<span style="color: #145A32; font-style: italic;">{pct_str} <span style="{shadow}">▲</span></span>'
+    elif val > 0: return f'<span style="color: #B03A2E; font-style: italic;">{pct_str} <span style="{shadow}">▼</span></span>'
     return f'<span style="font-style: italic;">{pct_str}</span>'
 
 def format_percentage_html_no_trend(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
-    pct_str = f"{val:.0%}"
-    return f'<span style="color: #000000; font-weight: bold; font-style: italic;">{pct_str}</span>'
+    return f'<span style="color: #000000; font-weight: bold; font-style: italic;">{val:.0%}</span>'
 
 def color_index_cells(v):
     val_str = str(v)
@@ -134,28 +106,17 @@ def color_index_cells(v):
 
 def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
     imp = "" if is_export else " !important"
-    
     def style_row(row):
         row_str = str(row.name)
-        base_style = ''
-        if 'HYU_소계' in row_str:
-            base_style = f'background-color: #e6f2ff{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-        elif 'KIA_소계' in row_str:
-            base_style = f'background-color: #ffe6e6{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-        elif 'GM_소계' in row_str:
-            base_style = f'background-color: #e6e6e6{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-        elif 'DIRECT_Subtotal_숨김' in row_str:
-            base_style = f'background-color: #e6f2ff{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-        elif 'COMM_Subtotal_숨김' in row_str:
-            base_style = f'background-color: #f2f2f2{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-        elif 'Unknown_Subtotal_숨김' in row_str:
-            base_style = f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-        elif 'GRAND_TOTAL_MERGE' in row_str:
-            base_style = f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-        elif any(keyword in row_str for keyword in ['TTL', 'Total', '소계']):
-            base_style = f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-        
-        return [base_style] * len(row)
+        base = ''
+        if 'HYU_소계' in row_str: base = f'background-color: #e6f2ff{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+        elif 'KIA_소계' in row_str: base = f'background-color: #ffe6e6{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+        elif 'GM_소계' in row_str: base = f'background-color: #e6e6e6{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+        elif 'DIRECT_Subtotal_숨김' in row_str: base = f'background-color: #e6f2ff{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+        elif 'COMM_Subtotal_숨김' in row_str: base = f'background-color: #f2f2f2{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+        elif 'Unknown_Subtotal_숨김' in row_str: base = f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+        elif 'GRAND_TOTAL_MERGE' in row_str or any(k in row_str for k in ['TTL', 'Total', '소계']): base = f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+        return [base] * len(row)
     
     styler.apply(style_row, axis=1)
     
@@ -163,141 +124,78 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
         def style_row_index(idx):
             res = []
             for label in idx:
-                label_str = str(label)
-                if 'HYU_소계' in label_str: 
-                    res.append(f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                elif 'KIA_소계' in label_str: 
-                    res.append(f'background-color: #ffe6e6{imp}; color: #ffe6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                elif 'GM_소계' in label_str: 
-                    res.append(f'background-color: #e6e6e6{imp}; color: #e6e6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                elif 'DIRECT_Subtotal_숨김' in label_str:
-                    res.append(f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                elif 'COMM_Subtotal_숨김' in label_str:
-                    res.append(f'background-color: #f2f2f2{imp}; color: #f2f2f2; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                elif 'Unknown_Subtotal_숨김' in label_str:
-                    res.append(f'background-color: #ffffe0{imp}; color: #ffffe0; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                elif 'GRAND_TOTAL_MERGE' in label_str:
-                    res.append(f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                elif any(k in label_str for k in ['TTL', 'Total', '소계']):
-                    res.append(f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                else: 
-                    res.append('')
+                l = str(label)
+                if 'HYU_소계' in l: res.append(f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
+                elif 'KIA_소계' in l: res.append(f'background-color: #ffe6e6{imp}; color: #ffe6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
+                elif 'GM_소계' in l: res.append(f'background-color: #e6e6e6{imp}; color: #e6e6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
+                elif 'DIRECT_Subtotal_숨김' in l: res.append(f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
+                elif 'COMM_Subtotal_숨김' in l: res.append(f'background-color: #f2f2f2{imp}; color: #f2f2f2; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
+                elif 'Unknown_Subtotal_숨김' in l: res.append(f'background-color: #ffffe0{imp}; color: #ffffe0; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
+                elif 'GRAND_TOTAL_MERGE' in l or any(k in l for k in ['TTL', 'Total', '소계']): res.append(f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
+                else: res.append('')
             return res
         styler.apply_index(style_row_index, axis=0)
     else:
         def highlight_total_index(val):
-            val_str = str(val)
-            if 'HYU_소계' in val_str:
-                return f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-            elif 'KIA_소계' in val_str:
-                return f'background-color: #ffe6e6{imp}; color: #ffe6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-            elif 'GM_소계' in val_str:
-                return f'background-color: #e6e6e6{imp}; color: #e6e6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-            elif 'DIRECT_Subtotal_숨김' in val_str:
-                return f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-            elif 'COMM_Subtotal_숨김' in val_str:
-                return f'background-color: #f2f2f2{imp}; color: #f2f2f2; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-            elif 'Unknown_Subtotal_숨김' in val_str:
-                return f'background-color: #ffffe0{imp}; color: #ffffe0; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-            elif 'GRAND_TOTAL_MERGE' in val_str:
-                return f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-            elif any(keyword in val_str for keyword in ['TTL', 'Total', '소계']):
-                return f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+            l = str(val)
+            if 'HYU_소계' in l: return f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+            elif 'KIA_소계' in l: return f'background-color: #ffe6e6{imp}; color: #ffe6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+            elif 'GM_소계' in l: return f'background-color: #e6e6e6{imp}; color: #e6e6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+            elif 'DIRECT_Subtotal_숨김' in l: return f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+            elif 'COMM_Subtotal_숨김' in l: return f'background-color: #f2f2f2{imp}; color: #f2f2f2; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+            elif 'Unknown_Subtotal_숨김' in l: return f'background-color: #ffffe0{imp}; color: #ffffe0; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+            elif 'GRAND_TOTAL_MERGE' in l or any(k in l for k in ['TTL', 'Total', '소계']): return f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
             return ''
-        for i in range(styler.index.nlevels):
-            styler.map_index(highlight_total_index, axis=0, level=i)
+        for i in range(styler.index.nlevels): styler.map_index(highlight_total_index, axis=0, level=i)
         
     if apply_hkmc_color:
-        if hasattr(styler, 'map_index'):
-            styler.map_index(color_index_cells, axis=0, level=0)
-        elif hasattr(styler, 'applymap_index'):
-            styler.applymap_index(color_index_cells, axis=0, level=0)
-            
+        if hasattr(styler, 'map_index'): styler.map_index(color_index_cells, axis=0, level=0)
+        elif hasattr(styler, 'applymap_index'): styler.applymap_index(color_index_cells, axis=0, level=0)
     return styler
 
 def optimize_html_headers(html_str, df):
     try:
-        thead_start = html_str.find('<thead>')
-        thead_end = html_str.find('</thead>')
+        thead_start, thead_end = html_str.find('<thead>'), html_str.find('</thead>')
         if thead_start == -1 or thead_end == -1: return html_str
-        
         thead_html = html_str[thead_start:thead_end+8]
-        
         tr_matches = list(re.finditer(r'<tr[^>]*>(.*?)</tr>', thead_html, re.IGNORECASE | re.DOTALL))
         if len(tr_matches) < 2: return html_str
         
-        row0_inner = tr_matches[0].group(1)
-        row1_inner = tr_matches[1].group(1)
+        row0_inner, row1_inner = tr_matches[0].group(1), tr_matches[1].group(1)
+        ths0 = re.findall(r'<th[^>]*>.*?</th>', row0_inner, re.IGNORECASE | re.DOTALL)
+        ths1 = re.findall(r'<th[^>]*>.*?</th>', row1_inner, re.IGNORECASE | re.DOTALL)
         
-        th_pattern = r'<th[^>]*>.*?</th>'
-        ths0 = re.findall(th_pattern, row0_inner, re.IGNORECASE | re.DOTALL)
-        ths1 = re.findall(th_pattern, row1_inner, re.IGNORECASE | re.DOTALL)
-        
-        num_indices = df.index.nlevels
         index_names = list(df.index.names)
-        
-        for i in range(num_indices):
+        for i in range(df.index.nlevels):
             if i < len(ths0) and i < len(ths1):
                 name = str(index_names[i]) if index_names[i] is not None else ""
-                
-                if name in ['Con.', 'SOP']:
-                    width_style = "width: 50px !important; min-width: 50px !important; max-width: 50px !important; padding-left: 2px !important; padding-right: 2px !important; white-space: normal !important;"
-                else:
-                    width_style = "min-width: 80px;"
-                    
+                width_style = "width: 50px !important; min-width: 50px !important; max-width: 50px !important; padding-left: 2px !important; padding-right: 2px !important; white-space: normal !important;" if name in ['Con.', 'SOP'] else "min-width: 80px;"
                 ths0[i] = f'<th rowspan="2" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; {width_style}">{name}</th>'
                 ths1[i] = ''
-                
-        row0_new = "".join(ths0)
-        row1_new = "".join(ths1)
-        
-        new_thead = f"<thead>\n<tr>{row0_new}</tr>\n<tr>{row1_new}</tr>\n</thead>"
+        new_thead = f"<thead>\n<tr>{''.join(ths0)}</tr>\n<tr>{''.join(ths1)}</tr>\n</thead>"
         return html_str[:thead_start] + new_thead + html_str[thead_end+8:]
-    except Exception:
-        return html_str
+    except Exception: return html_str
 
 def post_process_html_styles(html_str):
     if '<tbody>' not in html_str: return html_str
-    
     def process_row(match):
         row = match.group(0)
-        if 'HYU_소계' in row:
-            row = row.replace('HYU_소계', '') 
-            row = re.sub(r'^<tr', r'<tr class="total-row-hyu"', row)
-        elif 'KIA_소계' in row:
-            row = row.replace('KIA_소계', '') 
-            row = re.sub(r'^<tr', r'<tr class="total-row-kia"', row)
-        elif 'GM_소계' in row:
-            row = row.replace('GM_소계', '') 
-            row = re.sub(r'^<tr', r'<tr class="total-row-gm"', row)
-        elif 'DIRECT_Subtotal_숨김' in row:
-            row = row.replace('DIRECT_Subtotal_숨김', '') 
-            row = re.sub(r'^<tr', r'<tr class="total-row-direct"', row) 
-        elif 'COMM_Subtotal_숨김' in row:
-            row = row.replace('COMM_Subtotal_숨김', '') 
-            row = re.sub(r'^<tr', r'<tr class="total-row-comm"', row) 
-        elif 'Unknown_Subtotal_숨김' in row:
-            row = row.replace('Unknown_Subtotal_숨김', '') 
-            row = re.sub(r'^<tr', r'<tr class="total-row"', row) 
+        if 'HYU_소계' in row: row = re.sub(r'^<tr', r'<tr class="total-row-hyu"', row.replace('HYU_소계', ''))
+        elif 'KIA_소계' in row: row = re.sub(r'^<tr', r'<tr class="total-row-kia"', row.replace('KIA_소계', ''))
+        elif 'GM_소계' in row: row = re.sub(r'^<tr', r'<tr class="total-row-gm"', row.replace('GM_소계', ''))
+        elif 'DIRECT_Subtotal_숨김' in row: row = re.sub(r'^<tr', r'<tr class="total-row-direct"', row.replace('DIRECT_Subtotal_숨김', '')) 
+        elif 'COMM_Subtotal_숨김' in row: row = re.sub(r'^<tr', r'<tr class="total-row-comm"', row.replace('COMM_Subtotal_숨김', '')) 
+        elif 'Unknown_Subtotal_숨김' in row: row = re.sub(r'^<tr', r'<tr class="total-row"', row.replace('Unknown_Subtotal_숨김', '')) 
         elif 'GRAND_TOTAL_MERGE_START' in row:
             row = re.sub(r'^<tr', r'<tr class="total-row"', row)
             label_match = re.search(r'GRAND_TOTAL_MERGE_START(.*?)</th', row)
             if label_match:
-                actual_label = label_match.group(1).strip()
-                row = re.sub(
-                    r'<th[^>]*>GRAND_TOTAL_MERGE_START.*?</th>\s*<th[^>]*>GRAND_TOTAL_MERGE_DEL</th>\s*<th[^>]*>GRAND_TOTAL_MERGE_DEL</th>\s*<th[^>]*>GRAND_TOTAL_MERGE_DEL</th>',
-                    f'<th colspan="4" style="text-align: left !important; padding-left: 15px !important; background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;">{actual_label}</th>',
-                    row,
-                    flags=re.DOTALL
-                )
-        elif any(k in row for k in ['TTL', 'Total', '소계']):
-            row = re.sub(r'^<tr', r'<tr class="total-row"', row)
+                row = re.sub(r'<th[^>]*>GRAND_TOTAL_MERGE_START.*?</th>\s*<th[^>]*>GRAND_TOTAL_MERGE_DEL</th>\s*<th[^>]*>GRAND_TOTAL_MERGE_DEL</th>\s*<th[^>]*>GRAND_TOTAL_MERGE_DEL</th>',
+                             f'<th colspan="4" style="text-align: left !important; padding-left: 15px !important; background-color: #ffffe0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important;">{label_match.group(1).strip()}</th>', row, flags=re.DOTALL)
+        elif any(k in row for k in ['TTL', 'Total', '소계']): row = re.sub(r'^<tr', r'<tr class="total-row"', row)
         return row
-        
     parts = html_str.split('<tbody>', 1)
-    tbody_content = parts[1]
-    tbody_content = re.sub(r'<tr[^>]*>.*?</tr>', process_row, tbody_content, flags=re.DOTALL)
-    return parts[0] + '<tbody>' + tbody_content
+    return parts[0] + '<tbody>' + re.sub(r'<tr[^>]*>.*?</tr>', process_row, parts[1], flags=re.DOTALL)
 
 def to_excel_multiple(df_dict):
     output = io.BytesIO()
@@ -311,20 +209,17 @@ def to_excel_multiple(df_dict):
                     if isinstance(new_t[0], str) and 'GRAND_TOTAL_MERGE_START' in new_t[0]:
                         new_t[0] = new_t[0].replace('GRAND_TOTAL_MERGE_START', '')
                         for i in range(1, len(new_t)):
-                            if new_t[i] == 'GRAND_TOTAL_MERGE_DEL':
-                                new_t[i] = ''
+                            if new_t[i] == 'GRAND_TOTAL_MERGE_DEL': new_t[i] = ''
                     new_tuples.append(tuple(new_t))
                 df.index = pd.MultiIndex.from_tuples(new_tuples, names=df.index.names)
             
             styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
-            # 새로 추가되는 시트들에도 공통 색상이 반영되도록 설정합니다.
-            apply_color = sheet_name in ["PE_HKMC_Summary", "PE_Biz_Detailed", "Core_Biz", "Biz_Type_Summary", "Group2_Project_Summary"]
+            apply_color = sheet_name in ["PE_HKMC_Summary", "PE_Biz_Detailed", "Core_Biz", "Biz_Type_Summary"]
             styler = apply_common_styles(styler, apply_hkmc_color=apply_color, is_export=True)
             
             styler.to_excel(writer, sheet_name=sheet_name[:31])
             worksheet = writer.sheets[sheet_name[:31]]
-            for i, col in enumerate(df.columns):
-                worksheet.set_column(i+1, i+1, 15)
+            for i in range(len(df.columns)): worksheet.set_column(i+1, i+1, 15)
     return output.getvalue()
 
 
@@ -356,8 +251,7 @@ if selected_menu == "매출 보고서":
                           'EUR:USD', 'EUR:KRW', 'Business Type', 'Curr.', 'Con.']
             
             if 'BIZ Type' in df.columns:
-                df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm', 'COMMERCIAL', 'commercial'], 'COMM')
-                df['BIZ Type'] = df['BIZ Type'].fillna('Unknown')
+                df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm', 'COMMERCIAL', 'commercial'], 'COMM').fillna('Unknown')
                 
             sop_dict = {}
             if len(sheets) > 1:
@@ -378,7 +272,6 @@ if selected_menu == "매출 보고서":
             df['Year'] = df['Year'].astype(int)
             df['Month'] = df['Month'].astype(int)
             df['Date'] = df['Date'].astype(str).str.replace('00:00:00', '').str.strip()
-            
             return df
 
         raw_df = load_and_preprocess(uploaded_file)
@@ -386,13 +279,11 @@ if selected_menu == "매출 보고서":
         selected_year = st.sidebar.selectbox("연도", years, index=len(years)-1 if years else 0)
         selected_month = st.sidebar.selectbox("월", sorted(raw_df['Month'].unique()))
 
-        def get_numeric_cols(df):
-            return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
+        def get_numeric_cols(df): return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
 
         def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.€)", index_names=None, sort_by_current_act=False):
             if df_sub.empty: return pd.DataFrame(), "", ""
-            if month == 1: prev_year, prev_month = year - 1, 12
-            else: prev_year, prev_month = year, month - 1
+            prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
             
             m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
             col_prev, phase_curr, phase_ytd, phase_ttl = f'{pm_str}. {year if month != 1 else prev_year}', f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL'
@@ -405,10 +296,9 @@ if selected_menu == "매출 보고서":
             all_indices = set()
             for p in [s_prev, p_curr, p_ytd, p_ttl]:
                 if not p.empty: all_indices.update(p.index.tolist() if isinstance(p.index, pd.MultiIndex) else [(x,) for x in p.index.tolist()])
-            
             if not all_indices: return pd.DataFrame(), col_prev, phase_curr
-            all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
             
+            all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
             current_index_names = index_names if index_names else (['CPS'] if index_cols == ['CPS'] else index_cols)
             idx = pd.MultiIndex.from_tuples(all_indices, names=current_index_names) if len(index_cols) > 1 else pd.Index([x[0] for x in all_indices], name=current_index_names[0])
             
@@ -428,8 +318,7 @@ if selected_menu == "매출 보고서":
             final_df.index.names = current_index_names
             final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
             
-            if sort_by_current_act and (phase_curr, 'ACT') in final_df.columns:
-                final_df = final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
+            if sort_by_current_act and (phase_curr, 'ACT') in final_df.columns: final_df = final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
                 
             if 'BIZ Type' in final_df.index.names:
                 cats = pd.CategoricalDtype(categories=['DIRECT', 'COMM', 'Unknown'], ordered=True)
@@ -440,32 +329,20 @@ if selected_menu == "매출 보고서":
                 
             total_row = final_df.sum(numeric_only=True)
             for phase_name in phases:
-                num = total_row.get((phase_name, 'ACT'), 0)
-                den = total_row.get((phase_name, '26 FC1'), 0)
+                num, den = total_row.get((phase_name, 'ACT'), 0), total_row.get((phase_name, '26 FC1'), 0)
                 total_row[(phase_name, 'ACHI %')] = num / den if den != 0 else 0
                 
-            t_label = total_label
-            
-            if isinstance(final_df.index, pd.MultiIndex):
-                t_index = tuple([t_label] + [''] * (len(final_df.index.names)-1))
-                t_df = pd.DataFrame([total_row], index=pd.MultiIndex.from_tuples([t_index], names=final_df.index.names))
-            else:
-                t_df = pd.DataFrame([total_row], index=pd.Index([t_label], name=final_df.index.name))
-            
+            t_df = pd.DataFrame([total_row], index=pd.MultiIndex.from_tuples([tuple([total_label] + [''] * (len(final_df.index.names)-1))], names=final_df.index.names)) if isinstance(final_df.index, pd.MultiIndex) else pd.DataFrame([total_row], index=pd.Index([total_label], name=final_df.index.name))
             return pd.concat([final_df, t_df]), col_prev, phase_curr
 
         def get_biz_type_detailed_report(df, year, month):
-            if month == 1: prev_year, prev_month = year - 1, 12
-            else: prev_year, prev_month = year, month - 1
-            
+            prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
             m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
             phase_names = [f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL']
             prev_phase_name = f'{pm_str}. {prev_year}'
             
             results = []
-            biz_categories = ['DIRECT', 'COMM', 'Unknown']
-            
-            for biz in biz_categories:
+            for biz in ['DIRECT', 'COMM', 'Unknown']:
                 biz_df = df[(df['BIZ Type'] == biz) & (df['Year'] == year)]
                 if biz_df.empty: continue
                 
@@ -477,72 +354,48 @@ if selected_menu == "매출 보고서":
                 combined_dict = {(prev_phase_name, 'ACT'): p_prev.get('ACT', 0)}
                 for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
                     for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data.get(c, 0)
-                    num = pd.Series(data.get('ACT', 0))
-                    den = pd.Series(data.get('26 FC1', 0))
-                    combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
+                    combined_dict[(phase_name, 'ACHI %')] = pd.Series(data.get('ACT', 0)).div(pd.Series(data.get('26 FC1', 0))).replace([np.inf, -np.inf], 0).fillna(0)
                     
                 combined = pd.DataFrame(combined_dict, index=p_m.index)
-                
-                if (phase_names[0], 'ACT') in combined.columns:
-                    combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
+                if (phase_names[0], 'ACT') in combined.columns: combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
                     
                 subtotal = combined.sum(numeric_only=True)
                 for p_name in phase_names:
-                    num = subtotal.get((p_name, 'ACT'), 0)
-                    den = subtotal.get((p_name, '26 FC1'), 0)
+                    num, den = subtotal.get((p_name, 'ACT'), 0), subtotal.get((p_name, '26 FC1'), 0)
                     subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
                     
                 results.append(combined)
                 results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(biz, f'{biz}_Subtotal_숨김')], names=['BIZ Type', 'KOx'])))
                 
             final_df = pd.concat(results)
-            
             grand_total = final_df[~final_df.index.get_level_values(1).str.contains('Subtotal_숨김', na=False)].sum(numeric_only=True)
             for p_name in phase_names:
-                num = grand_total.get((p_name, 'ACT'), 0)
-                den = grand_total.get((p_name, '26 FC1'), 0)
+                num, den = grand_total.get((p_name, 'ACT'), 0), grand_total.get((p_name, '26 FC1'), 0)
                 grand_total[(p_name, 'ACHI %')] = num / den if den != 0 else 0
                 
             grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('TTL (K.€)', ' ')], names=['BIZ Type', 'KOx']))
-            
             return pd.concat([final_df, grand_row]), phase_names[0]
 
         def get_biz_report(df, biz_type, year, month):
-            if month == 1: prev_year, prev_month = year - 1, 12
-            else: prev_year, prev_month = year, month - 1
-            
+            prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
             df_biz = df[(df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == year)].copy()
             m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
             phase_names = [f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL']
             prev_phase_name = f'{pm_str}. {prev_year}'
             
-            brands = ['HYU', 'KIA', 'GM']
-            if biz_type == 'Power':
-                brands = ['HYU', 'KIA']
-            
+            brands = ['HYU', 'KIA'] if biz_type == 'Power' else ['HYU', 'KIA', 'GM']
             results = []
             for brand in brands:
                 if brand == 'GM':
                     brand_df = df_biz[df_biz['Project'] == 'GM'].copy()
                     prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Project'] == 'GM')
-                    subtotal_dict = {}
-                    prev_act = df[prev_mask & (df['Desc.'] == 'ACT')]['Rev. (€)'].sum() if not df[prev_mask].empty else 0.0
-                    subtotal_dict[(prev_phase_name, 'ACT')] = prev_act
+                    subtotal_dict = {(prev_phase_name, 'ACT'): df[prev_mask & (df['Desc.'] == 'ACT')]['Rev. (€)'].sum() if not df[prev_mask].empty else 0.0}
                     
-                    df_m = brand_df[brand_df['Month'] == month]
-                    for c in ['25 FC3', '26 FC1', 'ACT']: subtotal_dict[(phase_names[0], c)] = df_m[df_m['Desc.'] == c]['Rev. (€)'].sum()
-                    subtotal_dict[(phase_names[0], 'ACHI %')] = subtotal_dict[(phase_names[0], 'ACT')] / subtotal_dict[(phase_names[0], '26 FC1')] if subtotal_dict[(phase_names[0], '26 FC1')] != 0 else 0.0
+                    for i, d_df in enumerate([brand_df[brand_df['Month'] == month], brand_df[brand_df['Month'] <= month], brand_df]):
+                        for c in ['25 FC3', '26 FC1', 'ACT']: subtotal_dict[(phase_names[i], c)] = d_df[d_df['Desc.'] == c]['Rev. (€)'].sum()
+                        subtotal_dict[(phase_names[i], 'ACHI %')] = subtotal_dict[(phase_names[i], 'ACT')] / subtotal_dict[(phase_names[i], '26 FC1')] if subtotal_dict[(phase_names[i], '26 FC1')] != 0 else 0.0
                     
-                    df_y = brand_df[brand_df['Month'] <= month]
-                    for c in ['25 FC3', '26 FC1', 'ACT']: subtotal_dict[(phase_names[1], c)] = df_y[df_y['Desc.'] == c]['Rev. (€)'].sum()
-                    subtotal_dict[(phase_names[1], 'ACHI %')] = subtotal_dict[(phase_names[1], 'ACT')] / subtotal_dict[(phase_names[1], '26 FC1')] if subtotal_dict[(phase_names[1], '26 FC1')] != 0 else 0.0
-                    
-                    for c in ['25 FC3', '26 FC1', 'ACT']: subtotal_dict[(phase_names[2], c)] = brand_df[brand_df['Desc.'] == c]['Rev. (€)'].sum()
-                    subtotal_dict[(phase_names[2], 'ACHI %')] = subtotal_dict[(phase_names[2], 'ACT')] / subtotal_dict[(phase_names[2], '26 FC1')] if subtotal_dict[(phase_names[2], '26 FC1')] != 0 else 0.0
-                    
-                    subtotal = pd.Series(subtotal_dict)
-                    results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
-                    continue
+                    results.append(pd.DataFrame([pd.Series(subtotal_dict)], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
                 else:
                     brand_df = df_biz[df_biz['Group 2'] == brand].copy()
                     prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)
@@ -559,43 +412,30 @@ if selected_menu == "매출 보고서":
                     if not all_idx: continue
                     
                     idx = pd.MultiIndex.from_tuples(sorted(list(all_idx)), names=['Project', 'Con.', 'SOP'])
-                    p_prev = p_prev.reindex(idx, fill_value=0)
-                    p_m = p_m.reindex(idx, fill_value=0)
-                    p_y = p_y.reindex(idx, fill_value=0)
-                    p_fy = p_fy.reindex(idx, fill_value=0)
+                    p_prev, p_m, p_y, p_fy = p_prev.reindex(idx, fill_value=0), p_m.reindex(idx, fill_value=0), p_y.reindex(idx, fill_value=0), p_fy.reindex(idx, fill_value=0)
                     
                     if "Core" in biz_type and brand in ['HYU', 'KIA']:
-                        act_col = p_m['ACT'] if 'ACT' in p_m.columns else pd.Series(0, index=idx)
-                        top = act_col[act_col >= 10000].index
+                        top = (p_m['ACT'] if 'ACT' in p_m.columns else pd.Series(0, index=idx))[lambda x: x >= 10000].index
                         def group_others(p):
                             if p.empty: return pd.DataFrame(columns=['25 FC3', '26 FC1', 'ACT']).reindex(pd.MultiIndex.from_tuples([], names=['Project', 'Con.', 'SOP']))
-                            main = p.loc[p.index.isin(top)]
                             oth = p.loc[~p.index.isin(top)].sum().to_frame().T
                             oth.index = pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP'])
-                            return pd.concat([main, oth])
+                            return pd.concat([p.loc[p.index.isin(top)], oth])
                         p_m, p_y, p_fy, p_prev = group_others(p_m), group_others(p_y), group_others(p_fy), group_others(p_prev)
                         idx = p_m.index
                         
-                    combined_dict = {}
-                    combined_dict[(prev_phase_name, 'ACT')] = p_prev['ACT'] if 'ACT' in p_prev.columns else pd.Series(0, index=idx)
+                    combined_dict = {(prev_phase_name, 'ACT'): p_prev['ACT'] if 'ACT' in p_prev.columns else pd.Series(0, index=idx)}
                     for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
-                        for c in ['25 FC3', '26 FC1', 'ACT']:
-                            combined_dict[(phase_name, c)] = data[c] if c in data.columns else pd.Series(0, index=idx)
-                        num = pd.Series(combined_dict[(phase_name, 'ACT')])
-                        den = pd.Series(combined_dict[(phase_name, '26 FC1')])
-                        combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
+                        for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data[c] if c in data.columns else pd.Series(0, index=idx)
+                        combined_dict[(phase_name, 'ACHI %')] = pd.Series(combined_dict[(phase_name, 'ACT')]).div(pd.Series(combined_dict[(phase_name, '26 FC1')])).replace([np.inf, -np.inf], 0).fillna(0)
                     
                     combined = pd.DataFrame(combined_dict, index=idx)
-                    if ('Others', '', '') in combined.index: 
-                        combined = pd.concat([combined.drop(index=('Others', '', '')).sort_values(by=(phase_names[0], 'ACT'), ascending=False), combined.loc[[('Others', '', '')]]])
-                    else: 
-                        if not combined.empty and (phase_names[0], 'ACT') in combined.columns:
-                            combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
+                    if ('Others', '', '') in combined.index: combined = pd.concat([combined.drop(index=('Others', '', '')).sort_values(by=(phase_names[0], 'ACT'), ascending=False), combined.loc[[('Others', '', '')]]])
+                    elif not combined.empty and (phase_names[0], 'ACT') in combined.columns: combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
                     
                     subtotal = combined.sum(numeric_only=True) if not combined.empty else pd.Series(0, index=combined.columns)
                     for p_name in phase_names:
-                        num = subtotal.get((p_name, 'ACT'), 0)
-                        den = subtotal.get((p_name, '26 FC1'), 0)
+                        num, den = subtotal.get((p_name, 'ACT'), 0), subtotal.get((p_name, '26 FC1'), 0)
                         subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
                     
                     combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
@@ -607,128 +447,104 @@ if selected_menu == "매출 보고서":
             
             grand_total = final_df[final_df.index.get_level_values(1).str.contains('소계', na=False)].sum(numeric_only=True)
             for p_name in phase_names:
-                num = grand_total.get((p_name, 'ACT'), 0)
-                den = grand_total.get((p_name, '26 FC1'), 0)
+                num, den = grand_total.get((p_name, 'ACT'), 0), grand_total.get((p_name, '26 FC1'), 0)
                 grand_total[(p_name, 'ACHI %')] = num / den if den != 0 else 0
                 
-            grand_label = f'{BIZ_CONFIG.get(biz_type, biz_type)} Rev. TTL (K.€)'
-            grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([(f'GRAND_TOTAL_MERGE_START{grand_label}', 'GRAND_TOTAL_MERGE_DEL', 'GRAND_TOTAL_MERGE_DEL', 'GRAND_TOTAL_MERGE_DEL')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
+            grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([(f"GRAND_TOTAL_MERGE_START{BIZ_CONFIG.get(biz_type, biz_type)} Rev. TTL (K.€)", 'GRAND_TOTAL_MERGE_DEL', 'GRAND_TOTAL_MERGE_DEL', 'GRAND_TOTAL_MERGE_DEL')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
             return pd.concat([final_df, grand_row]), phase_names
 
         def build_trend_report(df, end_year, end_month):
-            months = []
-            curr_y, curr_m = end_year, end_month
+            months, curr_y, curr_m = [], end_year, end_month
             for _ in range(12):
                 months.append((curr_y, curr_m))
                 curr_m -= 1
-                if curr_m == 0:
-                    curr_m = 12
-                    curr_y -= 1
+                if curr_m == 0: curr_m, curr_y = 12, curr_y - 1
             months.reverse() 
             
             df_act = df[df['Desc.'] == 'ACT']
-            
             pivot_data = {}
             for y, m in months:
                 col_name = f"{MONTH_NAMES[m]}.{str(y)[-2:]}"
                 temp_df = df_act[(df_act['Year'] == y) & (df_act['Month'] == m)]
+                pivot_data[col_name] = {'HYU': temp_df[temp_df['Group 2'] == 'HYU']['Rev. (€)'].sum(), 'KIA': temp_df[temp_df['Group 2'] == 'KIA']['Rev. (€)'].sum(), 'GM': temp_df[temp_df['Project'] == 'GM']['Rev. (€)'].sum()}
                 
-                hyu_val = temp_df[temp_df['Group 2'] == 'HYU']['Rev. (€)'].sum()
-                kia_val = temp_df[temp_df['Group 2'] == 'KIA']['Rev. (€)'].sum()
-                gm_val = temp_df[temp_df['Project'] == 'GM']['Rev. (€)'].sum()
-                
-                pivot_data[col_name] = {'HYU': hyu_val, 'KIA': kia_val, 'GM': gm_val}
-                
-            trend_df = pd.DataFrame(pivot_data)
-            row_order = ['HYU', 'KIA', 'GM']
-            trend_df = trend_df.reindex(row_order).fillna(0)
+            trend_df = pd.DataFrame(pivot_data).reindex(['HYU', 'KIA', 'GM']).fillna(0)
             trend_df.loc['TTL (K.€)'] = trend_df.sum(numeric_only=True)
-            
-            trend_df.index.name = None 
-            trend_df.columns.name = None 
-            
+            trend_df.index.name = trend_df.columns.name = None 
             trend_df.columns = [col.strip() for col in trend_df.columns.values]
             return trend_df
 
-        def render_html_view(df, phase_curr, apply_color=False, title=None):
+        def render_html_view(df, phase_curr, apply_color=False, is_biz=False):
             table_id = f"table_{uuid.uuid4().hex[:8]}"
             df_display = df.replace(0, '')
-            
-            format_dict = {}
-            for col in df.columns:
-                if 'ACHI' in str(col[1]):
-                    if 'TTL' in str(col[0]):
-                        format_dict[col] = format_percentage_html_no_trend
-                    else:
-                        format_dict[col] = format_percentage_html
-                else:
-                    format_dict[col] = format_k_val
+            format_dict = {col: (format_percentage_html_no_trend if 'TTL' in str(col[0]) else format_percentage_html) if 'ACHI' in str(col[1]) else format_k_val for col in df.columns}
                     
-            styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table"')
-            styler.set_table_styles([
-                {'selector': 'th, td', 'props': [('border-collapse', 'separate')]},
-                {'selector': 'tr', 'props': [('display', 'table-row')]}
-            ])
+            table_class = 'class="report-table biz-table"' if is_biz else 'class="report-table"'
+            styler = df_display.style.format(format_dict, na_rep='').set_table_attributes(table_class)
+            if not is_biz: styler.set_table_styles([{'selector': 'th, td', 'props': [('border-collapse', 'separate')]}, {'selector': 'tr', 'props': [('display', 'table-row')]}])
             
-            numeric_cols = get_numeric_cols(df)
-            styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
+            styler.set_properties(subset=get_numeric_cols(df), **{'text-align': 'right'})
             styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
             
-            html_str = styler.to_html()
-            html_str = optimize_html_headers(html_str, df)
-            html_str = post_process_html_styles(html_str)
-            
-            css_str = get_dynamic_highlight_css(table_id, df, phase_curr)
-            return f'{css_str}<div id="{table_id}" class="table-container">{html_str}</div>'
-
-        def render_biz_html_table(df, phase_curr, apply_color=False, title=None):
-            table_id = f"table_{uuid.uuid4().hex[:8]}"
-            df_display = df.replace(0, '')
-            
-            format_dict = {}
-            for col in df.columns:
-                if 'ACHI' in str(col[1]):
-                    if 'TTL' in str(col[0]):
-                        format_dict[col] = format_percentage_html_no_trend
-                    else:
-                        format_dict[col] = format_percentage_html
-                else:
-                    format_dict[col] = format_k_val
-                    
-            styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table biz-table"')
-            
-            numeric_cols = get_numeric_cols(df)
-            styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
-            styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
-            
-            html_str = styler.to_html()
-            html_str = optimize_html_headers(html_str, df)
-            html_str = post_process_html_styles(html_str)
-            
-            css_str = get_dynamic_highlight_css(table_id, df, phase_curr)
-            return f'{css_str}<div id="{table_id}" class="table-container">{html_str}</div>'
+            html_str = post_process_html_styles(optimize_html_headers(styler.to_html(), df))
+            return f'{get_dynamic_highlight_css(table_id, df, phase_curr)}<div id="{table_id}" class="table-container">{html_str}</div>'
 
         def render_trend_html_table(df, apply_color=False):
             table_id = f"table_{uuid.uuid4().hex[:8]}"
-            df_display = df.replace(0, '')
-            format_dict = {col: format_k_val for col in df.columns}
-            styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table trend-table"')
-            
+            styler = df.replace(0, '').style.format({col: format_k_val for col in df.columns}, na_rep='').set_table_attributes('class="report-table trend-table"')
             styler.set_properties(**{'text-align': 'right'})
-            styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
-            
-            html_str = styler.to_html()
-            html_str = post_process_html_styles(html_str)
-            
-            css_str = get_trend_highlight_css(table_id)
-            return f'{css_str}<div id="{table_id}" class="table-container">{html_str}</div>'
+            html_str = post_process_html_styles(apply_common_styles(styler, apply_hkmc_color=apply_color).to_html())
+            return f'{get_trend_highlight_css(table_id)}<div id="{table_id}" class="table-container">{html_str}</div>'
 
         reports_to_download = {}
+        
+        # ==========================================
+        # [신규] 시각화 대시보드 (Plotly)
+        # ==========================================
+        st.markdown("### 📈 Visual Dashboard")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            df_trend_data = build_trend_report(raw_df, selected_year, selected_month)
+            if not df_trend_data.empty:
+                plot_df = df_trend_data.drop('TTL (K.€)').reset_index().melt(id_vars='index', var_name='Month', value_name='Rev')
+                plot_df.rename(columns={'index': 'Brand'}, inplace=True)
+                plot_df['Rev'] = plot_df['Rev'] / 1000.0  # 단위를 K.€로 변경
+                
+                fig1 = px.bar(plot_df, x='Month', y='Rev', color='Brand', 
+                              title='12 Months Revenue Trend (K.€)',
+                              color_discrete_map={'HYU': '#002060', 'KIA': '#8ea9db', 'GM': '#d9d9d9'})
+                fig1.update_layout(plot_bgcolor='rgba(0,0,0,0)', yaxis=(dict(showgrid=True, gridcolor='#e6e6e6')),
+                                   margin=dict(l=20, r=20, t=40, b=20), legend_title_text='')
+                st.plotly_chart(fig1, use_container_width=True)
+
+        with col2:
+            df_chart2 = raw_df[(raw_df['Year'] == selected_year) & (raw_df['Month'] == selected_month) & (raw_df['Desc.'].isin(['26 FC1', 'ACT']))]
+            if not df_chart2.empty:
+                chart2_pivot = df_chart2.pivot_table(index='CPS', columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) / 1000.0
+                chart2_pivot.reset_index(inplace=True)
+                if '26 FC1' not in chart2_pivot.columns: chart2_pivot['26 FC1'] = 0
+                if 'ACT' not in chart2_pivot.columns: chart2_pivot['ACT'] = 0
+                
+                fig2 = go.Figure(data=[
+                    go.Bar(name='FC1', x=chart2_pivot['CPS'], y=chart2_pivot['26 FC1'], marker_color='#c7c7c7'),
+                    go.Bar(name='ACT', x=chart2_pivot['CPS'], y=chart2_pivot['ACT'], marker_color='#1f77b4')
+                ])
+                fig2.update_layout(barmode='group', title=f'[{MONTH_NAMES.get(selected_month)}] FC1 vs ACT by CPS (K.€)',
+                                   plot_bgcolor='rgba(0,0,0,0)', yaxis=(dict(showgrid=True, gridcolor='#e6e6e6')),
+                                   margin=dict(l=20, r=20, t=40, b=20),
+                                   legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+                st.plotly_chart(fig2, use_container_width=True)
+                
+        st.markdown("---")
+
+        # ==========================================
+        # 기존 테이블 영역 (원복 완료)
+        # ==========================================
         st.subheader("📌 Sales Revenue Trend")
-        df_trend = build_trend_report(raw_df, selected_year, selected_month)
-        if not df_trend.empty:
-            st.markdown(render_trend_html_table(df_trend, apply_color=False), unsafe_allow_html=True)
-            reports_to_download["12M_Trend_Report"] = df_trend
+        if not df_trend_data.empty:
+            st.markdown(render_trend_html_table(df_trend_data, apply_color=False), unsafe_allow_html=True)
+            reports_to_download["12M_Trend_Report"] = df_trend_data
             
         st.subheader("📌 CPS별 매출액 요약")
         df_cps, p_col, c_col = build_summary_report(raw_df, ['CPS'], selected_year, selected_month, 'TTL (K.€)')
@@ -743,28 +559,6 @@ if selected_menu == "매출 보고서":
             st.markdown(render_html_view(df_item, c_col, apply_color=False), unsafe_allow_html=True)
             reports_to_download["Item_Summary"] = df_item
 
-        # ==========================================
-        # [신규 추가] 세부 매출 리포트
-        # ==========================================
-        st.subheader("📌 Group 2 & Project별 매출액 요약")
-        df_group2_proj, p_col, c_col = build_summary_report(raw_df, ['Group 2', 'Project'], selected_year, selected_month, 'TTL (K.€)', sort_by_current_act=True)
-        if not df_group2_proj.empty:
-            st.markdown(render_html_view(df_group2_proj, c_col, apply_color=True), unsafe_allow_html=True)
-            reports_to_download["Group2_Project_Summary"] = df_group2_proj
-
-        st.subheader("📌 Platform(PF)별 매출액 요약")
-        df_pf, p_col, c_col = build_summary_report(raw_df, ['PF'], selected_year, selected_month, 'TTL (K.€)', sort_by_current_act=True)
-        if not df_pf.empty:
-            st.markdown(render_html_view(df_pf, c_col, apply_color=False), unsafe_allow_html=True)
-            reports_to_download["PF_Summary"] = df_pf
-            
-        st.subheader("📌 통화(Currency)별 매출액 요약")
-        df_curr, p_col, c_col = build_summary_report(raw_df, ['Curr.'], selected_year, selected_month, 'TTL (K.€)', sort_by_current_act=True)
-        if not df_curr.empty:
-            st.markdown(render_html_view(df_curr, c_col, apply_color=False), unsafe_allow_html=True)
-            reports_to_download["Currency_Summary"] = df_curr
-        # ==========================================
-
         st.subheader("📌 DIRECT & COMMISSION 매출액 요약")
         df_biz_type, c_col = get_biz_type_detailed_report(raw_df, selected_year, selected_month)
         if not df_biz_type.empty: 
@@ -775,16 +569,7 @@ if selected_menu == "매출 보고서":
         df_pe_raw = raw_df[raw_df['Business Type'].str.contains("Power", case=False, na=False)].copy()
         if not df_pe_raw.empty:
             df_pe_raw['Cust. GR'] = df_pe_raw['Group 2'].replace({'HYU': 'HKMC', 'KIA': 'HKMC'})
-            df_pe_hkmc = df_pe_raw[df_pe_raw['Cust. GR'] == 'HKMC']
-            
-            df_pe_summary, p_col, c_col = build_summary_report(
-                df_pe_hkmc, 
-                ['Cust. GR', 'KOx'], 
-                selected_year, 
-                selected_month, 
-                total_label='PE Biz Rev. TTL (K.€)', 
-                sort_by_current_act=True
-            )
+            df_pe_summary, p_col, c_col = build_summary_report(df_pe_raw[df_pe_raw['Cust. GR'] == 'HKMC'], ['Cust. GR', 'KOx'], selected_year, selected_month, total_label='PE Biz Rev. TTL (K.€)', sort_by_current_act=True)
             if not df_pe_summary.empty:
                 st.markdown(render_html_view(df_pe_summary, c_col, apply_color=True), unsafe_allow_html=True)
                 reports_to_download["PE_HKMC_Summary"] = df_pe_summary
@@ -793,129 +578,63 @@ if selected_menu == "매출 보고서":
             st.subheader(f"📌 Sales Revenue: {display_name}")
             df_biz, phase_names = get_biz_report(raw_df, filter_key, selected_year, selected_month)
             if not df_biz.empty:
-                st.markdown(render_biz_html_table(df_biz, phase_names[0], apply_color=True), unsafe_allow_html=True)
+                st.markdown(render_html_view(df_biz, phase_names[0], apply_color=True, is_biz=True), unsafe_allow_html=True)
                 reports_to_download[f"{display_name}_Detailed"] = df_biz
 
         if reports_to_download:
             st.write("---")
-            st.download_button(
-                "📥 월간회의 자료용 엑셀 다운로드", 
-                data=to_excel_multiple(reports_to_download), 
-                file_name=f"Monthly_Closing_Report_{selected_year}_{selected_month:02d}.xlsx", 
-                use_container_width=True
-            )
+            st.download_button("📥 월간회의 자료용 엑셀 다운로드", data=to_excel_multiple(reports_to_download), file_name=f"Monthly_Closing_Report_{selected_year}_{selected_month:02d}.xlsx", use_container_width=True)
     else:
         st.info("👈 좌측 메뉴에서 '월간 회의용 엑셀 파일'을 업로드하시면 요약 리포트가 생성됩니다.")
 
 # ==========================================
-# 5. 판매가 조회 메뉴 로직 (.txt 다중 업로드 및 데이터 통합 기능)
+# 5. 판매가 조회 메뉴 로직 
 # ==========================================
 elif selected_menu == "판매가 조회":
     st.title("💰 판매가 조회 (Price Lookup)")
     
-    uploaded_txt_files = st.sidebar.file_uploader(
-        "판매가 TXT 파일들을 업로드하세요.", 
-        type=['txt'], 
-        accept_multiple_files=True, 
-        key="price_uploader"
-    )
+    uploaded_txt_files = st.sidebar.file_uploader("판매가 TXT 파일들을 업로드하세요.", type=['txt'], accept_multiple_files=True, key="price_uploader")
     
     if uploaded_txt_files:
         st.success(f"📂 총 {len(uploaded_txt_files)}개의 파일을 처리 중입니다.")
-        
         parsed_data = []
         for txt_file in uploaded_txt_files:
-            try:
-                content = txt_file.getvalue().decode('utf-8')
-            except UnicodeDecodeError:
-                content = txt_file.getvalue().decode('cp949')
+            try: content = txt_file.getvalue().decode('utf-8')
+            except UnicodeDecodeError: content = txt_file.getvalue().decode('cp949')
             
-            lines = content.split('\n')
-            sales_org = ""
-            distr_channel = ""
-            current_customer = ""
-            
-            for line in lines:
+            sales_org, distr_channel, current_customer = "", "", ""
+            for line in content.split('\n'):
                 line = line.strip('\r')
-                
-                # Sales Org 및 Distr. Channel 추출
                 if line.startswith("Sales Org."):
-                    m = re.search(r'Sales Org\.\s+(\d+)', line)
-                    if m: sales_org = m.group(1)
+                    if m := re.search(r'Sales Org\.\s+(\d+)', line): sales_org = m.group(1)
                 elif line.startswith("Distr. Channel"):
-                    m = re.search(r'Distr\. Channel\s+(\d+)', line)
-                    if m: distr_channel = m.group(1)
-                
-                # 데이터 행 파싱 (탭으로 시작하는 행)
+                    if m := re.search(r'Distr\. Channel\s+(\d+)', line): distr_channel = m.group(1)
                 elif line.startswith("\t"):
-                    parts = line.split('\t')
+                    parts = [p.strip() for p in line.split('\t')]
                     if len(parts) > 1:
-                        # 탭 제거 후 데이터 정렬
-                        parts = [p.strip() for p in parts]
-                        
-                        # 1. 고객 정보 행 인식 (첫 칸이 숫자이고, 두 번째 칸이 비어있는 경우)
-                        if parts[1].isdigit() and parts[2] == '':
-                            current_customer = parts[1]
-                        
-                        # 2. 데이터 행 인식 (Condition Type이 YPR0, ZADD 등 유효한 값인 경우만)
+                        if parts[1].isdigit() and parts[2] == '': current_customer = parts[1]
                         elif len(parts) >= 16 and parts[2] in ['YPR0', 'ZADD']:
-                            cnty = parts[1]
-                            cond_type = parts[2]
-                            mat = parts[5]
-                            mat_desc = parts[6]
-                            amt_str = parts[10].replace(',', '')
-                            unit1 = parts[11]
-                            per_str = parts[12].replace(',', '')
-                            uom = parts[13]
-                            v_from = parts[14]
-                            v_to = parts[15]
-                            
-                            try:
-                                amt = float(amt_str)
-                                per = float(per_str)
-                                price = int(amt / per) if (amt / per).is_integer() else round(amt / per, 2)
-                            except:
-                                price = ""
-                                
+                            try: amt, per = float(parts[10].replace(',', '')), float(parts[12].replace(',', ''))
+                            except: amt, per = 0, 0
+                            price = int(amt / per) if (amt / per).is_integer() else round(amt / per, 2) if per != 0 else ""
                             parsed_data.append({
-                                "Sales Org.": sales_org,
-                                "Distr. Channel": distr_channel,
-                                "Customer": current_customer,
-                                "CnTy": cnty,
-                                "Condition Type": cond_type,
-                                "Material": mat,
-                                "Material Description": mat_desc,
-                                "Amount": amt if isinstance(amt, float) else 0,
-                                "Unit": unit1,
-                                "Unit Size": per if isinstance(per, float) else 0,
-                                "UoM": uom,
-                                "Valid From": v_from,
-                                "Valid to": v_to,
-                                "Price": price
+                                "Sales Org.": sales_org, "Distr. Channel": distr_channel, "Customer": current_customer,
+                                "CnTy": parts[1], "Condition Type": parts[2], "Material": parts[5], "Material Description": parts[6],
+                                "Amount": amt, "Unit": parts[11], "Unit Size": per, "UoM": parts[13],
+                                "Valid From": parts[14], "Valid to": parts[15], "Price": price
                             })
         
         if parsed_data:
             df_final = pd.DataFrame(parsed_data)
-            
             st.subheader("📋 정제된 단가 데이터")
             st.dataframe(df_final, use_container_width=True)
             
-            # 엑셀 다운로드 (상단 2행 공백)
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df_final.to_excel(writer, sheet_name="Sheet2", index=False, startrow=2)
-                
-                # 열 너비 조정 및 포맷팅
                 ws = writer.sheets["Sheet2"]
-                ws.set_column('A:B', 12)
-                ws.set_column('C:C', 10)
-                ws.set_column('G:G', 40)
+                ws.set_column('A:B', 12); ws.set_column('C:C', 10); ws.set_column('G:G', 40)
                 
-            st.download_button(
-                "📥 통합 결과 엑셀 다운로드", 
-                data=output.getvalue(), 
-                file_name="결과.xlsx", 
-                use_container_width=True
-            )
+            st.download_button("📥 통합 결과 엑셀 다운로드", data=output.getvalue(), file_name="결과.xlsx", use_container_width=True)
         else:
             st.warning("분석할 수 있는 데이터가 없습니다. txt 파일 형식을 확인해주세요.")
