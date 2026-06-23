@@ -452,7 +452,7 @@ if selected_menu == "매출 보고서":
                 
             grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([(f"GRAND_TOTAL_MERGE_START{BIZ_CONFIG.get(biz_type, biz_type)} Rev. TTL (K.€)", 'GRAND_TOTAL_MERGE_DEL', 'GRAND_TOTAL_MERGE_DEL', 'GRAND_TOTAL_MERGE_DEL')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
             return pd.concat([final_df, grand_row]), phase_names
-
+            
         def build_trend_report(df, end_year, end_month):
             months, curr_y, curr_m = [], end_year, end_month
             for _ in range(12):
