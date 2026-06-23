@@ -526,30 +526,52 @@ if selected_menu == "매출 보고서":
                 if '26 FC1' not in chart2_pivot.columns: chart2_pivot['26 FC1'] = 0
                 if 'ACT' not in chart2_pivot.columns: chart2_pivot['ACT'] = 0
                 
-                # --- [수정] FC1 데이터와 ACT 데이터를 각각 개별 정렬 및 맵핑 생성 ---
-                fc1_proj_df = df_chart2[df_chart2['Desc.'] == '26 FC1'].groupby(['CPS', 'Project'])['Rev. (€)'].sum().reset_index()
-                act_proj_df = df_chart2[df_chart2['Desc.'] == 'ACT'].groupby(['CPS', 'Project'])['Rev. (€)'].sum().reset_index()
+                # --- [수정] Project 레벨에서 FC1과 ACT를 동시에 집계하여 Hover 생성 ---
+                proj_pivot = df_chart2.pivot_table(index=['CPS', 'Project'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0).reset_index()
+                if '26 FC1' not in proj_pivot.columns: proj_pivot['26 FC1'] = 0
+                if 'ACT' not in proj_pivot.columns: proj_pivot['ACT'] = 0
                 
                 fc1_hover_texts = []
                 act_hover_texts = []
                 
                 for cps in chart2_pivot['CPS']:
+                    cps_data = proj_pivot[proj_pivot['CPS'] == cps]
+                    
                     # 1. FC1 기준 상위 5개 프로젝트 추출
-                    cps_fc1 = fc1_proj_df[fc1_proj_df['CPS'] == cps].sort_values(by='Rev. (€)', ascending=False).head(5)
-                    if not cps_fc1.empty:
+                    cps_fc1 = cps_data.sort_values(by='26 FC1', ascending=False).head(5)
+                    if not cps_fc1.empty and cps_fc1['26 FC1'].sum() != 0:
                         lines = ["<br><b>[Top 5 Projects (FC1 Target)]</b>"]
                         for rank, (_, row) in enumerate(cps_fc1.iterrows(), 1):
-                            lines.append(f"{rank}. {row['Project']} : {row['Rev. (€)'] / 1000.0:,.0f} K.€")
+                            lines.append(f"{rank}. {row['Project']} : {row['26 FC1'] / 1000.0:,.0f} K.€")
                         fc1_hover_texts.append("<br>".join(lines))
                     else:
                         fc1_hover_texts.append("<br><b>[No FC1 Data]</b>")
                         
-                    # 2. ACT 기준 상위 5개 프로젝트 추출
-                    cps_act = act_proj_df[act_proj_df['CPS'] == cps].sort_values(by='Rev. (€)', ascending=False).head(5)
-                    if not cps_act.empty:
+                    # 2. ACT 기준 상위 5개 프로젝트 추출 (+ 증감/증감률 추가)
+                    cps_act = cps_data.sort_values(by='ACT', ascending=False).head(5)
+                    if not cps_act.empty and cps_act['ACT'].sum() != 0:
                         lines = ["<br><b>[Top 5 Projects (ACT Actual)]</b>"]
                         for rank, (_, row) in enumerate(cps_act.iterrows(), 1):
-                            lines.append(f"{rank}. {row['Project']} : {row['Rev. (€)'] / 1000.0:,.0f} K.€")
+                            act_val = row['ACT'] / 1000.0
+                            fc1_val = row['26 FC1'] / 1000.0
+                            diff = act_val - fc1_val
+                            
+                            # 증감률 계산 방어코드
+                            pct_str = "N/A"
+                            if fc1_val != 0:
+                                pct_str = f"{(diff / fc1_val) * 100:+.1f}%"
+                            elif act_val > 0:
+                                pct_str = "+100.0%"
+                                
+                            # 색상 적용 HTML 태그
+                            if diff < 0:
+                                diff_html = f"<span style='color: darkred;'>{diff:,.0f} K.€ ({pct_str})</span>"
+                            elif diff > 0:
+                                diff_html = f"<span style='color: darkblue;'>+{diff:,.0f} K.€ ({pct_str})</span>"
+                            else:
+                                diff_html = "0 K.€ (0%)"
+                                
+                            lines.append(f"{rank}. {row['Project']} : {act_val:,.0f} K.€ | {diff_html}")
                         act_hover_texts.append("<br>".join(lines))
                     else:
                         act_hover_texts.append("<br><b>[No ACT Data]</b>")
