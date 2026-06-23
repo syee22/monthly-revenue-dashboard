@@ -581,22 +581,18 @@ if selected_menu == "매출 보고서":
                 # -------------------------------------------------------------
                 
                 fig2 = go.Figure(data=[
-                    go.Bar(name='FC1', 
-                           x=chart2_pivot['CPS'], 
-                           y=chart2_pivot['26 FC1'], 
-                           marker_color='#c7c7c7',
-                           customdata=chart2_pivot['fc1_hover'],
+                    go.Bar(name='FC1', x=chart2_pivot['CPS'], y=chart2_pivot['26 FC1'], 
+                           marker_color='#c7c7c7', text=chart2_pivot['26 FC1'].apply(lambda x: f'{x:,.0f}'),
+                           textposition='outside', customdata=chart2_pivot['fc1_hover'],
                            hovertemplate="<b>CPS: %{x}</b><br>FC1: %{y:,.0f} K.€%{customdata}<extra></extra>"),
-                    go.Bar(name='ACT', 
-                           x=chart2_pivot['CPS'], 
-                           y=chart2_pivot['ACT'], 
-                           marker_color='#1f77b4',
-                           customdata=chart2_pivot['act_hover'],
+                    go.Bar(name='ACT', x=chart2_pivot['CPS'], y=chart2_pivot['ACT'], 
+                           marker_color='#1f77b4', text=chart2_pivot['ACT'].apply(lambda x: f'{x:,.0f}'),
+                           textposition='outside', customdata=chart2_pivot['act_hover'],
                            hovertemplate="<b>CPS: %{x}</b><br>ACT: %{y:,.0f} K.€%{customdata}<extra></extra>")
                 ])
                 fig2.update_layout(barmode='group', title=f'[{MONTH_NAMES.get(selected_month)}] FC1 vs ACT by CPS (K.€)',
-                                   plot_bgcolor='rgba(0,0,0,0)', yaxis=(dict(showgrid=True, gridcolor='#e6e6e6')),
-                                   margin=dict(l=20, r=20, t=40, b=20),
+                                   plot_bgcolor='rgba(0,0,0,0)', yaxis=(dict(showgrid=True, gridcolor='#e6e6e6', visible=False)),
+                                   margin=dict(l=20, r=20, t=50, b=20),
                                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                 st.plotly_chart(fig2, use_container_width=True)
                 
