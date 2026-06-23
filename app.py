@@ -499,7 +499,7 @@ if selected_menu == "매출 보고서":
         reports_to_download = {}
         
         # ==========================================
-        # [신규] 시각화 대시보드 (Plotly)
+        # 시각화 대시보드 (Plotly)
         # ==========================================
         st.markdown("### 📈 Visual Dashboard")
         col1, col2 = st.columns(2)
@@ -509,7 +509,7 @@ if selected_menu == "매출 보고서":
             if not df_trend_data.empty:
                 plot_df = df_trend_data.drop('TTL (K.€)').reset_index().melt(id_vars='index', var_name='Month', value_name='Rev')
                 plot_df.rename(columns={'index': 'Brand'}, inplace=True)
-                plot_df['Rev'] = plot_df['Rev'] / 1000.0  # 단위를 K.€로 변경
+                plot_df['Rev'] = plot_df['Rev'] / 1000.0  # K.€ 단위 변환
                 
                 fig1 = px.bar(plot_df, x='Month', y='Rev', color='Brand', 
                               title='12 Months Revenue Trend (K.€)',
@@ -526,9 +526,37 @@ if selected_menu == "매출 보고서":
                 if '26 FC1' not in chart2_pivot.columns: chart2_pivot['26 FC1'] = 0
                 if 'ACT' not in chart2_pivot.columns: chart2_pivot['ACT'] = 0
                 
+                # --- [추가/수정] Hover 툴팁에 상위 5개 프로젝트 내역 추가 ---
+                act_proj_df = df_chart2[df_chart2['Desc.'] == 'ACT'].groupby(['CPS', 'Project'])['Rev. (€)'].sum().reset_index()
+                
+                hover_texts = []
+                for cps in chart2_pivot['CPS']:
+                    cps_projs = act_proj_df[act_proj_df['CPS'] == cps].sort_values(by='Rev. (€)', ascending=False).head(5)
+                    if not cps_projs.empty:
+                        text_lines = ["<br><b>[Top 5 Projects (ACT)]</b>"]
+                        for rank, (_, row) in enumerate(cps_projs.iterrows(), 1):
+                            val_k = row['Rev. (€)'] / 1000.0
+                            text_lines.append(f"{rank}. {row['Project']} : {val_k:,.0f} K.€")
+                        hover_texts.append("<br>".join(text_lines))
+                    else:
+                        hover_texts.append("<br><b>[No ACT Data]</b>")
+                
+                chart2_pivot['hover_text'] = hover_texts
+                # -------------------------------------------------------------
+                
                 fig2 = go.Figure(data=[
-                    go.Bar(name='FC1', x=chart2_pivot['CPS'], y=chart2_pivot['26 FC1'], marker_color='#c7c7c7'),
-                    go.Bar(name='ACT', x=chart2_pivot['CPS'], y=chart2_pivot['ACT'], marker_color='#1f77b4')
+                    go.Bar(name='FC1', 
+                           x=chart2_pivot['CPS'], 
+                           y=chart2_pivot['26 FC1'], 
+                           marker_color='#c7c7c7',
+                           customdata=chart2_pivot['hover_text'],
+                           hovertemplate="<b>CPS: %{x}</b><br>FC1: %{y:,.0f} K.€%{customdata}<extra></extra>"),
+                    go.Bar(name='ACT', 
+                           x=chart2_pivot['CPS'], 
+                           y=chart2_pivot['ACT'], 
+                           marker_color='#1f77b4',
+                           customdata=chart2_pivot['hover_text'],
+                           hovertemplate="<b>CPS: %{x}</b><br>ACT: %{y:,.0f} K.€%{customdata}<extra></extra>")
                 ])
                 fig2.update_layout(barmode='group', title=f'[{MONTH_NAMES.get(selected_month)}] FC1 vs ACT by CPS (K.€)',
                                    plot_bgcolor='rgba(0,0,0,0)', yaxis=(dict(showgrid=True, gridcolor='#e6e6e6')),
@@ -539,7 +567,7 @@ if selected_menu == "매출 보고서":
         st.markdown("---")
 
         # ==========================================
-        # 기존 테이블 영역 (원복 완료)
+        # 기존 테이블 영역
         # ==========================================
         st.subheader("📌 Sales Revenue Trend")
         if not df_trend_data.empty:
