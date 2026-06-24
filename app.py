@@ -56,21 +56,45 @@ def get_dynamic_highlight_css(table_id, df, highlight_phase):
     if not highlight_phase: return ""
     cols = list(df.columns)
     start_col, end_col = -1, -1
+    act_col_idx = -1
     level0_cols = []
+    
     for i, col in enumerate(cols):
         c0 = col[0] if isinstance(col, tuple) else str(col)
         if not level0_cols or level0_cols[-1] != c0: level0_cols.append(c0)
+        
         if c0 == highlight_phase:
             if start_col == -1: start_col = i
             end_col = i
+            # 당월 블록(highlight_phase) 내에 있는 ACT 컬럼의 정확한 인덱스 추출
+            if isinstance(col, tuple) and len(col) > 1 and col[1] == 'ACT':
+                act_col_idx = i
+            elif str(col) == 'ACT':
+                act_col_idx = i
+                
     if start_col == -1: return ""
+    
     num_indices = df.index.nlevels
     target_th_row0 = num_indices + level0_cols.index(highlight_phase) + 1
     target_th_row1_start = start_col + 1
     target_th_row1_end = end_col + 1
     td_start = start_col + 1
     td_end = end_col + 1
-    return f"<style>#{table_id} thead tr:nth-child(1) th:nth-child({target_th_row0}) {{ border-top: 5px solid #c00000 !important; border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:nth-of-type(n+{td_start}):nth-of-type(-n+{td_end}) {{ border-bottom: 5px solid #c00000 !important; }}</style>"
+    
+    css = f"<style>\n"
+    css += f"#{table_id} thead tr:nth-child(1) th:nth-child({target_th_row0}) {{ border-top: 5px solid #c00000 !important; border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important; }}\n"
+    css += f"#{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_start}) {{ border-left: 5px solid #c00000 !important; }}\n"
+    css += f"#{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_end}) {{ border-right: 5px solid #c00000 !important; }}\n"
+    css += f"#{table_id} tbody td:nth-of-type({td_start}) {{ border-left: 5px solid #c00000 !important; }}\n"
+    css += f"#{table_id} tbody td:nth-of-type({td_end}) {{ border-right: 5px solid #c00000 !important; }}\n"
+    css += f"#{table_id} tbody tr:last-child td:nth-of-type(n+{td_start}):nth-of-type(-n+{td_end}) {{ border-bottom: 5px solid #c00000 !important; }}\n"
+    
+    # 당월(highlight_phase) 'ACT' 컬럼 텍스트 노란색 하이라이트 CSS 동적 주입!
+    if act_col_idx != -1:
+        css += f"#{table_id} thead tr:nth-child(2) th:nth-child({act_col_idx + 1}) {{ color: #FFFF00 !important; }}\n"
+        
+    css += f"</style>"
+    return css
 
 def get_numeric_cols(df): 
     return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
@@ -158,7 +182,6 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
         
     return styler
 
-# --- [업그레이드] HTML 헤더 최적화 및 주황 박스 영역 ACT 노란색 강조 ---
 def optimize_html_headers(html_str, df):
     try:
         thead_start, thead_end = html_str.find('<thead>'), html_str.find('</thead>')
@@ -178,19 +201,6 @@ def optimize_html_headers(html_str, df):
                 width_style = "width: 50px !important; min-width: 50px !important; max-width: 50px !important; padding-left: 2px !important; padding-right: 2px !important; white-space: normal !important;" if name in ['Con.', 'SOP'] else "min-width: 80px;"
                 ths0[i] = f'<th rowspan="2" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; {width_style}">{name}</th>'
                 ths1[i] = ''
-
-        # [핵심 디테일 반영] 첫 번째 ACT(전월 실적)는 스킵하고 당월·YTD·TTL의 ACT만 노란색 적용
-        act_counter = 0
-        for j in range(len(ths1)):
-            if "ACT" in ths1[j]:
-                act_counter += 1
-                if act_counter > 1:
-                    ths1[j] = re.sub(
-                        r'(>)\s*ACT\s*(</th)', 
-                        r'\1<span style="color: #FFFF00 !important; font-weight: bold;">ACT</span>\2', 
-                        ths1[j]
-                    )
-
         new_thead = f"<thead>\n<tr>{''.join(ths0)}</tr>\n<tr>{''.join(ths1)}</tr>\n</thead>"
         return html_str[:thead_start] + new_thead + html_str[thead_end+8:]
     except Exception: return html_str
@@ -315,6 +325,7 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
     final_df = pd.DataFrame(combined_dict)
     final_df.columns = pd.MultiIndex.from_tuples(col_tuples)
     final_df.index.names = current_index_names
+    
     final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
     
     if sort_by_current_act and (phase_curr, 'ACT') in final_df.columns: final_df = final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
@@ -339,7 +350,6 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
         
     dfs_to_concat = [final_df, t_df]
 
-    # --- [FC1 EX-RATE 로직: PE_HKMC_Summary 에만 적용] ---
     if add_ex_rate:
         def calc_ex_rate_act(df_target, target_year, target_month_list):
             total_val = 0
@@ -418,6 +428,15 @@ def get_biz_type_detailed_report(df, year, month):
             combined_dict[(phase_name, 'ACHI %')] = pd.Series(data.get('ACT', 0)).div(pd.Series(data.get('26 FC1', 0))).replace([np.inf, -np.inf], 0).fillna(0)
             
         combined = pd.DataFrame(combined_dict, index=p_m.index)
+        
+        # [당월 FC1 및 ACT 0값 필터링 로직 강화]
+        if (phase_names[0], '26 FC1') in combined.columns and (phase_names[0], 'ACT') in combined.columns:
+            fc1_curr = combined[(phase_names[0], '26 FC1')].abs()
+            act_curr = combined[(phase_names[0], 'ACT')].abs()
+            combined = combined[(fc1_curr >= 0.01) | (act_curr >= 0.01)]
+            
+        if combined.empty: continue
+        
         if (phase_names[0], 'ACT') in combined.columns: combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
             
         subtotal = combined.sum(numeric_only=True)
@@ -483,7 +502,6 @@ def get_biz_type_detailed_report(df, year, month):
 
     return pd.concat([final_df, grand_row, ex_df]), phase_names[0]
 
-# --- [업그레이드 완료] Core Biz Summary (당월 실적 0값 권역 완전 제외) ---
 def get_core_biz_summary_report(df, year, month):
     prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
     m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
@@ -528,12 +546,12 @@ def get_core_biz_summary_report(df, year, month):
 
         combined = pd.DataFrame(combined_dict, index=idx)
 
-        # [필터 로직 업그레이드] 당월(phase_names[0]) 기준 26 FC1과 ACT가 둘 다 0인 행(KOBU, KOBRA 등) 완전히 제거
-        curr_fc1 = combined[(phase_names[0], '26 FC1')]
-        curr_act = combined[(phase_names[0], 'ACT')]
-        mask = (curr_fc1 != 0) | (curr_act != 0)
-        combined = combined[mask]
-        
+        # [당월 FC1 및 ACT 0값 필터링 로직 강화]
+        if (phase_names[0], '26 FC1') in combined.columns and (phase_names[0], 'ACT') in combined.columns:
+            fc1_curr = combined[(phase_names[0], '26 FC1')].abs()
+            act_curr = combined[(phase_names[0], 'ACT')].abs()
+            combined = combined[(fc1_curr >= 0.01) | (act_curr >= 0.01)]
+            
         if combined.empty: continue
 
         subtotal = combined.sum(numeric_only=True)
@@ -599,7 +617,6 @@ def get_core_biz_summary_report(df, year, month):
     ex_df = pd.DataFrame([ex_rate_row], index=pd.MultiIndex.from_tuples([('FC1 EX-RATE', ' ')], names=['Cust. GR', 'KOx']))
 
     return pd.concat([final_df, grand_row, ex_df]), phase_names[0]
-# ----------------------------------------------------------------------
 
 def get_biz_report(df, biz_type, year, month):
     if month == 1: prev_year, prev_month = year - 1, 12
@@ -680,6 +697,15 @@ def get_biz_report(df, biz_type, year, month):
                 combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
             
             combined = pd.DataFrame(combined_dict, index=idx)
+            
+            # [당월 FC1 및 ACT 0값 필터링 로직 강화]
+            if (phase_names[0], '26 FC1') in combined.columns and (phase_names[0], 'ACT') in combined.columns:
+                fc1_curr = combined[(phase_names[0], '26 FC1')].abs()
+                act_curr = combined[(phase_names[0], 'ACT')].abs()
+                combined = combined[(fc1_curr >= 0.01) | (act_curr >= 0.01)]
+                
+            if combined.empty: continue
+            
             if ('Others', '', '') in combined.index: 
                 combined = pd.concat([combined.drop(index=('Others', '', '')).sort_values(by=(phase_names[0], 'ACT'), ascending=False), combined.loc[[('Others', '', '')]]])
             else: 
