@@ -953,8 +953,8 @@ if selected_menu == "매출 보고서":
             st.markdown(render_html_view(df_item, c_col, apply_color=False), unsafe_allow_html=True)
             reports_to_download["Item_Summary"] = df_item
             
-        # --- Core Biz Summary (Group 1 & KOx) ---
-        st.subheader("📌 Sales Revenue: Core Biz Summary (Group 1 & KOx)")
+        # --- Core Biz Summary ---
+        st.subheader("📌 Core Biz Summary")
         df_core_grp, c_col = get_core_biz_summary_report(raw_df, selected_year, selected_month)
         if not df_core_grp.empty:
             st.markdown(render_html_view(df_core_grp, c_col, apply_color=True), unsafe_allow_html=True)
