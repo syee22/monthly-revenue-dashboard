@@ -825,7 +825,7 @@ if selected_menu == "매출 보고서":
                 fig1 = px.bar(plot_df, x='Month', y='Rev', color='CPS', 
                               title='12 Months Revenue Trend (K.€)',
                               color_discrete_sequence=px.colors.qualitative.Set2)
-                fig1.update_layout(height=400, plot_bgcolor='rgba(0,0,0,0)', yaxis=(dict(showgrid=True, gridcolor='#e6e6e6')),
+                fig1.update_layout(height=300, plot_bgcolor='rgba(0,0,0,0)', yaxis=(dict(showgrid=True, gridcolor='#e6e6e6')),
                                    margin=dict(l=20, r=20, t=40, b=20), legend_title_text='')
                 st.plotly_chart(fig1, use_container_width=True)
 
@@ -903,7 +903,7 @@ if selected_menu == "매출 보고서":
                            customdata=chart2_pivot['act_hover'],
                            hovertemplate="<b>CPS: %{x}</b><br>ACT: %{y:,.0f} K.€%{customdata}<extra></extra>")
                 ])
-                fig2.update_layout(height=400,barmode='group', title=f'[{MONTH_NAMES.get(selected_month)}] FC1 vs ACT by CPS (K.€)',
+                fig2.update_layout(height=300,barmode='group', title=f'[{MONTH_NAMES.get(selected_month)}] FC1 vs ACT by CPS (K.€)',
                                    plot_bgcolor='rgba(0,0,0,0)', yaxis=(dict(showgrid=True, gridcolor='#e6e6e6', visible=False)),
                                    margin=dict(l=20, r=20, t=50, b=20),
                                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
