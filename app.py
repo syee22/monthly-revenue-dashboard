@@ -359,7 +359,7 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
                         total_val += act_sum
             return total_val
             
-        ex_rate_row = pd.Series("", index=total_row.index) # 공란으로 기본 초기화
+        ex_rate_row = pd.Series(np.nan, index=total_row.index) # TypeError를 막기 위해 np.nan으로 초기화
         
         month_lists = {
             phase_curr: [month],
@@ -457,7 +457,7 @@ def get_biz_type_detailed_report(df, year, month):
                     total_val += act_sum
         return total_val
 
-    ex_rate_row = pd.Series("", index=grand_total.index) # 공란으로 기본 초기화
+    ex_rate_row = pd.Series(np.nan, index=grand_total.index) # TypeError를 막기 위해 np.nan으로 초기화
     valid_biz_df = df[df['BIZ Type'].isin(biz_categories)]
     
     month_lists = {
@@ -573,7 +573,7 @@ def get_core_biz_summary_report(df, year, month):
                     total_val += act_sum
         return total_val
 
-    ex_rate_row = pd.Series("", index=grand_total.index) # 공란으로 기본 초기화
+    ex_rate_row = pd.Series(np.nan, index=grand_total.index) # TypeError를 막기 위해 np.nan으로 초기화
 
     month_lists = {
         phase_names[0]: [month],
