@@ -178,7 +178,11 @@ def optimize_html_headers(html_str, df):
                 ths0[i] = f'<th rowspan="2" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; {width_style}">{name}</th>'
                 ths1[i] = ''
         new_thead = f"<thead>\n<tr>{''.join(ths0)}</tr>\n<tr>{''.join(ths1)}</tr>\n</thead>"
-        return html_str[:thead_start] + new_thead + html_str[thead_end+8:]
+        modified_html = html_str[:thead_start] + new_thead + html_str[thead_end+8:]
+        
+        # ACT 컬럼명 텍스트를 노란색으로 하이라이트 (데이터 값은 그대로 둠)
+        modified_html = re.sub(r'(<th[^>]*>)\s*ACT\s*(</th>)', r'\1<span style="color: #FFFF00 !important;">ACT</span>\2', modified_html)
+        return modified_html
     except Exception: return html_str
 
 def post_process_html_styles(html_str):
@@ -355,8 +359,7 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
                         total_val += act_sum
             return total_val
             
-        ex_rate_row = pd.Series(0.0, index=total_row.index)
-        ex_rate_row[(col_prev, 'ACT')] = calc_ex_rate_act(df_sub, prev_year, [prev_month])
+        ex_rate_row = pd.Series("", index=total_row.index) # 공란으로 기본 초기화
         
         month_lists = {
             phase_curr: [month],
@@ -365,13 +368,12 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
         }
         
         for p_name in phases:
-            ex_rate_row[(p_name, 'ACT')] = calc_ex_rate_act(df_sub, year, month_lists[p_name])
-            ex_rate_row[(p_name, '26 FC1')] = total_row.get((p_name, '26 FC1'), 0)
-            ex_rate_row[(p_name, '25 FC3')] = total_row.get((p_name, '25 FC3'), 0)
+            act_val = calc_ex_rate_act(df_sub, year, month_lists[p_name])
+            ex_rate_row[(p_name, 'ACT')] = act_val
             
             den = total_row.get((p_name, '26 FC1'), 0)
             if den != 0:
-                ex_rate_row[(p_name, 'ACHI %')] = ex_rate_row[(p_name, 'ACT')] / den
+                ex_rate_row[(p_name, 'ACHI %')] = act_val / den
             else:
                 ex_rate_row[(p_name, 'ACHI %')] = 0
                 
@@ -385,7 +387,7 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
         
     return pd.concat(dfs_to_concat), col_prev, phase_curr
 
-# --- [수정 완료] DIRECT & COMM 테이블 (FC1 EX-RATE 로직 추가) ---
+# --- DIRECT & COMM 테이블 (FC1 EX-RATE 로직 포함 및 지정 컬럼 공란 처리) ---
 def get_biz_type_detailed_report(df, year, month):
     prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
     m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
@@ -429,7 +431,7 @@ def get_biz_type_detailed_report(df, year, month):
         
     grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('TTL (K.€)', ' ')], names=['BIZ Type', 'KOx']))
 
-    # --- FC1 EX-RATE Calculation (단일 값 강제 추출) ---
+    # --- FC1 EX-RATE Calculation (단일 값 강제 추출 로직 유지 및 불필요 셀 공란 처리) ---
     def calc_ex_rate_act(df_target, target_year, target_month_list):
         total_val = 0
         for kox in df_target['KOx'].unique():
@@ -455,10 +457,8 @@ def get_biz_type_detailed_report(df, year, month):
                     total_val += act_sum
         return total_val
 
-    ex_rate_row = pd.Series(0.0, index=grand_total.index)
+    ex_rate_row = pd.Series("", index=grand_total.index) # 공란으로 기본 초기화
     valid_biz_df = df[df['BIZ Type'].isin(biz_categories)]
-    
-    ex_rate_row[(prev_phase_name, 'ACT')] = calc_ex_rate_act(valid_biz_df, prev_year, [prev_month])
     
     month_lists = {
         phase_names[0]: [month],
@@ -467,16 +467,17 @@ def get_biz_type_detailed_report(df, year, month):
     }
     
     for p_name in phase_names:
-        ex_rate_row[(p_name, 'ACT')] = calc_ex_rate_act(valid_biz_df, year, month_lists[p_name])
-        ex_rate_row[(p_name, '26 FC1')] = grand_total.get((p_name, '26 FC1'), 0)
-        ex_rate_row[(p_name, '25 FC3')] = grand_total.get((p_name, '25 FC3'), 0)
+        act_val = calc_ex_rate_act(valid_biz_df, year, month_lists[p_name])
+        ex_rate_row[(p_name, 'ACT')] = act_val
+        
         den = grand_total.get((p_name, '26 FC1'), 0)
-        ex_rate_row[(p_name, 'ACHI %')] = ex_rate_row[(p_name, 'ACT')] / den if den != 0 else 0
+        ex_rate_row[(p_name, 'ACHI %')] = act_val / den if den != 0 else 0
         
     ex_df = pd.DataFrame([ex_rate_row], index=pd.MultiIndex.from_tuples([('FC1 EX-RATE', ' ')], names=['BIZ Type', 'KOx']))
 
     return pd.concat([final_df, grand_row, ex_df]), phase_names[0]
 
+# --- Group 1, KOx 별 매출액(Core Business) 요약 (EX-RATE 로직 포함 및 지정 컬럼 공란 처리) ---
 def get_core_biz_summary_report(df, year, month):
     prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
     m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
@@ -546,7 +547,7 @@ def get_core_biz_summary_report(df, year, month):
 
     grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('Core Biz Rev. TTL (K.€)', ' ')], names=['Cust. GR', 'KOx']))
 
-    # --- FC1 EX-RATE Calculation (단일 값 강제 추출) ---
+    # --- FC1 EX-RATE Calculation (단일 값 강제 추출 로직 유지 및 불필요 셀 공란 처리) ---
     def calc_ex_rate_act(df_target, target_year, target_month_list):
         total_val = 0
         for kox in df_target['KOx'].unique():
@@ -572,8 +573,7 @@ def get_core_biz_summary_report(df, year, month):
                     total_val += act_sum
         return total_val
 
-    ex_rate_row = pd.Series(0.0, index=grand_total.index)
-    ex_rate_row[(prev_phase_name, 'ACT')] = calc_ex_rate_act(df_core, prev_year, [prev_month])
+    ex_rate_row = pd.Series("", index=grand_total.index) # 공란으로 기본 초기화
 
     month_lists = {
         phase_names[0]: [month],
@@ -582,11 +582,11 @@ def get_core_biz_summary_report(df, year, month):
     }
 
     for p_name in phase_names:
-        ex_rate_row[(p_name, 'ACT')] = calc_ex_rate_act(df_core, year, month_lists[p_name])
-        ex_rate_row[(p_name, '26 FC1')] = grand_total.get((p_name, '26 FC1'), 0)
-        ex_rate_row[(p_name, '25 FC3')] = grand_total.get((p_name, '25 FC3'), 0)
+        act_val = calc_ex_rate_act(df_core, year, month_lists[p_name])
+        ex_rate_row[(p_name, 'ACT')] = act_val
+        
         den = grand_total.get((p_name, '26 FC1'), 0)
-        ex_rate_row[(p_name, 'ACHI %')] = ex_rate_row[(p_name, 'ACT')] / den if den != 0 else 0
+        ex_rate_row[(p_name, 'ACHI %')] = act_val / den if den != 0 else 0
 
     ex_df = pd.DataFrame([ex_rate_row], index=pd.MultiIndex.from_tuples([('FC1 EX-RATE', ' ')], names=['Cust. GR', 'KOx']))
 
@@ -919,7 +919,7 @@ if selected_menu == "매출 보고서":
                 st.markdown(render_html_view(df_pe_summary, c_col, apply_color=True), unsafe_allow_html=True)
                 reports_to_download["PE_HKMC_Summary"] = df_pe_summary
 
-        # --- [신규 추가] Core Biz Summary (Group 1 & KOx) ---
+        # --- Core Biz Summary (Group 1 & KOx) ---
         st.subheader("📌 Sales Revenue: Core Biz Summary (Group 1 & KOx)")
         df_core_grp, c_col = get_core_biz_summary_report(raw_df, selected_year, selected_month)
         if not df_core_grp.empty:
