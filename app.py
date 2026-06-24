@@ -66,7 +66,6 @@ def get_dynamic_highlight_css(table_id, df, highlight_phase):
         if c0 == highlight_phase:
             if start_col == -1: start_col = i
             end_col = i
-            # 당월 블록(highlight_phase) 내에 있는 ACT 컬럼의 정확한 인덱스 추출
             if isinstance(col, tuple) and len(col) > 1 and col[1] == 'ACT':
                 act_col_idx = i
             elif str(col) == 'ACT':
@@ -89,7 +88,6 @@ def get_dynamic_highlight_css(table_id, df, highlight_phase):
     css += f"#{table_id} tbody td:nth-of-type({td_end}) {{ border-right: 5px solid #c00000 !important; }}\n"
     css += f"#{table_id} tbody tr:last-child td:nth-of-type(n+{td_start}):nth-of-type(-n+{td_end}) {{ border-bottom: 5px solid #c00000 !important; }}\n"
     
-    # 당월(highlight_phase) 'ACT' 컬럼 텍스트 노란색 하이라이트 CSS 동적 주입!
     if act_col_idx != -1:
         css += f"#{table_id} thead tr:nth-child(2) th:nth-child({act_col_idx + 1}) {{ color: #FFFF00 !important; }}\n"
         
@@ -202,7 +200,10 @@ def optimize_html_headers(html_str, df):
                 ths0[i] = f'<th rowspan="2" style="vertical-align: middle !important; text-align: center !important; background-color: #002060 !important; color: white !important; border: 1px solid #8ea9db !important; {width_style}">{name}</th>'
                 ths1[i] = ''
         new_thead = f"<thead>\n<tr>{''.join(ths0)}</tr>\n<tr>{''.join(ths1)}</tr>\n</thead>"
-        return html_str[:thead_start] + new_thead + html_str[thead_end+8:]
+        modified_html = html_str[:thead_start] + new_thead + html_str[thead_end+8:]
+        
+        modified_html = re.sub(r'(<th[^>]*>)\s*ACT\s*(</th>)', r'\1<span style="color: #FFFF00 !important;">ACT</span>\2', modified_html, flags=re.IGNORECASE)
+        return modified_html
     except Exception: return html_str
 
 def post_process_html_styles(html_str):
@@ -429,7 +430,6 @@ def get_biz_type_detailed_report(df, year, month):
             
         combined = pd.DataFrame(combined_dict, index=p_m.index)
         
-        # [당월 FC1 및 ACT 0값 필터링 로직 강화]
         if (phase_names[0], '26 FC1') in combined.columns and (phase_names[0], 'ACT') in combined.columns:
             fc1_curr = combined[(phase_names[0], '26 FC1')].abs()
             act_curr = combined[(phase_names[0], 'ACT')].abs()
@@ -546,7 +546,6 @@ def get_core_biz_summary_report(df, year, month):
 
         combined = pd.DataFrame(combined_dict, index=idx)
 
-        # [당월 FC1 및 ACT 0값 필터링 로직 강화]
         if (phase_names[0], '26 FC1') in combined.columns and (phase_names[0], 'ACT') in combined.columns:
             fc1_curr = combined[(phase_names[0], '26 FC1')].abs()
             act_curr = combined[(phase_names[0], 'ACT')].abs()
@@ -698,7 +697,6 @@ def get_biz_report(df, biz_type, year, month):
             
             combined = pd.DataFrame(combined_dict, index=idx)
             
-            # [당월 FC1 및 ACT 0값 필터링 로직 강화]
             if (phase_names[0], '26 FC1') in combined.columns and (phase_names[0], 'ACT') in combined.columns:
                 fc1_curr = combined[(phase_names[0], '26 FC1')].abs()
                 act_curr = combined[(phase_names[0], 'ACT')].abs()
@@ -744,13 +742,16 @@ def build_trend_report(df, end_year, end_month):
     months.reverse() 
     
     df_act = df[df['Desc.'] == 'ACT']
+    cps_list = sorted(df_act['CPS'].dropna().unique().tolist())
+    
     pivot_data = {}
     for y, m in months:
         col_name = f"{MONTH_NAMES[m]}.{str(y)[-2:]}"
         temp_df = df_act[(df_act['Year'] == y) & (df_act['Month'] == m)]
-        pivot_data[col_name] = {'HYU': temp_df[temp_df['Group 2'] == 'HYU']['Rev. (€)'].sum(), 'KIA': temp_df[temp_df['Group 2'] == 'KIA']['Rev. (€)'].sum(), 'GM': temp_df[temp_df['Project'] == 'GM']['Rev. (€)'].sum()}
+        pivot_data[col_name] = temp_df.groupby('CPS')['Rev. (€)'].sum()
         
-    trend_df = pd.DataFrame(pivot_data).reindex(['HYU', 'KIA', 'GM']).fillna(0)
+    trend_df = pd.DataFrame(pivot_data).reindex(cps_list).fillna(0)
+    trend_df = trend_df.loc[(trend_df.sum(axis=1) != 0)]
     trend_df.loc['TTL (K.€)'] = trend_df.sum(numeric_only=True)
     trend_df.index.name = trend_df.columns.name = None 
     trend_df.columns = [col.strip() for col in trend_df.columns.values]
@@ -818,12 +819,12 @@ if selected_menu == "매출 보고서":
             df_trend_data = build_trend_report(raw_df, selected_year, selected_month)
             if not df_trend_data.empty:
                 plot_df = df_trend_data.drop('TTL (K.€)').reset_index().melt(id_vars='index', var_name='Month', value_name='Rev')
-                plot_df.rename(columns={'index': 'Brand'}, inplace=True)
+                plot_df.rename(columns={'index': 'CPS'}, inplace=True)
                 plot_df['Rev'] = plot_df['Rev'] / 1000.0  # K.€ 단위 변환
                 
-                fig1 = px.bar(plot_df, x='Month', y='Rev', color='Brand', 
+                fig1 = px.bar(plot_df, x='Month', y='Rev', color='CPS', 
                               title='12 Months Revenue Trend (K.€)',
-                              color_discrete_map={'HYU': '#002060', 'KIA': '#8ea9db', 'GM': '#d9d9d9'})
+                              color_discrete_sequence=px.colors.qualitative.Set2)
                 fig1.update_layout(plot_bgcolor='rgba(0,0,0,0)', yaxis=(dict(showgrid=True, gridcolor='#e6e6e6')),
                                    margin=dict(l=20, r=20, t=40, b=20), legend_title_text='')
                 st.plotly_chart(fig1, use_container_width=True)
