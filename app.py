@@ -384,7 +384,7 @@ if selected_menu == "매출 보고서":
                 
             grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('TTL (K.€)', ' ')], names=['BIZ Type', 'KOx']))
 
-            # --- [NEW] FC1 EX-RATE 행 추가 로직 ---
+            # --- [MODIFIED] FC1 EX-RATE 행 추가 로직 (KEM-KR 추가) ---
             def calc_ex_rate_act(df_full, target_year, target_month_list):
                 total_val = 0
                 df_target = df_full[df_full['BIZ Type'].isin(biz_categories)]
@@ -392,7 +392,9 @@ if selected_menu == "매출 보고서":
                     kox_df = df_target[(df_target['KOx'] == kox) & (df_target['Year'] == target_year)]
                     fc1_df = kox_df[kox_df['Desc.'] == '26 FC1']
                     
-                    rate_col = 'EUR:KRW' if kox == 'KOKOR' else 'EUR:USD'
+                    # [수정] KOKOR와 KEM-KR 모두 EUR:KRW 환율 적용
+                    rate_col = 'EUR:KRW' if kox in ['KOKOR', 'KEM-KR'] else 'EUR:USD'
+                    
                     fc1_rates = pd.to_numeric(fc1_df[rate_col], errors='coerce').replace(0, np.nan)
                     fc1_rate = fc1_rates.mean() if not fc1_rates.dropna().empty else np.nan
                     
@@ -421,11 +423,9 @@ if selected_menu == "매출 보고서":
             
             for p_name in phase_names:
                 ex_rate_row[(p_name, 'ACT')] = calc_ex_rate_act(df, year, month_lists[p_name])
-                # 기준 대상이 되는 FC1 값 복사
                 ex_rate_row[(p_name, '26 FC1')] = grand_total.get((p_name, '26 FC1'), 0)
                 ex_rate_row[(p_name, '25 FC3')] = grand_total.get((p_name, '25 FC3'), 0)
                 
-                # ACHI % (당월 26FC1 총 합계로 나눈 값)
                 den = grand_total.get((p_name, '26 FC1'), 0)
                 if den != 0:
                     ex_rate_row[(p_name, 'ACHI %')] = ex_rate_row[(p_name, 'ACT')] / den
@@ -483,7 +483,12 @@ if selected_menu == "매출 보고서":
                 else:
                     top_indices = []
                 
-                top_df = df_all.loc[df_all.index.isin(top_indices)].sort_values(by=(p_curr, 'ACT'), ascending=False)
+                # --- [MODIFIED] KeyError 방지: 해당 컬럼이 있을 때만 정렬 ---
+                top_df = df_all.loc[df_all.index.isin(top_indices)]
+                if (p_curr, 'ACT') in top_df.columns:
+                    top_df = top_df.sort_values(by=(p_curr, 'ACT'), ascending=False)
+                # -----------------------------------------------------------
+                    
                 others_df = df_all.loc[~df_all.index.isin(top_indices)].sum().to_frame().T
                 others_df.index = pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP'])
                 
@@ -679,18 +684,22 @@ if selected_menu == "매출 보고서":
                            x=chart2_pivot['CPS'], 
                            y=chart2_pivot['26 FC1'], 
                            marker_color='#c7c7c7',
+                           text=chart2_pivot['26 FC1'].apply(lambda x: f'{x:,.0f}'),
+                           textposition='inside', textfont=dict(color='white', size=12, weight='bold'),
                            customdata=chart2_pivot['fc1_hover'],
                            hovertemplate="<b>CPS: %{x}</b><br>FC1: %{y:,.0f} K.€%{customdata}<extra></extra>"),
                     go.Bar(name='ACT', 
                            x=chart2_pivot['CPS'], 
                            y=chart2_pivot['ACT'], 
                            marker_color='#1f77b4',
+                           text=chart2_pivot['ACT'].apply(lambda x: f'{x:,.0f}'),
+                           textposition='inside', textfont=dict(color='white', size=12, weight='bold'),
                            customdata=chart2_pivot['act_hover'],
                            hovertemplate="<b>CPS: %{x}</b><br>ACT: %{y:,.0f} K.€%{customdata}<extra></extra>")
                 ])
                 fig2.update_layout(barmode='group', title=f'[{MONTH_NAMES.get(selected_month)}] FC1 vs ACT by CPS (K.€)',
-                                   plot_bgcolor='rgba(0,0,0,0)', yaxis=(dict(showgrid=True, gridcolor='#e6e6e6')),
-                                   margin=dict(l=20, r=20, t=40, b=20),
+                                   plot_bgcolor='rgba(0,0,0,0)', yaxis=(dict(showgrid=True, gridcolor='#e6e6e6', visible=False)),
+                                   margin=dict(l=20, r=20, t=50, b=20),
                                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                 st.plotly_chart(fig2, use_container_width=True)
                 
