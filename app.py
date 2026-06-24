@@ -426,7 +426,7 @@ def get_biz_type_detailed_report(df, year, month):
     grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('TTL (K.€)', ' ')], names=['BIZ Type', 'KOx']))
     return pd.concat([final_df, grand_row]), phase_names[0]
 
-# --- [새로 추가된 함수] Group 1, KOx 별 매출액(Core Business) 요약 ---
+# --- [수정 완료] Group 1, KOx 별 매출액(Core Business) 요약 (연도 필터 추가 & 0값 숨김) ---
 def get_core_biz_summary_report(df, year, month):
     prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
     m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
@@ -449,10 +449,12 @@ def get_core_biz_summary_report(df, year, month):
 
     for gr in unique_grs:
         gr_df = df_core[df_core['Cust. GR'] == gr]
-        p_m = gr_df[gr_df['Month'] == month].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-        p_y = gr_df[gr_df['Month'] <= month].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-        p_fy = gr_df.pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-        p_prev = df_core[(df_core['Cust. GR'] == gr) & (df_core['Year'] == prev_year) & (df_core['Month'] == prev_month)].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+        
+        # 연도(Year) 필터 조건을 추가하여 누적 집계 오류를 해결했습니다.
+        p_m = gr_df[(gr_df['Year'] == year) & (gr_df['Month'] == month)].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+        p_y = gr_df[(gr_df['Year'] == year) & (gr_df['Month'] <= month)].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+        p_fy = gr_df[gr_df['Year'] == year].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+        p_prev = gr_df[(gr_df['Year'] == prev_year) & (gr_df['Month'] == prev_month)].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
 
         all_idx = set(p_m.index.tolist() + p_y.index.tolist() + p_fy.index.tolist() + p_prev.index.tolist())
         if not all_idx: continue
@@ -472,6 +474,13 @@ def get_core_biz_summary_report(df, year, month):
             combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
 
         combined = pd.DataFrame(combined_dict, index=idx)
+
+        # 26 FC1과 ACT가 모두 0인 KOx 표시 안 함 (요청 사항 반영)
+        mask = (combined.filter(like='26 FC1').sum(axis=1) != 0) | (combined.filter(like='ACT').sum(axis=1) != 0)
+        combined = combined[mask]
+        
+        if combined.empty: continue
+
         subtotal = combined.sum(numeric_only=True)
         for p_name in phase_names:
             den = subtotal.get((p_name, '26 FC1'), 0)
