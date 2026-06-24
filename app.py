@@ -287,7 +287,8 @@ if selected_menu == "매출 보고서":
 
         def get_numeric_cols(df): return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
 
-        def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.€)", index_names=None, sort_by_current_act=False):
+        # --- [MODIFIED] build_summary_report에 FC1 EX-RATE 로직 옵션 추가 ---
+        def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.€)", index_names=None, sort_by_current_act=False, add_ex_rate=False):
             if df_sub.empty: return pd.DataFrame(), "", ""
             prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
             
@@ -339,8 +340,66 @@ if selected_menu == "매출 보고서":
                 total_row[(phase_name, 'ACHI %')] = num / den if den != 0 else 0
                 
             t_df = pd.DataFrame([total_row], index=pd.MultiIndex.from_tuples([tuple([total_label] + [''] * (len(final_df.index.names)-1))], names=final_df.index.names)) if isinstance(final_df.index, pd.MultiIndex) else pd.DataFrame([total_row], index=pd.Index([total_label], name=final_df.index.name))
-            return pd.concat([final_df, t_df]), col_prev, phase_curr
+            
+            dfs_to_concat = [final_df, t_df]
 
+            # FC1 EX-RATE 로직 추가
+            if add_ex_rate:
+                def calc_ex_rate_act(df_target, target_year, target_month_list):
+                    total_val = 0
+                    for kox in df_target['KOx'].unique():
+                        kox_df = df_target[(df_target['KOx'] == kox) & (df_target['Year'] == target_year)]
+                        fc1_df = kox_df[kox_df['Desc.'] == '26 FC1']
+                        
+                        rate_col = 'EUR:KRW' if kox in ['KOKOR', 'KEM-KR'] else 'EUR:USD'
+                        fc1_rates = pd.to_numeric(fc1_df[rate_col], errors='coerce').replace(0, np.nan)
+                        fc1_rate = fc1_rates.mean() if not fc1_rates.dropna().empty else np.nan
+                        
+                        for m in target_month_list:
+                            m_act_df = kox_df[(kox_df['Desc.'] == 'ACT') & (kox_df['Month'] == m)]
+                            act_sum = m_act_df['Rev. (€)'].sum()
+                            if act_sum == 0: continue
+                            
+                            act_rates = pd.to_numeric(m_act_df[rate_col], errors='coerce').replace(0, np.nan)
+                            act_rate = act_rates.mean() if not act_rates.dropna().empty else np.nan
+                            
+                            if pd.notna(fc1_rate) and pd.notna(act_rate) and act_rate != 0:
+                                total_val += act_sum * (fc1_rate / act_rate)
+                            else:
+                                total_val += act_sum
+                    return total_val
+                    
+                ex_rate_row = pd.Series(0.0, index=total_row.index)
+                ex_rate_row[(col_prev, 'ACT')] = calc_ex_rate_act(df_sub, prev_year, [prev_month])
+                
+                month_lists = {
+                    phase_curr: [month],
+                    phase_ytd: list(range(1, month + 1)),
+                    phase_ttl: list(range(1, 13))
+                }
+                
+                for p_name in phases:
+                    ex_rate_row[(p_name, 'ACT')] = calc_ex_rate_act(df_sub, year, month_lists[p_name])
+                    ex_rate_row[(p_name, '26 FC1')] = total_row.get((p_name, '26 FC1'), 0)
+                    ex_rate_row[(p_name, '25 FC3')] = total_row.get((p_name, '25 FC3'), 0)
+                    
+                    den = total_row.get((p_name, '26 FC1'), 0)
+                    if den != 0:
+                        ex_rate_row[(p_name, 'ACHI %')] = ex_rate_row[(p_name, 'ACT')] / den
+                    else:
+                        ex_rate_row[(p_name, 'ACHI %')] = 0
+                        
+                if isinstance(final_df.index, pd.MultiIndex):
+                    ex_idx = tuple(['FC1 EX-RATE'] + [''] * (len(final_df.index.names)-1))
+                    ex_df = pd.DataFrame([ex_rate_row], index=pd.MultiIndex.from_tuples([ex_idx], names=final_df.index.names))
+                else:
+                    ex_df = pd.DataFrame([ex_rate_row], index=pd.Index(['FC1 EX-RATE'], name=final_df.index.name))
+                    
+                dfs_to_concat.append(ex_df)
+                
+            return pd.concat(dfs_to_concat), col_prev, phase_curr
+
+        # --- [RESTORED] 원본 get_biz_type_detailed_report (DIRECT & COMM) ---
         def get_biz_type_detailed_report(df, year, month):
             prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
             m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
@@ -383,59 +442,8 @@ if selected_menu == "매출 보고서":
                 grand_total[(p_name, 'ACHI %')] = num / den if den != 0 else 0
                 
             grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('TTL (K.€)', ' ')], names=['BIZ Type', 'KOx']))
-
-            # --- [MODIFIED] FC1 EX-RATE 행 추가 로직 (KEM-KR 추가) ---
-            def calc_ex_rate_act(df_full, target_year, target_month_list):
-                total_val = 0
-                df_target = df_full[df_full['BIZ Type'].isin(biz_categories)]
-                for kox in df_target['KOx'].unique():
-                    kox_df = df_target[(df_target['KOx'] == kox) & (df_target['Year'] == target_year)]
-                    fc1_df = kox_df[kox_df['Desc.'] == '26 FC1']
-                    
-                    # [수정] KOKOR와 KEM-KR 모두 EUR:KRW 환율 적용
-                    rate_col = 'EUR:KRW' if kox in ['KOKOR', 'KEM-KR'] else 'EUR:USD'
-                    
-                    fc1_rates = pd.to_numeric(fc1_df[rate_col], errors='coerce').replace(0, np.nan)
-                    fc1_rate = fc1_rates.mean() if not fc1_rates.dropna().empty else np.nan
-                    
-                    for m in target_month_list:
-                        m_act_df = kox_df[(kox_df['Desc.'] == 'ACT') & (kox_df['Month'] == m)]
-                        act_sum = m_act_df['Rev. (€)'].sum()
-                        if act_sum == 0: continue
-                        
-                        act_rates = pd.to_numeric(m_act_df[rate_col], errors='coerce').replace(0, np.nan)
-                        act_rate = act_rates.mean() if not act_rates.dropna().empty else np.nan
-                        
-                        if pd.notna(fc1_rate) and pd.notna(act_rate) and act_rate != 0:
-                            total_val += act_sum * (fc1_rate / act_rate)
-                        else:
-                            total_val += act_sum
-                return total_val
-
-            ex_rate_row = pd.Series(0.0, index=grand_total.index)
-            ex_rate_row[(prev_phase_name, 'ACT')] = calc_ex_rate_act(df, prev_year, [prev_month])
             
-            month_lists = {
-                phase_names[0]: [month],
-                phase_names[1]: list(range(1, month + 1)),
-                phase_names[2]: list(range(1, 13))
-            }
-            
-            for p_name in phase_names:
-                ex_rate_row[(p_name, 'ACT')] = calc_ex_rate_act(df, year, month_lists[p_name])
-                ex_rate_row[(p_name, '26 FC1')] = grand_total.get((p_name, '26 FC1'), 0)
-                ex_rate_row[(p_name, '25 FC3')] = grand_total.get((p_name, '25 FC3'), 0)
-                
-                den = grand_total.get((p_name, '26 FC1'), 0)
-                if den != 0:
-                    ex_rate_row[(p_name, 'ACHI %')] = ex_rate_row[(p_name, 'ACT')] / den
-                else:
-                    ex_rate_row[(p_name, 'ACHI %')] = 0
-                    
-            ex_rate_df = pd.DataFrame([ex_rate_row], index=pd.MultiIndex.from_tuples([('FC1 EX-RATE', ' ')], names=['BIZ Type', 'KOx']))
-            # ----------------------------------------
-            
-            return pd.concat([final_df, grand_row, ex_rate_df]), phase_names[0]
+            return pd.concat([final_df, grand_row]), phase_names[0]
 
         def get_biz_report(df, biz_type, year, month):
             prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
@@ -483,11 +491,9 @@ if selected_menu == "매출 보고서":
                 else:
                     top_indices = []
                 
-                # --- [MODIFIED] KeyError 방지: 해당 컬럼이 있을 때만 정렬 ---
                 top_df = df_all.loc[df_all.index.isin(top_indices)]
                 if (p_curr, 'ACT') in top_df.columns:
                     top_df = top_df.sort_values(by=(p_curr, 'ACT'), ascending=False)
-                # -----------------------------------------------------------
                     
                 others_df = df_all.loc[~df_all.index.isin(top_indices)].sum().to_frame().T
                 others_df.index = pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP'])
@@ -736,7 +742,14 @@ if selected_menu == "매출 보고서":
         df_pe_raw = raw_df[raw_df['Business Type'].str.contains("Power", case=False, na=False)].copy()
         if not df_pe_raw.empty:
             df_pe_raw['Cust. GR'] = df_pe_raw['Group 2'].replace({'HYU': 'HKMC', 'KIA': 'HKMC'})
-            df_pe_summary, p_col, c_col = build_summary_report(df_pe_raw[df_pe_raw['Cust. GR'] == 'HKMC'], ['Cust. GR', 'KOx'], selected_year, selected_month, total_label='PE Biz Rev. TTL (K.€)', sort_by_current_act=True)
+            # [MODIFIED] 여기에서 add_ex_rate=True 옵션을 적용하여 Power Electronics 테이블에만 환율 조정 로직을 추가합니다.
+            df_pe_summary, p_col, c_col = build_summary_report(
+                df_pe_raw[df_pe_raw['Cust. GR'] == 'HKMC'], 
+                ['Cust. GR', 'KOx'], 
+                selected_year, selected_month, 
+                total_label='PE Biz Rev. TTL (K.€)', 
+                sort_by_current_act=True,
+                add_ex_rate=True) 
             if not df_pe_summary.empty:
                 st.markdown(render_html_view(df_pe_summary, c_col, apply_color=True), unsafe_allow_html=True)
                 reports_to_download["PE_HKMC_Summary"] = df_pe_summary
