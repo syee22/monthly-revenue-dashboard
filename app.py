@@ -149,7 +149,7 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
     if apply_hkmc_color:
         def color_index_cells(v):
             val_str = str(v)
-            if val_str == 'HYU': return f'background-color: #e6f2ff{imp};'
+            if val_str in ['HYU', 'HKMC']: return f'background-color: #e6f2ff{imp};'
             if val_str == 'KIA': return f'background-color: #ffe6e6{imp};'
             if val_str == 'GM': return f'background-color: #e6e6e6{imp};'
             return ''
@@ -220,7 +220,7 @@ def to_excel_multiple(df_dict):
                 df.index = pd.MultiIndex.from_tuples(new_tuples, names=df.index.names)
             
             styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
-            apply_color = sheet_name in ["PE_HKMC_Summary", "PE_Biz_Detailed", "Core_Biz", "Biz_Type_Summary"]
+            apply_color = sheet_name in ["PE_HKMC_Summary", "Core_Biz_Grp1_Summary", "PE_Biz_Detailed", "Core_Biz", "Biz_Type_Summary"]
             styler = apply_common_styles(styler, apply_hkmc_color=apply_color, is_export=True)
             
             styler.to_excel(writer, sheet_name=sheet_name[:31])
@@ -333,7 +333,6 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
                 kox_df = df_target[(df_target['KOx'] == kox) & (df_target['Year'] == target_year)]
                 fc1_df = kox_df[kox_df['Desc.'] == '26 FC1']
                 
-                # KOKOR, KEM-KR 은 EUR:KRW 환율 단일행 참조
                 rate_col = 'EUR:KRW' if kox in ['KOKOR', 'KEM-KR'] else 'EUR:USD'
                 
                 fc1_rates = pd.to_numeric(fc1_df[rate_col], errors='coerce').replace(0, np.nan).dropna()
@@ -427,7 +426,117 @@ def get_biz_type_detailed_report(df, year, month):
     grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('TTL (K.€)', ' ')], names=['BIZ Type', 'KOx']))
     return pd.concat([final_df, grand_row]), phase_names[0]
 
-# --- [RESTORED] 원본 get_biz_report 100% 복구 ---
+# --- [새로 추가된 함수] Group 1, KOx 별 매출액(Core Business) 요약 ---
+def get_core_biz_summary_report(df, year, month):
+    prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
+    m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
+    phase_names = [f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL']
+    prev_phase_name = f'{pm_str}. {prev_year}'
+
+    df_core = df[df['Business Type'].str.contains("Core", case=False, na=False)].copy()
+    if df_core.empty: return pd.DataFrame(), phase_names[0]
+
+    # Group 1을 기준으로 Cust. GR 매핑 (HKMC, GM 등)
+    df_core['Cust. GR'] = df_core['Group 1'].replace({'HYU': 'HKMC', 'KIA': 'HKMC', 'GM': 'GM'})
+
+    results = []
+    # 정렬: HKMC, GM 우선
+    unique_grs = []
+    for g in ['HKMC', 'GM']:
+        if g in df_core['Cust. GR'].values: unique_grs.append(g)
+    for g in df_core['Cust. GR'].dropna().unique():
+        if g not in ['HKMC', 'GM']: unique_grs.append(g)
+
+    for gr in unique_grs:
+        gr_df = df_core[df_core['Cust. GR'] == gr]
+        p_m = gr_df[gr_df['Month'] == month].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+        p_y = gr_df[gr_df['Month'] <= month].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+        p_fy = gr_df.pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+        p_prev = df_core[(df_core['Cust. GR'] == gr) & (df_core['Year'] == prev_year) & (df_core['Month'] == prev_month)].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+
+        all_idx = set(p_m.index.tolist() + p_y.index.tolist() + p_fy.index.tolist() + p_prev.index.tolist())
+        if not all_idx: continue
+
+        # KOx 순서 지정 (KOASIA -> KOKOR -> KOIN -> KOA 등)
+        order_map = {'KOASIA': 1, 'KOKOR': 2, 'KOIN': 3, 'KOA': 4}
+        idx_list = sorted(list(all_idx), key=lambda x: order_map.get(x[1], 99))
+        idx = pd.MultiIndex.from_tuples(idx_list, names=['Cust. GR', 'KOx'])
+
+        combined_dict = {(prev_phase_name, 'ACT'): p_prev.reindex(idx, fill_value=0).get('ACT', pd.Series(0, index=idx))}
+
+        for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
+            data = data.reindex(idx, fill_value=0)
+            for c in ['25 FC3', '26 FC1', 'ACT']: combined_dict[(phase_name, c)] = data.get(c, pd.Series(0, index=idx))
+            num = pd.Series(combined_dict[(phase_name, 'ACT')])
+            den = pd.Series(combined_dict[(phase_name, '26 FC1')])
+            combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
+
+        combined = pd.DataFrame(combined_dict, index=idx)
+        subtotal = combined.sum(numeric_only=True)
+        for p_name in phase_names:
+            den = subtotal.get((p_name, '26 FC1'), 0)
+            subtotal[(p_name, 'ACHI %')] = subtotal.get((p_name, 'ACT'), 0) / den if den != 0 else 0
+
+        results.append(combined)
+        # 소계 라인 스타일 처리를 위한 인덱스 지정 (텍스트는 html post_process에서 숨겨짐)
+        subtotal_idx_name = f'HYU_소계' if gr == 'HKMC' else f'GM_소계'
+        results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([('', subtotal_idx_name)], names=['Cust. GR', 'KOx'])))
+
+    if not results: return pd.DataFrame(), phase_names[0]
+
+    final_df = pd.concat(results)
+
+    # Grand Total
+    grand_total = final_df[final_df.index.get_level_values(1).str.contains('소계', na=False)].sum(numeric_only=True)
+    for p_name in phase_names:
+        den = grand_total.get((p_name, '26 FC1'), 0)
+        grand_total[(p_name, 'ACHI %')] = grand_total.get((p_name, 'ACT'), 0) / den if den != 0 else 0
+
+    grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('Core Biz Rev. TTL (K.€)', ' ')], names=['Cust. GR', 'KOx']))
+
+    # FC1 EX-RATE Calculation
+    def calc_ex_rate_act(df_target, target_year, target_month_list):
+        total_val = 0
+        for kox in df_target['KOx'].unique():
+            kox_df = df_target[(df_target['KOx'] == kox) & (df_target['Year'] == target_year)]
+            fc1_df = kox_df[kox_df['Desc.'] == '26 FC1']
+            rate_col = 'EUR:KRW' if kox in ['KOKOR', 'KEM-KR'] else 'EUR:USD'
+            fc1_rates = pd.to_numeric(fc1_df[rate_col], errors='coerce').replace(0, np.nan).dropna()
+            fc1_rate = fc1_rates.iloc[0] if not fc1_rates.empty else np.nan
+
+            for m_idx in target_month_list:
+                m_act_df = kox_df[(kox_df['Desc.'] == 'ACT') & (kox_df['Month'] == m_idx)]
+                act_sum = m_act_df['Rev. (€)'].sum()
+                if act_sum == 0: continue
+                act_rates = pd.to_numeric(m_act_df[rate_col], errors='coerce').replace(0, np.nan).dropna()
+                act_rate = act_rates.iloc[0] if not act_rates.empty else np.nan
+                if pd.notna(fc1_rate) and pd.notna(act_rate) and act_rate != 0:
+                    total_val += act_sum * (fc1_rate / act_rate)
+                else:
+                    total_val += act_sum
+        return total_val
+
+    ex_rate_row = pd.Series(0.0, index=grand_total.index)
+    ex_rate_row[(prev_phase_name, 'ACT')] = calc_ex_rate_act(df_core, prev_year, [prev_month])
+
+    month_lists = {
+        phase_names[0]: [month],
+        phase_names[1]: list(range(1, month + 1)),
+        phase_names[2]: list(range(1, 13))
+    }
+
+    for p_name in phase_names:
+        ex_rate_row[(p_name, 'ACT')] = calc_ex_rate_act(df_core, year, month_lists[p_name])
+        ex_rate_row[(p_name, '26 FC1')] = grand_total.get((p_name, '26 FC1'), 0)
+        ex_rate_row[(p_name, '25 FC3')] = grand_total.get((p_name, '25 FC3'), 0)
+        den = grand_total.get((p_name, '26 FC1'), 0)
+        ex_rate_row[(p_name, 'ACHI %')] = ex_rate_row[(p_name, 'ACT')] / den if den != 0 else 0
+
+    ex_df = pd.DataFrame([ex_rate_row], index=pd.MultiIndex.from_tuples([('FC1 EX-RATE', ' ')], names=['Cust. GR', 'KOx']))
+
+    return pd.concat([final_df, grand_row, ex_df]), phase_names[0]
+# ----------------------------------------------------------------------
+
 def get_biz_report(df, biz_type, year, month):
     if month == 1: prev_year, prev_month = year - 1, 12
     else: prev_year, prev_month = year, month - 1
@@ -535,7 +644,6 @@ def get_biz_report(df, biz_type, year, month):
     grand_label = f'{BIZ_CONFIG.get(biz_type, biz_type)} Rev. TTL (K.€)'
     grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([(f'GRAND_TOTAL_MERGE_START{grand_label}', 'GRAND_TOTAL_MERGE_DEL', 'GRAND_TOTAL_MERGE_DEL', 'GRAND_TOTAL_MERGE_DEL')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
     return pd.concat([final_df, grand_row]), phase_names
-# -------------------------------------------------------------
 
 def build_trend_report(df, end_year, end_month):
     months, curr_y, curr_m = [], end_year, end_month
@@ -754,6 +862,13 @@ if selected_menu == "매출 보고서":
             if not df_pe_summary.empty:
                 st.markdown(render_html_view(df_pe_summary, c_col, apply_color=True), unsafe_allow_html=True)
                 reports_to_download["PE_HKMC_Summary"] = df_pe_summary
+
+        # --- [신규 추가] Core Biz Summary (Group 1 & KOx) ---
+        st.subheader("📌 Sales Revenue: Core Biz Summary (Group 1 & KOx)")
+        df_core_grp, c_col = get_core_biz_summary_report(raw_df, selected_year, selected_month)
+        if not df_core_grp.empty:
+            st.markdown(render_html_view(df_core_grp, c_col, apply_color=True), unsafe_allow_html=True)
+            reports_to_download["Core_Biz_Grp1_Summary"] = df_core_grp
 
         for filter_key, display_name in BIZ_CONFIG.items():
             st.subheader(f"📌 Sales Revenue: {display_name}")
