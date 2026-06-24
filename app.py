@@ -20,7 +20,7 @@ BIZ_CONFIG = {"Power": "PE Biz", "Core": "Core Biz"}
 # ==========================================
 st.markdown("""<style>
 .block-container { padding: 2rem 3rem; }
-h1 { font-size: 1.6rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
+h1 { font-size: 1rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
 h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0.5rem !important; color: #002060 !important; }
 .table-container { overflow-x: auto; box-shadow: 2px 2px 10px rgba(0,0,0,0.1); margin-bottom: 1rem !important; padding: 2px !important; display: inline-block; width: auto; min-width: 100%; box-sizing: border-box; background-color: white; }
 .report-table { border-collapse: collapse !important; font-family: 'Arial', sans-serif; font-size: 12px; width: 100%; background-color: white; margin: 0 !important; border: 2px solid #002060 !important; }
