@@ -924,13 +924,6 @@ if selected_menu == "매출 보고서":
             st.markdown(render_html_view(df_cps, c_col, apply_color=False), unsafe_allow_html=True)
             reports_to_download["CPS_Summary"] = df_cps
 
-        st.subheader("📌 PE Item 매출액 요약")
-        df_item_raw = raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])]
-        df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)', index_names=['CPS'], sort_by_current_act=True)
-        if not df_item.empty: 
-            st.markdown(render_html_view(df_item, c_col, apply_color=False), unsafe_allow_html=True)
-            reports_to_download["Item_Summary"] = df_item
-
         st.subheader("📌 DIRECT & COMMISSION 매출액 요약")
         df_biz_type, c_col = get_biz_type_detailed_report(raw_df, selected_year, selected_month)
         if not df_biz_type.empty: 
@@ -952,7 +945,14 @@ if selected_menu == "매출 보고서":
             if not df_pe_summary.empty:
                 st.markdown(render_html_view(df_pe_summary, c_col, apply_color=True), unsafe_allow_html=True)
                 reports_to_download["PE_HKMC_Summary"] = df_pe_summary
-
+                
+        st.subheader("📌 PE Item 매출액 요약")
+        df_item_raw = raw_df[raw_df['Item'].isin(['ICCU1', 'ICCU2', 'VCMS'])]
+        df_item, p_col, c_col = build_summary_report(df_item_raw, ['Item'], selected_year, selected_month, 'TTL (K.€)', index_names=['CPS'], sort_by_current_act=True)
+        if not df_item.empty: 
+            st.markdown(render_html_view(df_item, c_col, apply_color=False), unsafe_allow_html=True)
+            reports_to_download["Item_Summary"] = df_item
+            
         # --- Core Biz Summary (Group 1 & KOx) ---
         st.subheader("📌 Sales Revenue: Core Biz Summary (Group 1 & KOx)")
         df_core_grp, c_col = get_core_biz_summary_report(raw_df, selected_year, selected_month)
