@@ -122,7 +122,7 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
             for label in idx:
                 l = str(label)
                 if 'HYU_소계' in l: res.append(f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                elif 'KIA_소계' in l: res.append(f'background-color: #ffe6e6{imp}; color: #ffe6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+                elif 'KIA_소계' in l: res.append(f'background-color: #ffe6e6{imp}; color: #ffe6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
                 elif 'GM_소계' in l: res.append(f'background-color: #e6e6e6{imp}; color: #e6e6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
                 elif 'DIRECT_Subtotal_숨김' in l: res.append(f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
                 elif 'COMM_Subtotal_숨김' in l: res.append(f'background-color: #f2f2f2{imp}; color: #f2f2f2; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
