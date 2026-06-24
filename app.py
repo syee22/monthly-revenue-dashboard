@@ -36,7 +36,6 @@ h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0
 .report-table tr.total-row-gm th, .report-table tr.total-row-gm td { background-color: #e6e6e6 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
 .report-table tr.total-row-direct th, .report-table tr.total-row-direct td { background-color: #99caff !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
 .report-table tr.total-row-comm th, .report-table tr.total-row-comm td { background-color: #d0d0d0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
-/* 신규 추가: EX-RATE 초록색 스타일 */
 .report-table tr.total-row-exrate th, .report-table tr.total-row-exrate td { background-color: #e2efda !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
 
 .report-table.biz-table .row_heading { text-align: center !important; padding-left: 4px !important; padding-right: 4px !important; }
@@ -48,9 +47,33 @@ h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0
 </style>""", unsafe_allow_html=True)
 
 # ==========================================
-# 2. 유틸리티 함수
+# 2. 동적 테두리 및 포맷터 생성
 # ==========================================
-def get_numeric_cols(df): return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
+def get_trend_highlight_css(table_id):
+    return f"<style>#{table_id} thead tr:nth-child(1) th:last-child {{ border-top: 4px solid #c00000 !important; border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody td:last-child {{ border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:last-child {{ border-bottom: 4px solid #c00000 !important; }}</style>"
+
+def get_dynamic_highlight_css(table_id, df, highlight_phase):
+    if not highlight_phase: return ""
+    cols = list(df.columns)
+    start_col, end_col = -1, -1
+    level0_cols = []
+    for i, col in enumerate(cols):
+        c0 = col[0] if isinstance(col, tuple) else str(col)
+        if not level0_cols or level0_cols[-1] != c0: level0_cols.append(c0)
+        if c0 == highlight_phase:
+            if start_col == -1: start_col = i
+            end_col = i
+    if start_col == -1: return ""
+    num_indices = df.index.nlevels
+    target_th_row0 = num_indices + level0_cols.index(highlight_phase) + 1
+    target_th_row1_start = start_col + 1
+    target_th_row1_end = end_col + 1
+    td_start = start_col + 1
+    td_end = end_col + 1
+    return f"<style>#{table_id} thead tr:nth-child(1) th:nth-child({target_th_row0}) {{ border-top: 5px solid #c00000 !important; border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:nth-of-type(n+{td_start}):nth-of-type(-n+{td_end}) {{ border-bottom: 5px solid #c00000 !important; }}</style>"
+
+def get_numeric_cols(df): 
+    return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
 
 def format_k_val(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
@@ -76,28 +99,14 @@ def format_percentage_html_no_trend(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
     return f'<span style="color: #000000; font-weight: bold; font-style: italic;">{val:.0%}</span>'
 
-def get_trend_highlight_css(table_id):
-    return f"<style>#{table_id} thead tr:nth-child(1) th:last-child {{ border-top: 4px solid #c00000 !important; border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody td:last-child {{ border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:last-child {{ border-bottom: 4px solid #c00000 !important; }}</style>"
-
-def get_dynamic_highlight_css(table_id, df, highlight_phase):
-    if not highlight_phase: return ""
-    cols = list(df.columns)
-    start_col, end_col = -1, -1
-    level0_cols = []
-    for i, col in enumerate(cols):
-        c0 = col[0] if isinstance(col, tuple) else str(col)
-        if not level0_cols or level0_cols[-1] != c0: level0_cols.append(c0)
-        if c0 == highlight_phase:
-            if start_col == -1: start_col = i
-            end_col = i
-    if start_col == -1: return ""
-    num_indices = df.index.nlevels
-    target_th_row0 = num_indices + level0_cols.index(highlight_phase) + 1
-    target_th_row1_start = start_col + 1
-    target_th_row1_end = end_col + 1
-    td_start = start_col + 1
-    td_end = end_col + 1
-    return f"<style>#{table_id} thead tr:nth-child(1) th:nth-child({target_th_row0}) {{ border-top: 5px solid #c00000 !important; border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:nth-of-type(n+{td_start}):nth-of-type(-n+{td_end}) {{ border-bottom: 5px solid #c00000 !important; }}</style>"
+def color_index_cells(v):
+    val_str = str(v)
+    if val_str == 'HYU': return 'background-color: #e6f2ff;'  
+    if val_str == 'KIA': return 'background-color: #ffe6e6;'  
+    if val_str == 'GM': return 'background-color: #e6e6e6;'
+    if val_str == 'DIRECT': return 'background-color: #e6f2ff;' 
+    if val_str == 'COMM': return 'background-color: #f2f2f2;' 
+    return ''
 
 def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
     imp = "" if is_export else " !important"
@@ -126,12 +135,6 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
     for i in range(styler.index.nlevels): styler.map_index(highlight_total_index, axis=0, level=i)
     
     if apply_hkmc_color:
-        def color_index_cells(v):
-            val_str = str(v)
-            if val_str == 'HYU': return f'background-color: #e6f2ff{imp};'
-            if val_str == 'KIA': return f'background-color: #ffe6e6{imp};'
-            if val_str == 'GM': return f'background-color: #e6e6e6{imp};'
-            return ''
         if hasattr(styler, 'map_index'): styler.map_index(color_index_cells, axis=0, level=0)
         elif hasattr(styler, 'applymap_index'): styler.applymap_index(color_index_cells, axis=0, level=0)
         
@@ -248,7 +251,6 @@ def load_and_preprocess(file):
 def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.€)", index_names=None, sort_by_current_act=False, add_ex_rate=False):
     if df_sub.empty: return pd.DataFrame(), "", ""
     prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
-    
     m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
     col_prev, phase_curr, phase_ytd, phase_ttl = f'{pm_str}. {year if month != 1 else prev_year}', f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL'
     phases = [phase_curr, phase_ytd, phase_ttl]
@@ -304,17 +306,15 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
         
     dfs_to_concat = [final_df, t_df]
 
-    # --- [MODIFIED] PE Biz 전용 FC1 EX-RATE 로직 (단일 행 참조 .iloc[0] 적용) ---
+    # --- [MODIFIED] PE Biz 전용 FC1 EX-RATE 로직 ---
     if add_ex_rate:
         def calc_ex_rate_act(df_target, target_year, target_month_list):
             total_val = 0
             for kox in df_target['KOx'].unique():
                 kox_df = df_target[(df_target['KOx'] == kox) & (df_target['Year'] == target_year)]
                 fc1_df = kox_df[kox_df['Desc.'] == '26 FC1']
-                
                 rate_col = 'EUR:KRW' if kox in ['KOKOR', 'KEM-KR'] else 'EUR:USD'
                 
-                # [FIX] 평균(mean) 대신 첫 번째 유효한 데이터 하나만 참조
                 fc1_rates = pd.to_numeric(fc1_df[rate_col], errors='coerce').replace(0, np.nan).dropna()
                 fc1_rate = fc1_rates.iloc[0] if not fc1_rates.empty else np.nan
                 
@@ -323,7 +323,6 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
                     act_sum = m_act_df['Rev. (€)'].sum()
                     if act_sum == 0: continue
                     
-                    # [FIX] 평균(mean) 대신 첫 번째 유효한 데이터 하나만 참조
                     act_rates = pd.to_numeric(m_act_df[rate_col], errors='coerce').replace(0, np.nan).dropna()
                     act_rate = act_rates.iloc[0] if not act_rates.empty else np.nan
                     
@@ -346,7 +345,6 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
             ex_rate_row[(p_name, 'ACT')] = calc_ex_rate_act(df_sub, year, month_lists[p_name])
             ex_rate_row[(p_name, '26 FC1')] = total_row.get((p_name, '26 FC1'), 0)
             ex_rate_row[(p_name, '25 FC3')] = total_row.get((p_name, '25 FC3'), 0)
-            
             den = total_row.get((p_name, '26 FC1'), 0)
             if den != 0:
                 ex_rate_row[(p_name, 'ACHI %')] = ex_rate_row[(p_name, 'ACT')] / den
@@ -417,80 +415,87 @@ def get_biz_report(df, biz_type, year, month):
     results = []
     
     for brand in brands:
-        b_data = df_biz[(df_biz['Project'] == 'GM')] if brand == 'GM' else df_biz[(df_biz['Group 2'] == brand)]
-        if b_data.empty: continue
-        
-        def get_rev(d, year_f, month_f=None, is_ytd=False):
-            mask = (d['Year'] == year_f)
-            if month_f: 
-                mask = mask & (d['Month'] <= month_f) if is_ytd else mask & (d['Month'] == month_f)
-            return d[mask].groupby(['Project', 'Con.', 'SOP', 'Desc.'])['Rev. (€)'].sum().unstack(fill_value=0)
-
-        data_prev = get_rev(b_data, prev_year, prev_month)
-        data_m = get_rev(b_data, year, month)
-        data_y = get_rev(b_data, year, month, is_ytd=True)
-        data_fy = get_rev(b_data, year)
-        
-        all_indices = data_prev.index.union(data_m.index).union(data_y.index).union(data_fy.index)
-        df_all = pd.DataFrame(index=all_indices)
-        
-        def add_cols(target_df, period, source_df):
-            for col in ['26 FC1', 'ACT']:
-                if col in source_df.columns: target_df[(period, col)] = source_df[col]
-            if (period, 'ACT') in target_df.columns and (period, '26 FC1') in target_df.columns:
-                target_df[(period, 'ACHI %')] = target_df[(period, 'ACT')] / target_df[(period, '26 FC1')].replace(0, np.nan)
-        
-        add_cols(df_all, p_prev, data_prev)
-        add_cols(df_all, p_curr, data_m)
-        add_cols(df_all, p_ytd, data_y)
-        add_cols(df_all, p_ttl, data_fy)
-        df_all = df_all.fillna(0)
-        
-        top_n = 5
-        if (p_curr, 'ACT') in df_all.columns:
-            active_projects = df_all[df_all[(p_curr, 'ACT')] > 0]
-            top_indices = active_projects.sort_values(by=(p_curr, 'ACT'), ascending=False).head(top_n).index
-        else:
-            top_indices = []
-        
-        top_df = df_all.loc[df_all.index.isin(top_indices)]
-        if (p_curr, 'ACT') in top_df.columns:
-            top_df = top_df.sort_values(by=(p_curr, 'ACT'), ascending=False)
+        if brand == 'GM':
+            brand_df = df_biz[df_biz['Project'] == 'GM'].copy()
+            prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Project'] == 'GM')
+            subtotal_dict = {(p_prev, 'ACT'): df[prev_mask & (df['Desc.'] == 'ACT')]['Rev. (€)'].sum() if not df[prev_mask].empty else 0.0}
             
-        others_df = df_all.loc[~df_all.index.isin(top_indices)].sum().to_frame().T
-        others_df.index = pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP'])
-        
-        final_brand_df = pd.concat([top_df, others_df])
-        
-        subtotal = final_brand_df.sum()
-        for p in [p_prev, p_curr, p_ytd, p_ttl]:
-            if (p, '26 FC1') in subtotal.index:
-                subtotal[(p, 'ACHI %')] = subtotal[(p, 'ACT')] / subtotal[(p, '26 FC1')] if subtotal[(p, '26 FC1')] != 0 else 0
-        
-        final_brand_df = pd.concat([final_brand_df, subtotal.to_frame().T])
-        
-        new_index = []
-        for i, idx in enumerate(final_brand_df.index):
-            if i == len(final_brand_df) - 1:
-                new_index.append((brand, f'{brand}_소계', '', ''))
-            elif idx[0] == 'Others':
-                new_index.append((brand, 'Others', '', ''))
-            else:
-                new_index.append((brand, idx[0], idx[1], idx[2]))
+            for i, d_df in enumerate([brand_df[brand_df['Month'] == month], brand_df[brand_df['Month'] <= month], brand_df]):
+                phase_name = [p_curr, p_ytd, p_ttl][i]
+                for c in ['25 FC3', '26 FC1', 'ACT']: 
+                    subtotal_dict[(phase_name, c)] = d_df[d_df['Desc.'] == c]['Rev. (€)'].sum()
+                subtotal_dict[(phase_name, 'ACHI %')] = subtotal_dict[(phase_name, 'ACT')] / subtotal_dict[(phase_name, '26 FC1')] if subtotal_dict[(phase_name, '26 FC1')] != 0 else 0.0
+            
+            res_df = pd.DataFrame([pd.Series(subtotal_dict)], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
+            results.append(res_df)
+            continue
+        else:
+            brand_df = df_biz[df_biz['Group 2'] == brand].copy()
+            prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)
+            if brand_df.empty and df[prev_mask].empty: continue
+            
+            p_m = brand_df[brand_df['Month'] == month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+            p_y = brand_df[brand_df['Month'] <= month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+            p_fy = brand_df.pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+            p_prev_df = df[prev_mask].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+            
+            all_idx = set()
+            for p in [p_prev_df, p_m, p_y, p_fy]:
+                if not p.empty: all_idx.update(p.index.tolist())
+            if not all_idx: continue
+            
+            idx = pd.MultiIndex.from_tuples(sorted(list(all_idx)), names=['Project', 'Con.', 'SOP'])
+            p_prev_df = p_prev_df.reindex(idx, fill_value=0)
+            p_m = p_m.reindex(idx, fill_value=0)
+            p_y = p_y.reindex(idx, fill_value=0)
+            p_fy = p_fy.reindex(idx, fill_value=0)
+            
+            # Others 그룹화 (Core Biz의 HYU, KIA만)
+            if "Core" in biz_type and brand in ['HYU', 'KIA']:
+                act_col = p_m['ACT'] if 'ACT' in p_m.columns else pd.Series(0, index=idx)
+                top = act_col[act_col >= 10000].index
+                def group_others(p):
+                    if p.empty: return pd.DataFrame(columns=['25 FC3', '26 FC1', 'ACT']).reindex(pd.MultiIndex.from_tuples([], names=['Project', 'Con.', 'SOP']))
+                    main = p.loc[p.index.isin(top)]
+                    oth = p.loc[~p.index.isin(top)].sum().to_frame().T
+                    oth.index = pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP'])
+                    return pd.concat([main, oth])
+                p_m, p_y, p_fy, p_prev_df = group_others(p_m), group_others(p_y), group_others(p_fy), group_others(p_prev_df)
+                idx = p_m.index
                 
-        final_brand_df.index = pd.MultiIndex.from_tuples(new_index, names=['Cust. GR', 'Project', 'Con.', 'SOP'])
-        results.append(final_brand_df)
-
+            combined_dict = {(p_prev, 'ACT'): p_prev_df['ACT'] if 'ACT' in p_prev_df.columns else pd.Series(0, index=idx)}
+            for phase_name, data in [(p_curr, p_m), (p_ytd, p_y), (p_ttl, p_fy)]:
+                for c in ['25 FC3', '26 FC1', 'ACT']:
+                    combined_dict[(phase_name, c)] = data[c] if c in data.columns else pd.Series(0, index=idx)
+                num = pd.Series(combined_dict[(phase_name, 'ACT')])
+                den = pd.Series(combined_dict[(phase_name, '26 FC1')])
+                combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
+            
+            combined = pd.DataFrame(combined_dict, index=idx)
+            
+            if ('Others', '', '') in combined.index: 
+                combined = pd.concat([combined.drop(index=('Others', '', '')).sort_values(by=(p_curr, 'ACT'), ascending=False), combined.loc[[('Others', '', '')]]])
+            elif not combined.empty and (p_curr, 'ACT') in combined.columns: 
+                combined = combined.sort_values(by=(p_curr, 'ACT'), ascending=False)
+            
+            subtotal = combined.sum(numeric_only=True) if not combined.empty else pd.Series(0, index=combined.columns)
+            for p_name in [p_curr, p_ytd, p_ttl]:
+                num, den = subtotal.get((p_name, 'ACT'), 0), subtotal.get((p_name, '26 FC1'), 0)
+                subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
+            
+            combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
+            results.append(combined)
+            results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
+            
     if not results: return pd.DataFrame(), [p_curr, p_ytd, p_ttl]
     
     final_df = pd.concat(results)
-    subtotal_rows = final_df[final_df.index.get_level_values(1).str.contains('_소계', na=False)]
-    grand_total = subtotal_rows.sum()
     
-    for p in [p_curr, p_ytd, p_ttl]:
-        if (p, '26 FC1') in grand_total.index:
-            grand_total[(p, 'ACHI %')] = grand_total[(p, 'ACT')] / grand_total[(p, '26 FC1')] if grand_total[(p, '26 FC1')] != 0 else 0
-            
+    grand_total = final_df[final_df.index.get_level_values(1).str.contains('_소계', na=False)].sum(numeric_only=True)
+    for p_name in [p_curr, p_ytd, p_ttl]:
+        num, den = grand_total.get((p_name, 'ACT'), 0), grand_total.get((p_name, '26 FC1'), 0)
+        grand_total[(p_name, 'ACHI %')] = num / den if den != 0 else 0
+        
     grand_label = f'{BIZ_CONFIG.get(biz_type, biz_type)} Rev. TTL (K.€)'
     grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples(
         [(f'GRAND_TOTAL_MERGE_START{grand_label}', 'GRAND_TOTAL_MERGE_DEL', 'GRAND_TOTAL_MERGE_DEL', 'GRAND_TOTAL_MERGE_DEL')], 
@@ -535,32 +540,15 @@ def render_html_view(df, phase_curr, apply_color=False, is_biz=False):
     html_str = post_process_html_styles(optimize_html_headers(styler.to_html(), df))
     return f'{get_dynamic_highlight_css(table_id, df, phase_curr)}<div id="{table_id}" class="table-container">{html_str}</div>'
 
-def render_biz_html_table(df, phase_curr, apply_color=False, title=None):
+def render_biz_html_table(df, phase_curr, apply_color=False):
     table_id = f"table_{uuid.uuid4().hex[:8]}"
     df_display = df.replace(0, '')
-    
-    format_dict = {}
-    for col in df.columns:
-        if 'ACHI' in str(col[1]):
-            if 'TTL' in str(col[0]):
-                format_dict[col] = format_percentage_html_no_trend
-            else:
-                format_dict[col] = format_percentage_html
-        else:
-            format_dict[col] = format_k_val
-            
+    format_dict = {col: (format_percentage_html_no_trend if 'TTL' in str(col[0]) else format_percentage_html) if 'ACHI' in str(col[1]) else format_k_val for col in df.columns}
     styler = df_display.style.format(format_dict, na_rep='').set_table_attributes('class="report-table biz-table"')
-    
-    numeric_cols = get_numeric_cols(df)
-    styler.set_properties(subset=numeric_cols, **{'text-align': 'right'})
+    styler.set_properties(subset=get_numeric_cols(df), **{'text-align': 'right'})
     styler = apply_common_styles(styler, apply_hkmc_color=apply_color)
-    
-    html_str = styler.to_html()
-    html_str = optimize_html_headers(html_str, df)
-    html_str = post_process_html_styles(html_str)
-    
-    css_str = get_dynamic_highlight_css(table_id, df, phase_curr)
-    return f'{css_str}<div id="{table_id}" class="table-container">{html_str}</div>'
+    html_str = post_process_html_styles(optimize_html_headers(styler.to_html(), df))
+    return f'{get_dynamic_highlight_css(table_id, df, phase_curr)}<div id="{table_id}" class="table-container">{html_str}</div>'
 
 def render_trend_html_table(df, apply_color=False):
     table_id = f"table_{uuid.uuid4().hex[:8]}"
@@ -718,7 +706,7 @@ if selected_menu == "매출 보고서":
             st.markdown(render_html_view(df_biz_type, c_col, apply_color=True), unsafe_allow_html=True)
             reports_to_download["Biz_Type_Summary"] = df_biz_type
 
-        # --- [NEW] PE Biz 전용 FC1 EX-RATE 로직 적용 ---
+        # --- PE Biz 전용 FC1 EX-RATE 로직 적용 ---
         st.subheader("📌 Sales Revenue: Power Electronics")
         df_pe_raw = raw_df[raw_df['Business Type'].str.contains("Power", case=False, na=False)].copy()
         if not df_pe_raw.empty:
