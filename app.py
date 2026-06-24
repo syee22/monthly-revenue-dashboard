@@ -825,7 +825,7 @@ if selected_menu == "매출 보고서":
                 fig1 = px.bar(plot_df, x='Month', y='Rev', color='CPS', 
                               title='12 Months Revenue Trend (K.€)',
                               color_discrete_sequence=px.colors.qualitative.Set2)
-                fig1.update_layout(plot_bgcolor='rgba(0,0,0,0)', yaxis=(dict(showgrid=True, gridcolor='#e6e6e6')),
+                fig1.update_layout(height=400, plot_bgcolor='rgba(0,0,0,0)', yaxis=(dict(showgrid=True, gridcolor='#e6e6e6')),
                                    margin=dict(l=20, r=20, t=40, b=20), legend_title_text='')
                 st.plotly_chart(fig1, use_container_width=True)
 
