@@ -36,7 +36,9 @@ h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0
 .report-table tr.total-row-gm th, .report-table tr.total-row-gm td { background-color: #e6e6e6 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
 .report-table tr.total-row-direct th, .report-table tr.total-row-direct td { background-color: #99caff !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
 .report-table tr.total-row-comm th, .report-table tr.total-row-comm td { background-color: #d0d0d0 !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
+/* 신규 추가: EX-RATE 초록색 스타일 */
 .report-table tr.total-row-exrate th, .report-table tr.total-row-exrate td { background-color: #e2efda !important; color: #002060 !important; font-weight: bold !important; border-top: 2px solid #8ea9db !important; border-bottom: 2px solid #8ea9db !important; }
+
 .report-table.biz-table .row_heading { text-align: center !important; padding-left: 4px !important; padding-right: 4px !important; }
 .report-table th.level2, .report-table th.level3, .report-table.biz-table th.level2, .report-table.biz-table th.level3 { 
     width: 50px !important; min-width: 50px !important; max-width: 50px !important; padding-left: 2px !important; padding-right: 2px !important; text-align: center !important; font-size: 11px !important; white-space: normal !important; word-break: break-all !important; 
@@ -46,33 +48,9 @@ h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0
 </style>""", unsafe_allow_html=True)
 
 # ==========================================
-# 2. 동적 테두리 및 포맷터 생성
+# 2. 유틸리티 함수
 # ==========================================
-def get_trend_highlight_css(table_id):
-    return f"<style>#{table_id} thead tr:nth-child(1) th:last-child {{ border-top: 4px solid #c00000 !important; border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody td:last-child {{ border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:last-child {{ border-bottom: 4px solid #c00000 !important; }}</style>"
-
-def get_dynamic_highlight_css(table_id, df, highlight_phase):
-    if not highlight_phase: return ""
-    cols = list(df.columns)
-    start_col, end_col = -1, -1
-    level0_cols = []
-    for i, col in enumerate(cols):
-        c0 = col[0] if isinstance(col, tuple) else str(col)
-        if not level0_cols or level0_cols[-1] != c0: level0_cols.append(c0)
-        if c0 == highlight_phase:
-            if start_col == -1: start_col = i
-            end_col = i
-    if start_col == -1: return ""
-    num_indices = df.index.nlevels
-    target_th_row0 = num_indices + level0_cols.index(highlight_phase) + 1
-    target_th_row1_start = start_col + 1
-    target_th_row1_end = end_col + 1
-    td_start = start_col + 1
-    td_end = end_col + 1
-    return f"<style>#{table_id} thead tr:nth-child(1) th:nth-child({target_th_row0}) {{ border-top: 5px solid #c00000 !important; border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:nth-of-type(n+{td_start}):nth-of-type(-n+{td_end}) {{ border-bottom: 5px solid #c00000 !important; }}</style>"
-
-def get_numeric_cols(df): 
-    return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
+def get_numeric_cols(df): return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
 
 def format_k_val(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
@@ -98,14 +76,28 @@ def format_percentage_html_no_trend(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
     return f'<span style="color: #000000; font-weight: bold; font-style: italic;">{val:.0%}</span>'
 
-def color_index_cells(v):
-    val_str = str(v)
-    if val_str == 'HYU': return 'background-color: #e6f2ff;'  
-    if val_str == 'KIA': return 'background-color: #ffe6e6;'  
-    if val_str == 'GM': return 'background-color: #e6e6e6;'
-    if val_str == 'DIRECT': return 'background-color: #e6f2ff;' 
-    if val_str == 'COMM': return 'background-color: #f2f2f2;' 
-    return ''
+def get_trend_highlight_css(table_id):
+    return f"<style>#{table_id} thead tr:nth-child(1) th:last-child {{ border-top: 4px solid #c00000 !important; border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody td:last-child {{ border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:last-child {{ border-bottom: 4px solid #c00000 !important; }}</style>"
+
+def get_dynamic_highlight_css(table_id, df, highlight_phase):
+    if not highlight_phase: return ""
+    cols = list(df.columns)
+    start_col, end_col = -1, -1
+    level0_cols = []
+    for i, col in enumerate(cols):
+        c0 = col[0] if isinstance(col, tuple) else str(col)
+        if not level0_cols or level0_cols[-1] != c0: level0_cols.append(c0)
+        if c0 == highlight_phase:
+            if start_col == -1: start_col = i
+            end_col = i
+    if start_col == -1: return ""
+    num_indices = df.index.nlevels
+    target_th_row0 = num_indices + level0_cols.index(highlight_phase) + 1
+    target_th_row1_start = start_col + 1
+    target_th_row1_end = end_col + 1
+    td_start = start_col + 1
+    td_end = end_col + 1
+    return f"<style>#{table_id} thead tr:nth-child(1) th:nth-child({target_th_row0}) {{ border-top: 5px solid #c00000 !important; border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:nth-of-type(n+{td_start}):nth-of-type(-n+{td_end}) {{ border-bottom: 5px solid #c00000 !important; }}</style>"
 
 def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
     imp = "" if is_export else " !important"
@@ -124,39 +116,25 @@ def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
     
     styler.apply(style_row, axis=1)
     
-    if hasattr(styler, 'apply_index'):
-        def style_row_index(idx):
-            res = []
-            for label in idx:
-                l = str(label)
-                if 'HYU_소계' in l: res.append(f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                elif 'KIA_소계' in l: res.append(f'background-color: #ffe6e6{imp}; color: #ffe6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                elif 'GM_소계' in l: res.append(f'background-color: #e6e6e6{imp}; color: #e6e6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                elif 'DIRECT_Subtotal_숨김' in l: res.append(f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                elif 'COMM_Subtotal_숨김' in l: res.append(f'background-color: #f2f2f2{imp}; color: #f2f2f2; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                elif 'Unknown_Subtotal_숨김' in l: res.append(f'background-color: #ffffe0{imp}; color: #ffffe0; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                elif 'FC1 EX-RATE' in l: res.append(f'background-color: #e2efda{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                elif 'GRAND_TOTAL_MERGE' in l or any(k in l for k in ['TTL', 'Total', '소계']): res.append(f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;')
-                else: res.append('')
-            return res
-        styler.apply_index(style_row_index, axis=0)
-    else:
-        def highlight_total_index(val):
-            l = str(val)
-            if 'HYU_소계' in l: return f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-            elif 'KIA_소계' in l: return f'background-color: #ffe6e6{imp}; color: #ffe6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-            elif 'GM_소계' in l: return f'background-color: #e6e6e6{imp}; color: #e6e6e6; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-            elif 'DIRECT_Subtotal_숨김' in l: return f'background-color: #e6f2ff{imp}; color: #e6f2ff; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-            elif 'COMM_Subtotal_숨김' in l: return f'background-color: #f2f2f2{imp}; color: #f2f2f2; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-            elif 'Unknown_Subtotal_숨김' in l: return f'background-color: #ffffe0{imp}; color: #ffffe0; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-            elif 'FC1 EX-RATE' in l: return f'background-color: #e2efda{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-            elif 'GRAND_TOTAL_MERGE' in l or any(k in l for k in ['TTL', 'Total', '소계']): return f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
-            return ''
-        for i in range(styler.index.nlevels): styler.map_index(highlight_total_index, axis=0, level=i)
+    def highlight_total_index(val):
+        l = str(val)
+        if 'FC1 EX-RATE' in l: return f'background-color: #e2efda{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+        elif any(k in l for k in ['HYU_소계', 'KIA_소계', 'GM_소계', 'DIRECT_Subtotal_숨김', 'COMM_Subtotal_숨김', 'Unknown_Subtotal_숨김']): return f'background-color: #f0f0f0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+        elif 'GRAND_TOTAL_MERGE' in l or any(k in l for k in ['TTL', 'Total', '소계']): return f'background-color: #ffffe0{imp}; color: #002060; font-weight: bold; border-top: 2px solid #8ea9db; border-bottom: 2px solid #8ea9db;'
+        return ''
         
+    for i in range(styler.index.nlevels): styler.map_index(highlight_total_index, axis=0, level=i)
+    
     if apply_hkmc_color:
+        def color_index_cells(v):
+            val_str = str(v)
+            if val_str == 'HYU': return f'background-color: #e6f2ff{imp};'
+            if val_str == 'KIA': return f'background-color: #ffe6e6{imp};'
+            if val_str == 'GM': return f'background-color: #e6e6e6{imp};'
+            return ''
         if hasattr(styler, 'map_index'): styler.map_index(color_index_cells, axis=0, level=0)
         elif hasattr(styler, 'applymap_index'): styler.applymap_index(color_index_cells, axis=0, level=0)
+        
     return styler
 
 def optimize_html_headers(html_str, df):
@@ -326,7 +304,7 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
         
     dfs_to_concat = [final_df, t_df]
 
-    # --- [MODIFIED] PE Biz 전용 FC1 EX-RATE 로직 ---
+    # --- [MODIFIED] PE Biz 전용 FC1 EX-RATE 로직 (단일 행 참조 .iloc[0] 적용) ---
     if add_ex_rate:
         def calc_ex_rate_act(df_target, target_year, target_month_list):
             total_val = 0
@@ -334,20 +312,20 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
                 kox_df = df_target[(df_target['KOx'] == kox) & (df_target['Year'] == target_year)]
                 fc1_df = kox_df[kox_df['Desc.'] == '26 FC1']
                 
-                # KOKOR와 KEM-KR 모두 EUR:KRW 환율 적용
                 rate_col = 'EUR:KRW' if kox in ['KOKOR', 'KEM-KR'] else 'EUR:USD'
                 
-                # dropna()로 빈값 제외 후 가중평균 개선
+                # [FIX] 평균(mean) 대신 첫 번째 유효한 데이터 하나만 참조
                 fc1_rates = pd.to_numeric(fc1_df[rate_col], errors='coerce').replace(0, np.nan).dropna()
-                fc1_rate = fc1_rates.mean() if not fc1_rates.empty else np.nan
+                fc1_rate = fc1_rates.iloc[0] if not fc1_rates.empty else np.nan
                 
                 for m in target_month_list:
                     m_act_df = kox_df[(kox_df['Desc.'] == 'ACT') & (kox_df['Month'] == m)]
                     act_sum = m_act_df['Rev. (€)'].sum()
                     if act_sum == 0: continue
                     
+                    # [FIX] 평균(mean) 대신 첫 번째 유효한 데이터 하나만 참조
                     act_rates = pd.to_numeric(m_act_df[rate_col], errors='coerce').replace(0, np.nan).dropna()
-                    act_rate = act_rates.mean() if not act_rates.empty else np.nan
+                    act_rate = act_rates.iloc[0] if not act_rates.empty else np.nan
                     
                     if pd.notna(fc1_rate) and pd.notna(act_rate) and act_rate != 0:
                         total_val += act_sum * (fc1_rate / act_rate)
@@ -375,7 +353,6 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
             else:
                 ex_rate_row[(p_name, 'ACHI %')] = 0
                 
-        # 인덱스 깨짐 방지를 위해 원본 final_df의 형태를 그대로 따라감
         if isinstance(final_df.index, pd.MultiIndex):
             ex_idx = tuple(['FC1 EX-RATE'] + [''] * (len(final_df.index.names)-1))
             ex_df = pd.DataFrame([ex_rate_row], index=pd.MultiIndex.from_tuples([ex_idx], names=final_df.index.names))
