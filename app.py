@@ -827,7 +827,7 @@ if selected_menu == "매출 보고서":
                                                         'PE': '#002060', 
                                                         'DC': '#8ea9db',
                                                         'CC': '#d9d9d9',
-                                                          'CE':'#002060' )
+                                                          'CE':'#002060' })
                 fig1.update_layout(height=300, plot_bgcolor='rgba(0,0,0,0)', yaxis=(dict(showgrid=True, gridcolor='#e6e6e6')),
                                    margin=dict(l=20, r=20, t=40, b=20), legend_title_text='')
                 st.plotly_chart(fig1, use_container_width=True)
