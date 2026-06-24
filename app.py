@@ -812,7 +812,6 @@ if selected_menu == "매출 보고서":
         # ==========================================
         # 시각화 대시보드 (Plotly)
         # ==========================================
-        st.markdown("### 📈 Visual Dashboard")
         col1, col2 = st.columns(2)
         
         with col1:
