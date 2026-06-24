@@ -180,8 +180,8 @@ def optimize_html_headers(html_str, df):
         new_thead = f"<thead>\n<tr>{''.join(ths0)}</tr>\n<tr>{''.join(ths1)}</tr>\n</thead>"
         modified_html = html_str[:thead_start] + new_thead + html_str[thead_end+8:]
         
-        # ACT 컬럼명 텍스트를 노란색으로 하이라이트 (데이터 값은 그대로 둠)
-        modified_html = re.sub(r'(<th[^>]*>)\s*ACT\s*(</th>)', r'\1<span style="color: #FFFF00 !important;">ACT</span>\2', modified_html)
+        # [신규 반영] ACT 컬럼명 텍스트를 노란색으로 하이라이트 (데이터 값은 건드리지 않음)
+        modified_html = re.sub(r'(<th[^>]*>)\s*ACT\s*(</th>)', r'\1<span style="color: #FFFF00 !important;">ACT</span>\2', modified_html, flags=re.IGNORECASE)
         return modified_html
     except Exception: return html_str
 
@@ -305,7 +305,11 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
     final_df = pd.DataFrame(combined_dict)
     final_df.columns = pd.MultiIndex.from_tuples(col_tuples)
     final_df.index.names = current_index_names
-    final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC1').sum(axis=1) != 0)]
+    
+    # [신규 반영] FC1 및 ACT 값이 0인 행 완전 필터링 로직 강화 (부동소수점 오차 방지)
+    fc1_sum = final_df.filter(like='FC1').abs().sum(axis=1)
+    act_sum = final_df.filter(like='ACT').abs().sum(axis=1)
+    final_df = final_df.loc[(fc1_sum >= 0.01) | (act_sum >= 0.01)]
     
     if sort_by_current_act and (phase_curr, 'ACT') in final_df.columns: final_df = final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
         
@@ -329,7 +333,7 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
         
     dfs_to_concat = [final_df, t_df]
 
-    # --- [FC1 EX-RATE 로직: PE_HKMC_Summary 에만 적용] ---
+    # --- FC1 EX-RATE 로직: PE_HKMC_Summary 에만 적용 ---
     if add_ex_rate:
         def calc_ex_rate_act(df_target, target_year, target_month_list):
             total_val = 0
@@ -340,7 +344,6 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
                 
                 rate_col = 'EUR:KRW' if kox in ['KOKOR', 'KEM-KR'] else 'EUR:USD'
                 
-                # 첫 번째 단일 값만 추출 (.iloc[0])
                 fc1_rates = pd.to_numeric(fc1_df[rate_col], errors='coerce').replace(0, np.nan).dropna()
                 fc1_rate = fc1_rates.iloc[0] if not fc1_rates.empty else np.nan
                 
@@ -349,7 +352,6 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
                     act_sum = m_act_df['Rev. (€)'].sum()
                     if act_sum == 0: continue
                     
-                    # 첫 번째 단일 값만 추출 (.iloc[0])
                     act_rates = pd.to_numeric(m_act_df[rate_col], errors='coerce').replace(0, np.nan).dropna()
                     act_rate = act_rates.iloc[0] if not act_rates.empty else np.nan
                     
@@ -359,7 +361,7 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
                         total_val += act_sum
             return total_val
             
-        ex_rate_row = pd.Series(np.nan, index=total_row.index) # TypeError를 막기 위해 np.nan으로 초기화
+        ex_rate_row = pd.Series(np.nan, index=total_row.index)
         
         month_lists = {
             phase_curr: [month],
@@ -387,7 +389,6 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
         
     return pd.concat(dfs_to_concat), col_prev, phase_curr
 
-# --- DIRECT & COMM 테이블 (FC1 EX-RATE 로직 포함 및 지정 컬럼 공란 처리) ---
 def get_biz_type_detailed_report(df, year, month):
     prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
     m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
@@ -411,6 +412,13 @@ def get_biz_type_detailed_report(df, year, month):
             combined_dict[(phase_name, 'ACHI %')] = pd.Series(data.get('ACT', 0)).div(pd.Series(data.get('26 FC1', 0))).replace([np.inf, -np.inf], 0).fillna(0)
             
         combined = pd.DataFrame(combined_dict, index=p_m.index)
+        
+        # [신규 반영] FC1 및 ACT 0값 필터링
+        fc1_sum = combined.filter(like='26 FC1').abs().sum(axis=1)
+        act_sum = combined.filter(like='ACT').abs().sum(axis=1)
+        combined = combined[(fc1_sum >= 0.01) | (act_sum >= 0.01)]
+        if combined.empty: continue
+        
         if (phase_names[0], 'ACT') in combined.columns: combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
             
         subtotal = combined.sum(numeric_only=True)
@@ -431,7 +439,6 @@ def get_biz_type_detailed_report(df, year, month):
         
     grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('TTL (K.€)', ' ')], names=['BIZ Type', 'KOx']))
 
-    # --- FC1 EX-RATE Calculation (단일 값 강제 추출 로직 유지 및 불필요 셀 공란 처리) ---
     def calc_ex_rate_act(df_target, target_year, target_month_list):
         total_val = 0
         for kox in df_target['KOx'].unique():
@@ -457,7 +464,7 @@ def get_biz_type_detailed_report(df, year, month):
                     total_val += act_sum
         return total_val
 
-    ex_rate_row = pd.Series(np.nan, index=grand_total.index) # TypeError를 막기 위해 np.nan으로 초기화
+    ex_rate_row = pd.Series(np.nan, index=grand_total.index)
     valid_biz_df = df[df['BIZ Type'].isin(biz_categories)]
     
     month_lists = {
@@ -477,7 +484,6 @@ def get_biz_type_detailed_report(df, year, month):
 
     return pd.concat([final_df, grand_row, ex_df]), phase_names[0]
 
-# --- Group 1, KOx 별 매출액(Core Business) 요약 (EX-RATE 로직 포함 및 지정 컬럼 공란 처리) ---
 def get_core_biz_summary_report(df, year, month):
     prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
     m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
@@ -522,8 +528,10 @@ def get_core_biz_summary_report(df, year, month):
 
         combined = pd.DataFrame(combined_dict, index=idx)
 
-        mask = (combined.filter(like='26 FC1').sum(axis=1) != 0) | (combined.filter(like='ACT').sum(axis=1) != 0)
-        combined = combined[mask]
+        # [신규 반영] 26 FC1과 ACT가 모두 0인 KOx 완전 표시 안 함 (부동소수점 오차 방지)
+        fc1_sum = combined.filter(like='26 FC1').abs().sum(axis=1)
+        act_sum = combined.filter(like='ACT').abs().sum(axis=1)
+        combined = combined[(fc1_sum >= 0.01) | (act_sum >= 0.01)]
         
         if combined.empty: continue
 
@@ -547,7 +555,6 @@ def get_core_biz_summary_report(df, year, month):
 
     grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([('Core Biz Rev. TTL (K.€)', ' ')], names=['Cust. GR', 'KOx']))
 
-    # --- FC1 EX-RATE Calculation (단일 값 강제 추출 로직 유지 및 불필요 셀 공란 처리) ---
     def calc_ex_rate_act(df_target, target_year, target_month_list):
         total_val = 0
         for kox in df_target['KOx'].unique():
@@ -573,7 +580,7 @@ def get_core_biz_summary_report(df, year, month):
                     total_val += act_sum
         return total_val
 
-    ex_rate_row = pd.Series(np.nan, index=grand_total.index) # TypeError를 막기 위해 np.nan으로 초기화
+    ex_rate_row = pd.Series(np.nan, index=grand_total.index)
 
     month_lists = {
         phase_names[0]: [month],
@@ -591,7 +598,6 @@ def get_core_biz_summary_report(df, year, month):
     ex_df = pd.DataFrame([ex_rate_row], index=pd.MultiIndex.from_tuples([('FC1 EX-RATE', ' ')], names=['Cust. GR', 'KOx']))
 
     return pd.concat([final_df, grand_row, ex_df]), phase_names[0]
-# ----------------------------------------------------------------------
 
 def get_biz_report(df, biz_type, year, month):
     if month == 1: prev_year, prev_month = year - 1, 12
@@ -672,6 +678,13 @@ def get_biz_report(df, biz_type, year, month):
                 combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
             
             combined = pd.DataFrame(combined_dict, index=idx)
+            
+            # [신규 반영] FC1 및 ACT 0값 필터링 
+            fc1_sum = combined.filter(like='26 FC1').abs().sum(axis=1)
+            act_sum = combined.filter(like='ACT').abs().sum(axis=1)
+            combined = combined[(fc1_sum >= 0.01) | (act_sum >= 0.01)]
+            if combined.empty: continue
+            
             if ('Others', '', '') in combined.index: 
                 combined = pd.concat([combined.drop(index=('Others', '', '')).sort_values(by=(phase_names[0], 'ACT'), ascending=False), combined.loc[[('Others', '', '')]]])
             else: 
