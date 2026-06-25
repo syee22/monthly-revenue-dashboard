@@ -6,7 +6,6 @@ import re
 import uuid
 import plotly.express as px
 import plotly.graph_objects as go
-import streamlit.components.v1 as components  # 이미지 캡처용 JS 삽입을 위한 모듈 추가
 
 # ==========================================
 # 1. 페이지 설정 및 전역 변수 설정
@@ -48,33 +47,9 @@ h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0
 </style>""", unsafe_allow_html=True)
 
 # ==========================================
-# 2. 포맷터 및 공통 함수
+# 2. 유틸리티 함수
 # ==========================================
-def get_trend_highlight_css(table_id):
-    return f"<style>#{table_id} thead tr:nth-child(1) th:last-child {{ border-top: 4px solid #c00000 !important; border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody td:last-child {{ border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:last-child {{ border-bottom: 4px solid #c00000 !important; }}</style>"
-
-def get_dynamic_highlight_css(table_id, df, highlight_phase):
-    if not highlight_phase: return ""
-    cols = list(df.columns)
-    start_col, end_col = -1, -1
-    level0_cols = []
-    for i, col in enumerate(cols):
-        c0 = col[0] if isinstance(col, tuple) else str(col)
-        if not level0_cols or level0_cols[-1] != c0: level0_cols.append(c0)
-        if c0 == highlight_phase:
-            if start_col == -1: start_col = i
-            end_col = i
-    if start_col == -1: return ""
-    num_indices = df.index.nlevels
-    target_th_row0 = num_indices + level0_cols.index(highlight_phase) + 1
-    target_th_row1_start = start_col + 1
-    target_th_row1_end = end_col + 1
-    td_start = start_col + 1
-    td_end = end_col + 1
-    return f"<style>#{table_id} thead tr:nth-child(1) th:nth-child({target_th_row0}) {{ border-top: 5px solid #c00000 !important; border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:nth-of-type(n+{td_start}):nth-of-type(-n+{td_end}) {{ border-bottom: 5px solid #c00000 !important; }}</style>"
-
-def get_numeric_cols(df): 
-    return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
+def get_numeric_cols(df): return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
 
 def format_k_val(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
@@ -99,6 +74,29 @@ def format_percentage_html(val):
 def format_percentage_html_no_trend(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
     return f'<span style="color: #000000; font-weight: bold; font-style: italic;">{val:.0%}</span>'
+
+def get_trend_highlight_css(table_id):
+    return f"<style>#{table_id} thead tr:nth-child(1) th:last-child {{ border-top: 4px solid #c00000 !important; border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody td:last-child {{ border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:last-child {{ border-bottom: 4px solid #c00000 !important; }}</style>"
+
+def get_dynamic_highlight_css(table_id, df, highlight_phase):
+    if not highlight_phase: return ""
+    cols = list(df.columns)
+    start_col, end_col = -1, -1
+    level0_cols = []
+    for i, col in enumerate(cols):
+        c0 = col[0] if isinstance(col, tuple) else str(col)
+        if not level0_cols or level0_cols[-1] != c0: level0_cols.append(c0)
+        if c0 == highlight_phase:
+            if start_col == -1: start_col = i
+            end_col = i
+    if start_col == -1: return ""
+    num_indices = df.index.nlevels
+    target_th_row0 = num_indices + level0_cols.index(highlight_phase) + 1
+    target_th_row1_start = start_col + 1
+    target_th_row1_end = end_col + 1
+    td_start = start_col + 1
+    td_end = end_col + 1
+    return f"<style>#{table_id} thead tr:nth-child(1) th:nth-child({target_th_row0}) {{ border-top: 5px solid #c00000 !important; border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:nth-of-type(n+{td_start}):nth-of-type(-n+{td_end}) {{ border-bottom: 5px solid #c00000 !important; }}</style>"
 
 def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
     imp = "" if is_export else " !important"
@@ -220,18 +218,35 @@ def to_excel_multiple(df_dict):
                     new_tuples.append(tuple(new_t))
                 df.index = pd.MultiIndex.from_tuples(new_tuples, names=df.index.names)
             
-            styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
+            # --- [엑셀 전용 포맷터] 화면과 똑같이 출력되도록 개선 ---
+            format_dict = {}
+            for col in df.columns:
+                is_achi = any('ACHI' in str(c) for c in col) if isinstance(col, tuple) else 'ACHI' in str(col)
+                if is_achi:
+                    format_dict[col] = lambda x: f"{x:.0%}" if isinstance(x, (int, float)) and not pd.isna(x) else x
+                else:
+                    format_dict[col] = format_k_val
+
+            styler = df.style.format(format_dict)
             apply_color = sheet_name in ["PE_HKMC_Summary", "PE_Biz_Detailed", "Core_Biz", "Biz_Type_Summary"]
             styler = apply_common_styles(styler, apply_hkmc_color=apply_color, is_export=True)
             
+            # 헤더에 진한 파란색 서식 입히기
+            if hasattr(styler, 'apply_index'):
+                styler.apply_index(lambda idx: ["background-color: #002060; color: white; border: 1px solid #8ea9db; font-weight: bold; text-align: center;"] * len(idx), axis=1)
+                
             styler.to_excel(writer, sheet_name=sheet_name[:31])
             worksheet = writer.sheets[sheet_name[:31]]
-            for i in range(len(df.columns)): worksheet.set_column(i+1, i+1, 15)
+            
+            # 열 너비 정리
+            for i in range(len(df.index.names)): worksheet.set_column(i, i, 12)
+            for i in range(len(df.columns)): worksheet.set_column(i + len(df.index.names), i + len(df.index.names), 12)
+            
     return output.getvalue()
 
 
 # ==========================================
-# 3. 데이터 로딩 및 공통 함수
+# 3. 데이터 로딩 및 집계 함수
 # ==========================================
 @st.cache_data
 def load_and_preprocess(file):
@@ -326,15 +341,12 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
         
     dfs_to_concat = [final_df, t_df]
 
-    # --- [FC1 EX-RATE 로직: PE_HKMC_Summary 에만 적용] ---
     if add_ex_rate:
         def calc_ex_rate_act(df_target, target_year, target_month_list):
             total_val = 0
             for kox in df_target['KOx'].unique():
                 kox_df = df_target[(df_target['KOx'] == kox) & (df_target['Year'] == target_year)]
                 fc1_df = kox_df[kox_df['Desc.'] == '26 FC1']
-                
-                # KOKOR, KEM-KR 은 EUR:KRW 환율 단일행 참조
                 rate_col = 'EUR:KRW' if kox in ['KOKOR', 'KEM-KR'] else 'EUR:USD'
                 
                 fc1_rates = pd.to_numeric(fc1_df[rate_col], errors='coerce').replace(0, np.nan).dropna()
@@ -589,48 +601,6 @@ def render_trend_html_table(df, apply_color=False):
     html_str = post_process_html_styles(apply_common_styles(styler, apply_hkmc_color=apply_color).to_html())
     return f'{get_trend_highlight_css(table_id)}<div id="{table_id}" class="table-container">{html_str}</div>'
 
-# --- [NEW] 이미지 캡처 버튼 기능 (html2canvas) ---
-def capture_button_ui():
-    html_code = """
-    <button id="cap-btn" onclick="capture()" style="background-color: #002060; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; font-family: sans-serif; font-size: 14px;">
-        📸 화면 전체 테이블 이미지로 저장
-    </button>
-    <script>
-    function capture() {
-        const parentDoc = window.parent.document;
-        // Streamlit의 메인 컨테이너 타겟팅
-        const target = parentDoc.querySelector('.block-container');
-        
-        document.getElementById('cap-btn').innerText = '⏳ 이미지 생성 중... (잠시만 기다려주세요)';
-        
-        // 동적으로 스크립트 로드 후 캡처 실행
-        if (typeof parentDoc.defaultView.html2canvas === 'undefined') {
-            const script = parentDoc.createElement('script');
-            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-            script.onload = () => doCapture(parentDoc, target);
-            parentDoc.head.appendChild(script);
-        } else {
-            doCapture(parentDoc, target);
-        }
-    }
-
-    function doCapture(parentDoc, target) {
-        parentDoc.defaultView.html2canvas(target, {
-            scale: 2, 
-            backgroundColor: '#ffffff',
-            useCORS: true
-        }).then(canvas => {
-            const link = parentDoc.createElement('a');
-            link.download = 'Dashboard_Report.png';
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-            document.getElementById('cap-btn').innerText = '📸 화면 전체 테이블 이미지로 저장';
-        });
-    }
-    </script>
-    """
-    components.html(html_code, height=60)
-
 # ==========================================
 # 4. 사이드바 및 메인 로직
 # ==========================================
@@ -651,14 +621,6 @@ if selected_menu == "매출 보고서":
         
         reports_to_download = {}
         
-        # ==========================================
-        # 버튼 영역 (엑셀 & 이미지 다운로드)
-        # ==========================================
-        btn_col1, btn_col2 = st.columns([1, 1])
-        with btn_col1:
-            excel_data = to_excel_multiple(reports_to_download) # 주의: 초기에 빈 딕셔너리로 에러 방지. 최종 다운로드는 맨 밑에서 처리합니다.
-            pass # UI 구조를 위해 비워둡니다.
-            
         # ==========================================
         # 시각화 대시보드 (Plotly)
         # ==========================================
@@ -788,6 +750,7 @@ if selected_menu == "매출 보고서":
             st.markdown(render_html_view(df_biz_type, c_col, apply_color=True), unsafe_allow_html=True)
             reports_to_download["Biz_Type_Summary"] = df_biz_type
 
+        # --- PE Biz 전용 FC1 EX-RATE 로직 적용 ---
         st.subheader("📌 Sales Revenue: Power Electronics")
         df_pe_raw = raw_df[raw_df['Business Type'].str.contains("Power", case=False, na=False)].copy()
         if not df_pe_raw.empty:
@@ -812,11 +775,7 @@ if selected_menu == "매출 보고서":
 
         if reports_to_download:
             st.write("---")
-            col_a, col_b = st.columns([1, 1])
-            with col_a:
-                st.download_button("📥 월간회의 자료용 엑셀 다운로드", data=to_excel_multiple(reports_to_download), file_name=f"Monthly_Closing_Report_{selected_year}_{selected_month:02d}.xlsx", use_container_width=True)
-            with col_b:
-                capture_button_ui()
+            st.download_button("📥 웹 화면 서식이 적용된 엑셀 다운로드", data=to_excel_multiple(reports_to_download), file_name=f"Monthly_Closing_Report_{selected_year}_{selected_month:02d}.xlsx", use_container_width=True)
     else:
         st.info("👈 좌측 메뉴에서 '월간 회의용 엑셀 파일'을 업로드하시면 요약 리포트가 생성됩니다.")
 
