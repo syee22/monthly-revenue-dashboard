@@ -218,7 +218,7 @@ def to_excel_multiple(df_dict):
                     new_tuples.append(tuple(new_t))
                 df.index = pd.MultiIndex.from_tuples(new_tuples, names=df.index.names)
             
-            # --- [엑셀 전용 포맷터] 화면과 똑같이 출력되도록 개선 ---
+            # --- 엑셀용 포맷 설정 ---
             format_dict = {}
             for col in df.columns:
                 is_achi = any('ACHI' in str(c) for c in col) if isinstance(col, tuple) else 'ACHI' in str(col)
@@ -231,14 +231,14 @@ def to_excel_multiple(df_dict):
             apply_color = sheet_name in ["PE_HKMC_Summary", "PE_Biz_Detailed", "Core_Biz", "Biz_Type_Summary"]
             styler = apply_common_styles(styler, apply_hkmc_color=apply_color, is_export=True)
             
-            # 헤더에 진한 파란색 서식 입히기
+            # 헤더에 다크 블루(CSS와 동일) 스타일 직접 적용
             if hasattr(styler, 'apply_index'):
                 styler.apply_index(lambda idx: ["background-color: #002060; color: white; border: 1px solid #8ea9db; font-weight: bold; text-align: center;"] * len(idx), axis=1)
                 
             styler.to_excel(writer, sheet_name=sheet_name[:31])
             worksheet = writer.sheets[sheet_name[:31]]
             
-            # 열 너비 정리
+            # 열 너비 세팅
             for i in range(len(df.index.names)): worksheet.set_column(i, i, 12)
             for i in range(len(df.columns)): worksheet.set_column(i + len(df.index.names), i + len(df.index.names), 12)
             
@@ -246,7 +246,7 @@ def to_excel_multiple(df_dict):
 
 
 # ==========================================
-# 3. 데이터 로딩 및 집계 함수
+# 3. 데이터 로딩 및 공통 함수
 # ==========================================
 @st.cache_data
 def load_and_preprocess(file):
@@ -341,12 +341,15 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
         
     dfs_to_concat = [final_df, t_df]
 
+    # --- [FC1 EX-RATE 로직: PE_HKMC_Summary 에만 적용] ---
     if add_ex_rate:
         def calc_ex_rate_act(df_target, target_year, target_month_list):
             total_val = 0
             for kox in df_target['KOx'].unique():
                 kox_df = df_target[(df_target['KOx'] == kox) & (df_target['Year'] == target_year)]
                 fc1_df = kox_df[kox_df['Desc.'] == '26 FC1']
+                
+                # KOKOR, KEM-KR 은 EUR:KRW 환율 단일행 참조
                 rate_col = 'EUR:KRW' if kox in ['KOKOR', 'KEM-KR'] else 'EUR:USD'
                 
                 fc1_rates = pd.to_numeric(fc1_df[rate_col], errors='coerce').replace(0, np.nan).dropna()
@@ -775,6 +778,7 @@ if selected_menu == "매출 보고서":
 
         if reports_to_download:
             st.write("---")
+            # --- [수정] 다운로드 버튼: 웹 화면 서식이 유지되는 엑셀 저장 ---
             st.download_button("📥 웹 화면 서식이 적용된 엑셀 다운로드", data=to_excel_multiple(reports_to_download), file_name=f"Monthly_Closing_Report_{selected_year}_{selected_month:02d}.xlsx", use_container_width=True)
     else:
         st.info("👈 좌측 메뉴에서 '월간 회의용 엑셀 파일'을 업로드하시면 요약 리포트가 생성됩니다.")
@@ -803,17 +807,40 @@ elif selected_menu == "판매가 조회":
                     if m := re.search(r'Distr\. Channel\s+(\d+)', line): distr_channel = m.group(1)
                 elif line.startswith("\t"):
                     parts = [p.strip() for p in line.split('\t')]
-                    if len(parts) > 1:
-                        if parts[1].isdigit() and parts[2] == '': current_customer = parts[1]
-                        elif len(parts) >= 16 and parts[2] in ['YPR0', 'ZADD']:
-                            try: amt, per = float(parts[10].replace(',', '')), float(parts[12].replace(',', ''))
-                            except: amt, per = 0, 0
-                            price = int(amt / per) if (amt / per).is_integer() else round(amt / per, 2) if per != 0 else ""
+                    # [수정] 정확한 파싱을 위해 길이 체크 수정 및 조건 고도화
+                    if len(parts) > 2:
+                        # 고객 정보 행 인식
+                        if parts[1].isdigit() and parts[2] == '': 
+                            current_customer = parts[1]
+                        # 데이터 행 인식 (Condition Type 검사)
+                        elif len(parts) >= 16 and parts[1] in ['YPR0', 'ZADD']:
+                            try: 
+                                amt = float(parts[10].replace(',', ''))
+                                per = float(parts[12].replace(',', ''))
+                                price = int(amt / per) if (amt / per).is_integer() else round(amt / per, 2) if per != 0 else ""
+                            except: 
+                                price = ""
+                            
+                            # 날짜 포맷 변환 (DD.MM.YYYY -> YYYY-MM-DD)
+                            def format_date(d_str):
+                                try: return pd.to_datetime(d_str, format='%d.%m.%Y').strftime('%Y-%m-%d')
+                                except: return d_str
+                                
+                            v_from = format_date(parts[14])
+                            v_to = format_date(parts[15])
+                            
                             parsed_data.append({
-                                "Sales Org.": sales_org, "Distr. Channel": distr_channel, "Customer": current_customer,
-                                "CnTy": parts[1], "Condition Type": parts[2], "Material": parts[5], "Material Description": parts[6],
-                                "Amount": amt, "Unit": parts[11], "Unit Size": per, "UoM": parts[13],
-                                "Valid From": parts[14], "Valid to": parts[15], "Price": price
+                                "Sales Org.": sales_org,
+                                "Distr. Channel": distr_channel,
+                                "Customer": current_customer,
+                                "CnTy": parts[1],
+                                "Condition Type": parts[2],
+                                "Material": parts[5],
+                                "Material Description": parts[6],
+                                "From": v_from,
+                                "To": v_to,
+                                "Price": price,
+                                "Curr.": parts[11]
                             })
         
         if parsed_data:
@@ -821,11 +848,30 @@ elif selected_menu == "판매가 조회":
             st.subheader("📋 정제된 단가 데이터")
             st.dataframe(df_final, use_container_width=True)
             
+            # --- [수정] 엑셀 다운로드 시 중복된 'Material' 컬럼명과 100% 동일한 포맷을 생성 ---
+            df_export = df_final.copy()
+            df_export.columns = ["Sales Org.", "Distr. Channel", "Customer", "CnTy", "Condition Type", "Material", "Material", "From", "To", "Price", "Curr."]
+            
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                df_final.to_excel(writer, sheet_name="Sheet2", index=False, startrow=2)
-                ws = writer.sheets["Sheet2"]
-                ws.set_column('A:B', 12); ws.set_column('C:C', 10); ws.set_column('G:G', 40)
+                # 데이터만 먼저 작성 (header=False)하여 pandas의 중복 컬럼명 방지 우회
+                df_export.to_excel(writer, sheet_name="Sheet1", index=False, startrow=3, header=False)
+                
+                workbook = writer.book
+                ws = writer.sheets["Sheet1"]
+                
+                # 3번째 행(인덱스 2)에 직접 헤더 작성 및 굵게/가운데 정렬 스타일 입히기
+                header_format = workbook.add_format({'bold': True, 'border': 1, 'bg_color': '#F0F0F0', 'align': 'center'})
+                headers = ["Sales Org.", "Distr. Channel", "Customer", "CnTy", "Condition Type", "Material", "Material", "From", "To", "Price", "Curr."]
+                for col_num, value in enumerate(headers):
+                    ws.write(2, col_num, value, header_format)
+                
+                # 열 너비 깔끔하게 세팅
+                ws.set_column('A:E', 12)
+                ws.set_column('F:F', 12)
+                ws.set_column('G:G', 40) # Description용 넓은 폭
+                ws.set_column('H:I', 12)
+                ws.set_column('J:K', 10)
                 
             st.download_button("📥 통합 결과 엑셀 다운로드", data=output.getvalue(), file_name="결과.xlsx", use_container_width=True)
         else:
