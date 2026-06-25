@@ -48,7 +48,7 @@ h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0
 </style>""", unsafe_allow_html=True)
 
 # ==========================================
-# 2. 유틸리티 함수
+# 2. 포맷터 및 공통 함수
 # ==========================================
 def get_numeric_cols(df): return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
 
@@ -244,7 +244,7 @@ def to_excel_multiple(df_dict):
 
 
 # ==========================================
-# 3. 데이터 로딩 및 공통 함수 (매출보고서)
+# 3. 데이터 로딩 및 집계 함수 (매출 보고서용)
 # ==========================================
 @st.cache_data
 def load_and_preprocess(file):
@@ -865,36 +865,62 @@ elif selected_menu == "판매가 조회":
                 if not df_sim.empty:
                     df_sim['Price_Num'] = pd.to_numeric(df_sim['Price'], errors='coerce').fillna(0)
                     
-                    # --- [신규 추가] Sales Org, Distr. Channel, Customer, Material 그룹핑 및 합산 로직 ---
-                    df_grouped = df_sim.groupby(
+                    # --- [수정] 그룹핑 시 CnTy를 독립적인 열(Column)로 피벗(Pivot)하고 Sales Price 합계 계산 ---
+                    # 1. 기본 정보 및 Memo 생성
+                    base_info = df_sim.groupby(
                         ['Sales Org.', 'Distr. Channel', 'Customer', 'Material'], 
                         as_index=False
                     ).agg({
                         'Material Description': 'first',
                         'Curr.': 'first',
-                        'Price_Num': 'sum',
                         'CnTy': lambda x: ' + '.join(x.dropna().astype(str).unique())
-                    })
+                    }).rename(columns={'CnTy': 'Memo'})
                     
-                    df_grouped.rename(columns={'Price_Num': 'Total Price', 'CnTy': 'Memo'}, inplace=True)
+                    # 2. CnTy별 Price를 개별 컬럼으로 Pivot
+                    pivot_prices = df_sim.pivot_table(
+                        index=['Sales Org.', 'Distr. Channel', 'Customer', 'Material'],
+                        columns='CnTy',
+                        values='Price_Num',
+                        aggfunc='sum'
+                    ).fillna(0).reset_index()
                     
-                    # 보기 좋게 컬럼 순서 정렬
-                    cols_order = ['Sales Org.', 'Distr. Channel', 'Customer', 'Material', 'Material Description', 'Memo', 'Total Price', 'Curr.']
+                    # 3. 기본 정보와 Pivot된 가격 병합
+                    df_grouped = pd.merge(base_info, pivot_prices, on=['Sales Org.', 'Distr. Channel', 'Customer', 'Material'])
+                    
+                    # 4. 새로 생성된 CnTy 컬럼 목록 추출
+                    cnty_cols = [c for c in pivot_prices.columns if c not in ['Sales Org.', 'Distr. Channel', 'Customer', 'Material']]
+                    
+                    # 5. 합산된 단가 컬럼 추가 (Sales price)
+                    df_grouped['Sales price'] = df_grouped[cnty_cols].sum(axis=1)
+                    
+                    # 6. 보기 좋게 컬럼 순서 정렬
+                    cols_order = ['Sales Org.', 'Distr. Channel', 'Customer', 'Material', 'Material Description'] + cnty_cols + ['Sales price', 'Memo', 'Curr.']
                     df_grouped = df_grouped[cols_order]
                     
-                    total_price = df_grouped['Total Price'].sum()
+                    total_price = df_grouped['Sales price'].sum()
                     
-                    st.success(f"### 🎉 총 합산 단가 (Total Price): {total_price:,.2f} (그룹핑된 레코드: {len(df_grouped)}건)")
+                    st.success(f"### 🎉 전체 합산 단가 (Total Sales Price): {total_price:,.2f} (조회된 자재: {len(df_grouped)}건)")
                     st.dataframe(df_grouped, use_container_width=True)
                     
-                    # 그룹핑된 결과 전용 엑셀 다운로드 버튼
+                    # 시뮬레이션 결과 전용 엑셀 다운로드 
                     out_sim = io.BytesIO()
                     with pd.ExcelWriter(out_sim, engine='xlsxwriter') as writer:
                         df_grouped.to_excel(writer, sheet_name="Simulation_Result", index=False)
                         ws = writer.sheets["Simulation_Result"]
                         ws.set_column('A:E', 15)
-                        ws.set_column('F:F', 20) # Memo 열 넓게
-                        ws.set_column('G:H', 12)
+                        
+                        # 동적으로 생성된 CnTy 열 너비 조절
+                        for i, _ in enumerate(cnty_cols):
+                            ws.set_column(5+i, 5+i, 12)
+                            
+                        sales_price_idx = 5 + len(cnty_cols)
+                        memo_idx = sales_price_idx + 1
+                        curr_idx = memo_idx + 1
+                        
+                        ws.set_column(sales_price_idx, sales_price_idx, 15)
+                        ws.set_column(memo_idx, memo_idx, 20)
+                        ws.set_column(curr_idx, curr_idx, 10)
+                        
                     st.download_button("📥 합산된 시뮬레이션 결과 엑셀 다운로드", data=out_sim.getvalue(), file_name="Simulation_Result.xlsx", use_container_width=True)
                 else:
                     st.warning("조건에 일치하며 해당 일자에 유효한 단가 데이터가 없습니다.")
