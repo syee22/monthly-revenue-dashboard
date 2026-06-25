@@ -6,6 +6,7 @@ import re
 import uuid
 import plotly.express as px
 import plotly.graph_objects as go
+import datetime
 
 # ==========================================
 # 1. 페이지 설정 및 전역 변수 설정
@@ -218,7 +219,6 @@ def to_excel_multiple(df_dict):
                     new_tuples.append(tuple(new_t))
                 df.index = pd.MultiIndex.from_tuples(new_tuples, names=df.index.names)
             
-            # --- 엑셀용 포맷 설정 ---
             format_dict = {}
             for col in df.columns:
                 is_achi = any('ACHI' in str(c) for c in col) if isinstance(col, tuple) else 'ACHI' in str(col)
@@ -231,14 +231,12 @@ def to_excel_multiple(df_dict):
             apply_color = sheet_name in ["PE_HKMC_Summary", "PE_Biz_Detailed", "Core_Biz", "Biz_Type_Summary"]
             styler = apply_common_styles(styler, apply_hkmc_color=apply_color, is_export=True)
             
-            # 헤더에 다크 블루(CSS와 동일) 스타일 직접 적용
             if hasattr(styler, 'apply_index'):
                 styler.apply_index(lambda idx: ["background-color: #002060; color: white; border: 1px solid #8ea9db; font-weight: bold; text-align: center;"] * len(idx), axis=1)
                 
             styler.to_excel(writer, sheet_name=sheet_name[:31])
             worksheet = writer.sheets[sheet_name[:31]]
             
-            # 열 너비 세팅
             for i in range(len(df.index.names)): worksheet.set_column(i, i, 12)
             for i in range(len(df.columns)): worksheet.set_column(i + len(df.index.names), i + len(df.index.names), 12)
             
@@ -341,7 +339,6 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
         
     dfs_to_concat = [final_df, t_df]
 
-    # --- [FC1 EX-RATE 로직: PE_HKMC_Summary 에만 적용] ---
     if add_ex_rate:
         def calc_ex_rate_act(df_target, target_year, target_month_list):
             total_val = 0
@@ -349,7 +346,6 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
                 kox_df = df_target[(df_target['KOx'] == kox) & (df_target['Year'] == target_year)]
                 fc1_df = kox_df[kox_df['Desc.'] == '26 FC1']
                 
-                # KOKOR, KEM-KR 은 EUR:KRW 환율 단일행 참조
                 rate_col = 'EUR:KRW' if kox in ['KOKOR', 'KEM-KR'] else 'EUR:USD'
                 
                 fc1_rates = pd.to_numeric(fc1_df[rate_col], errors='coerce').replace(0, np.nan).dropna()
@@ -753,7 +749,6 @@ if selected_menu == "매출 보고서":
             st.markdown(render_html_view(df_biz_type, c_col, apply_color=True), unsafe_allow_html=True)
             reports_to_download["Biz_Type_Summary"] = df_biz_type
 
-        # --- PE Biz 전용 FC1 EX-RATE 로직 적용 ---
         st.subheader("📌 Sales Revenue: Power Electronics")
         df_pe_raw = raw_df[raw_df['Business Type'].str.contains("Power", case=False, na=False)].copy()
         if not df_pe_raw.empty:
@@ -778,7 +773,6 @@ if selected_menu == "매출 보고서":
 
         if reports_to_download:
             st.write("---")
-            # --- [수정] 다운로드 버튼: 웹 화면 서식이 유지되는 엑셀 저장 ---
             st.download_button("📥 웹 화면 서식이 적용된 엑셀 다운로드", data=to_excel_multiple(reports_to_download), file_name=f"Monthly_Closing_Report_{selected_year}_{selected_month:02d}.xlsx", use_container_width=True)
     else:
         st.info("👈 좌측 메뉴에서 '월간 회의용 엑셀 파일'을 업로드하시면 요약 리포트가 생성됩니다.")
@@ -807,12 +801,9 @@ elif selected_menu == "판매가 조회":
                     if m := re.search(r'Distr\. Channel\s+(\d+)', line): distr_channel = m.group(1)
                 elif line.startswith("\t"):
                     parts = [p.strip() for p in line.split('\t')]
-                    # [수정] 정확한 파싱을 위해 길이 체크 수정 및 조건 고도화
                     if len(parts) > 2:
-                        # 고객 정보 행 인식
                         if parts[1].isdigit() and parts[2] == '': 
                             current_customer = parts[1]
-                        # 데이터 행 인식 (Condition Type 검사)
                         elif len(parts) >= 16 and parts[1] in ['YPR0', 'ZADD']:
                             try: 
                                 amt = float(parts[10].replace(',', ''))
@@ -821,58 +812,80 @@ elif selected_menu == "판매가 조회":
                             except: 
                                 price = ""
                             
-                            # 날짜 포맷 변환 (DD.MM.YYYY -> YYYY-MM-DD)
                             def format_date(d_str):
-                                try: return pd.to_datetime(d_str, format='%d.%m.%Y').strftime('%Y-%m-%d')
-                                except: return d_str
+                                try: 
+                                    return pd.to_datetime(d_str, format='%d.%m.%Y').strftime('%Y-%m-%d')
+                                except Exception:
+                                    pts = str(d_str).split('.')
+                                    if len(pts) == 3: return f"{pts[2]}-{pts[1]}-{pts[0]}"
+                                    return d_str
                                 
                             v_from = format_date(parts[14])
                             v_to = format_date(parts[15])
                             
                             parsed_data.append({
-                                "Sales Org.": sales_org,
-                                "Distr. Channel": distr_channel,
-                                "Customer": current_customer,
-                                "CnTy": parts[1],
-                                "Condition Type": parts[2],
-                                "Material": parts[5],
-                                "Material Description": parts[6],
-                                "From": v_from,
-                                "To": v_to,
-                                "Price": price,
-                                "Curr.": parts[11]
+                                "Sales Org.": sales_org, "Distr. Channel": distr_channel, "Customer": current_customer,
+                                "CnTy": parts[1], "Condition Type": parts[2], "Material": parts[5], "Material Description": parts[6],
+                                "From": v_from, "To": v_to, "Price": price, "Curr.": parts[11]
                             })
         
         if parsed_data:
             df_final = pd.DataFrame(parsed_data)
-            st.subheader("📋 정제된 단가 데이터")
+            st.subheader("📋 정제된 단가 데이터 전체")
             st.dataframe(df_final, use_container_width=True)
             
-            # --- [수정] 엑셀 다운로드 시 중복된 'Material' 컬럼명과 100% 동일한 포맷을 생성 ---
+            # 원본 데이터 엑셀 다운로드
             df_export = df_final.copy()
             df_export.columns = ["Sales Org.", "Distr. Channel", "Customer", "CnTy", "Condition Type", "Material", "Material", "From", "To", "Price", "Curr."]
-            
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                # 데이터만 먼저 작성 (header=False)하여 pandas의 중복 컬럼명 방지 우회
                 df_export.to_excel(writer, sheet_name="Sheet1", index=False, startrow=3, header=False)
-                
                 workbook = writer.book
                 ws = writer.sheets["Sheet1"]
-                
-                # 3번째 행(인덱스 2)에 직접 헤더 작성 및 굵게/가운데 정렬 스타일 입히기
                 header_format = workbook.add_format({'bold': True, 'border': 1, 'bg_color': '#F0F0F0', 'align': 'center'})
                 headers = ["Sales Org.", "Distr. Channel", "Customer", "CnTy", "Condition Type", "Material", "Material", "From", "To", "Price", "Curr."]
                 for col_num, value in enumerate(headers):
                     ws.write(2, col_num, value, header_format)
+                ws.set_column('A:E', 12); ws.set_column('F:F', 12); ws.set_column('G:G', 40)
+                ws.set_column('H:I', 12); ws.set_column('J:K', 10)
+            st.download_button("📥 통합 결과 엑셀 전체 다운로드", data=output.getvalue(), file_name="결과.xlsx", use_container_width=True)
+            
+            st.markdown("---")
+            st.subheader("🔍 특정 일자/조건 기준 단가 합산 시뮬레이터")
+            st.info("입력하신 조건과 조회 기준일(Target Date)에 유효한(From~To 사이) 단가를 필터링하여 총합을 계산합니다.")
+            
+            with st.form("price_simulator_form"):
+                c1, c2, c3, c4 = st.columns(4)
+                with c1: sim_org = st.text_input("Sales Org. (입력 시 필터)")
+                with c2: sim_distr = st.text_input("Distr. Channel (입력 시 필터)")
+                with c3: sim_cust = st.text_input("Customer (입력 시 필터)")
+                with c4: sim_date = st.date_input("조회 기준일 (Target Date)", value=datetime.date.today())
+                    
+                sim_mats = st.text_area("조회할 Material 리스트 (엔터 또는 쉼표(,)로 구분하여 여러 개 입력)")
+                submitted = st.form_submit_button("단가 합산 조회하기")
                 
-                # 열 너비 깔끔하게 세팅
-                ws.set_column('A:E', 12)
-                ws.set_column('F:F', 12)
-                ws.set_column('G:G', 40) # Description용 넓은 폭
-                ws.set_column('H:I', 12)
-                ws.set_column('J:K', 10)
+            if submitted:
+                cond = pd.Series(True, index=df_final.index)
                 
-            st.download_button("📥 통합 결과 엑셀 다운로드", data=output.getvalue(), file_name="결과.xlsx", use_container_width=True)
+                if sim_org.strip(): cond &= df_final['Sales Org.'] == sim_org.strip()
+                if sim_distr.strip(): cond &= df_final['Distr. Channel'] == sim_distr.strip()
+                if sim_cust.strip(): cond &= df_final['Customer'] == sim_cust.strip()
+                
+                if sim_mats.strip():
+                    mat_list = [m.strip() for m in re.split(r'[\n,]', sim_mats) if m.strip()]
+                    cond &= df_final['Material'].astype(str).isin(mat_list)
+                    
+                target_date_str = sim_date.strftime("%Y-%m-%d")
+                cond &= (df_final['From'] <= target_date_str) & (df_final['To'] >= target_date_str)
+                
+                df_sim = df_final[cond].copy()
+                
+                if not df_sim.empty:
+                    df_sim['Price_Num'] = pd.to_numeric(df_sim['Price'], errors='coerce').fillna(0)
+                    total_price = df_sim['Price_Num'].sum()
+                    st.success(f"### 🎉 총 합산 단가 (Total Price): {total_price:,.2f} (조회된 레코드: {len(df_sim)}건)")
+                    st.dataframe(df_sim.drop(columns=['Price_Num']), use_container_width=True)
+                else:
+                    st.warning("조건에 일치하며 해당 일자에 유효한 단가 데이터가 없습니다.")
         else:
             st.warning("분석할 수 있는 데이터가 없습니다. txt 파일 형식을 확인해주세요.")
