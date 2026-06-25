@@ -244,7 +244,7 @@ def to_excel_multiple(df_dict):
 
 
 # ==========================================
-# 3. 데이터 로딩 및 공통 함수
+# 3. 데이터 로딩 및 공통 함수 (매출보고서)
 # ==========================================
 @st.cache_data
 def load_and_preprocess(file):
@@ -831,24 +831,6 @@ elif selected_menu == "판매가 조회":
         
         if parsed_data:
             df_final = pd.DataFrame(parsed_data)
-            st.subheader("📋 정제된 단가 데이터 전체")
-            st.dataframe(df_final, use_container_width=True)
-            
-            # 원본 데이터 엑셀 다운로드
-            df_export = df_final.copy()
-            df_export.columns = ["Sales Org.", "Distr. Channel", "Customer", "CnTy", "Condition Type", "Material", "Material", "From", "To", "Price", "Curr."]
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                df_export.to_excel(writer, sheet_name="Sheet1", index=False, startrow=3, header=False)
-                workbook = writer.book
-                ws = writer.sheets["Sheet1"]
-                header_format = workbook.add_format({'bold': True, 'border': 1, 'bg_color': '#F0F0F0', 'align': 'center'})
-                headers = ["Sales Org.", "Distr. Channel", "Customer", "CnTy", "Condition Type", "Material", "Material", "From", "To", "Price", "Curr."]
-                for col_num, value in enumerate(headers):
-                    ws.write(2, col_num, value, header_format)
-                ws.set_column('A:E', 12); ws.set_column('F:F', 12); ws.set_column('G:G', 40)
-                ws.set_column('H:I', 12); ws.set_column('J:K', 10)
-            st.download_button("📥 통합 결과 엑셀 전체 다운로드", data=output.getvalue(), file_name="결과.xlsx", use_container_width=True)
             
             st.markdown("---")
             st.subheader("🔍 특정 일자/조건 기준 단가 합산 시뮬레이터")
@@ -882,10 +864,60 @@ elif selected_menu == "판매가 조회":
                 
                 if not df_sim.empty:
                     df_sim['Price_Num'] = pd.to_numeric(df_sim['Price'], errors='coerce').fillna(0)
-                    total_price = df_sim['Price_Num'].sum()
-                    st.success(f"### 🎉 총 합산 단가 (Total Price): {total_price:,.2f} (조회된 레코드: {len(df_sim)}건)")
-                    st.dataframe(df_sim.drop(columns=['Price_Num']), use_container_width=True)
+                    
+                    # --- [신규 추가] Sales Org, Distr. Channel, Customer, Material 그룹핑 및 합산 로직 ---
+                    df_grouped = df_sim.groupby(
+                        ['Sales Org.', 'Distr. Channel', 'Customer', 'Material'], 
+                        as_index=False
+                    ).agg({
+                        'Material Description': 'first',
+                        'Curr.': 'first',
+                        'Price_Num': 'sum',
+                        'CnTy': lambda x: ' + '.join(x.dropna().astype(str).unique())
+                    })
+                    
+                    df_grouped.rename(columns={'Price_Num': 'Total Price', 'CnTy': 'Memo'}, inplace=True)
+                    
+                    # 보기 좋게 컬럼 순서 정렬
+                    cols_order = ['Sales Org.', 'Distr. Channel', 'Customer', 'Material', 'Material Description', 'Memo', 'Total Price', 'Curr.']
+                    df_grouped = df_grouped[cols_order]
+                    
+                    total_price = df_grouped['Total Price'].sum()
+                    
+                    st.success(f"### 🎉 총 합산 단가 (Total Price): {total_price:,.2f} (그룹핑된 레코드: {len(df_grouped)}건)")
+                    st.dataframe(df_grouped, use_container_width=True)
+                    
+                    # 그룹핑된 결과 전용 엑셀 다운로드 버튼
+                    out_sim = io.BytesIO()
+                    with pd.ExcelWriter(out_sim, engine='xlsxwriter') as writer:
+                        df_grouped.to_excel(writer, sheet_name="Simulation_Result", index=False)
+                        ws = writer.sheets["Simulation_Result"]
+                        ws.set_column('A:E', 15)
+                        ws.set_column('F:F', 20) # Memo 열 넓게
+                        ws.set_column('G:H', 12)
+                    st.download_button("📥 합산된 시뮬레이션 결과 엑셀 다운로드", data=out_sim.getvalue(), file_name="Simulation_Result.xlsx", use_container_width=True)
                 else:
                     st.warning("조건에 일치하며 해당 일자에 유효한 단가 데이터가 없습니다.")
+
+            st.markdown("---")
+            st.subheader("📋 정제된 단가 데이터 전체 목록")
+            st.dataframe(df_final, use_container_width=True)
+            
+            # 원본 전체 데이터 엑셀 다운로드
+            df_export = df_final.copy()
+            df_export.columns = ["Sales Org.", "Distr. Channel", "Customer", "CnTy", "Condition Type", "Material", "Material", "From", "To", "Price", "Curr."]
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                df_export.to_excel(writer, sheet_name="Sheet1", index=False, startrow=3, header=False)
+                workbook = writer.book
+                ws = writer.sheets["Sheet1"]
+                header_format = workbook.add_format({'bold': True, 'border': 1, 'bg_color': '#F0F0F0', 'align': 'center'})
+                headers = ["Sales Org.", "Distr. Channel", "Customer", "CnTy", "Condition Type", "Material", "Material", "From", "To", "Price", "Curr."]
+                for col_num, value in enumerate(headers):
+                    ws.write(2, col_num, value, header_format)
+                ws.set_column('A:E', 12); ws.set_column('F:F', 12); ws.set_column('G:G', 40)
+                ws.set_column('H:I', 12); ws.set_column('J:K', 10)
+            st.download_button("📥 통합 결과 엑셀 전체 다운로드", data=output.getvalue(), file_name="결과.xlsx", use_container_width=True)
+            
         else:
             st.warning("분석할 수 있는 데이터가 없습니다. txt 파일 형식을 확인해주세요.")
