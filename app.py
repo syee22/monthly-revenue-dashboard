@@ -6,7 +6,7 @@ import re
 import uuid
 import plotly.express as px
 import plotly.graph_objects as go
-import datetime
+import streamlit.components.v1 as components  # 이미지 캡처용 JS 삽입을 위한 모듈 추가
 
 # ==========================================
 # 1. 페이지 설정 및 전역 변수 설정
@@ -50,7 +50,31 @@ h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0
 # ==========================================
 # 2. 포맷터 및 공통 함수
 # ==========================================
-def get_numeric_cols(df): return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
+def get_trend_highlight_css(table_id):
+    return f"<style>#{table_id} thead tr:nth-child(1) th:last-child {{ border-top: 4px solid #c00000 !important; border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody td:last-child {{ border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:last-child {{ border-bottom: 4px solid #c00000 !important; }}</style>"
+
+def get_dynamic_highlight_css(table_id, df, highlight_phase):
+    if not highlight_phase: return ""
+    cols = list(df.columns)
+    start_col, end_col = -1, -1
+    level0_cols = []
+    for i, col in enumerate(cols):
+        c0 = col[0] if isinstance(col, tuple) else str(col)
+        if not level0_cols or level0_cols[-1] != c0: level0_cols.append(c0)
+        if c0 == highlight_phase:
+            if start_col == -1: start_col = i
+            end_col = i
+    if start_col == -1: return ""
+    num_indices = df.index.nlevels
+    target_th_row0 = num_indices + level0_cols.index(highlight_phase) + 1
+    target_th_row1_start = start_col + 1
+    target_th_row1_end = end_col + 1
+    td_start = start_col + 1
+    td_end = end_col + 1
+    return f"<style>#{table_id} thead tr:nth-child(1) th:nth-child({target_th_row0}) {{ border-top: 5px solid #c00000 !important; border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:nth-of-type(n+{td_start}):nth-of-type(-n+{td_end}) {{ border-bottom: 5px solid #c00000 !important; }}</style>"
+
+def get_numeric_cols(df): 
+    return [col for col in df.columns if any(x in str(col) for x in ['FC3', 'FC1', 'ACT', 'ACHI'])]
 
 def format_k_val(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
@@ -75,29 +99,6 @@ def format_percentage_html(val):
 def format_percentage_html_no_trend(val):
     if pd.isna(val) or isinstance(val, str) or val == '': return val
     return f'<span style="color: #000000; font-weight: bold; font-style: italic;">{val:.0%}</span>'
-
-def get_trend_highlight_css(table_id):
-    return f"<style>#{table_id} thead tr:nth-child(1) th:last-child {{ border-top: 4px solid #c00000 !important; border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody td:last-child {{ border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:last-child {{ border-bottom: 4px solid #c00000 !important; }}</style>"
-
-def get_dynamic_highlight_css(table_id, df, highlight_phase):
-    if not highlight_phase: return ""
-    cols = list(df.columns)
-    start_col, end_col = -1, -1
-    level0_cols = []
-    for i, col in enumerate(cols):
-        c0 = col[0] if isinstance(col, tuple) else str(col)
-        if not level0_cols or level0_cols[-1] != c0: level0_cols.append(c0)
-        if c0 == highlight_phase:
-            if start_col == -1: start_col = i
-            end_col = i
-    if start_col == -1: return ""
-    num_indices = df.index.nlevels
-    target_th_row0 = num_indices + level0_cols.index(highlight_phase) + 1
-    target_th_row1_start = start_col + 1
-    target_th_row1_end = end_col + 1
-    td_start = start_col + 1
-    td_end = end_col + 1
-    return f"<style>#{table_id} thead tr:nth-child(1) th:nth-child({target_th_row0}) {{ border-top: 5px solid #c00000 !important; border-left: 5px solid #c00000 !important; border-right: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} thead tr:nth-child(2) th:nth-child({target_th_row1_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_start}) {{ border-left: 5px solid #c00000 !important; }} #{table_id} tbody td:nth-of-type({td_end}) {{ border-right: 5px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:nth-of-type(n+{td_start}):nth-of-type(-n+{td_end}) {{ border-bottom: 5px solid #c00000 !important; }}</style>"
 
 def apply_common_styles(styler, apply_hkmc_color=False, is_export=False):
     imp = "" if is_export else " !important"
@@ -230,7 +231,7 @@ def to_excel_multiple(df_dict):
 
 
 # ==========================================
-# 3. 데이터 로딩 및 공통 함수 (매출 보고서용)
+# 3. 데이터 로딩 및 공통 함수
 # ==========================================
 @st.cache_data
 def load_and_preprocess(file):
@@ -325,6 +326,62 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
         
     dfs_to_concat = [final_df, t_df]
 
+    # --- [FC1 EX-RATE 로직: PE_HKMC_Summary 에만 적용] ---
+    if add_ex_rate:
+        def calc_ex_rate_act(df_target, target_year, target_month_list):
+            total_val = 0
+            for kox in df_target['KOx'].unique():
+                kox_df = df_target[(df_target['KOx'] == kox) & (df_target['Year'] == target_year)]
+                fc1_df = kox_df[kox_df['Desc.'] == '26 FC1']
+                
+                # KOKOR, KEM-KR 은 EUR:KRW 환율 단일행 참조
+                rate_col = 'EUR:KRW' if kox in ['KOKOR', 'KEM-KR'] else 'EUR:USD'
+                
+                fc1_rates = pd.to_numeric(fc1_df[rate_col], errors='coerce').replace(0, np.nan).dropna()
+                fc1_rate = fc1_rates.iloc[0] if not fc1_rates.empty else np.nan
+                
+                for m in target_month_list:
+                    m_act_df = kox_df[(kox_df['Desc.'] == 'ACT') & (kox_df['Month'] == m)]
+                    act_sum = m_act_df['Rev. (€)'].sum()
+                    if act_sum == 0: continue
+                    
+                    act_rates = pd.to_numeric(m_act_df[rate_col], errors='coerce').replace(0, np.nan).dropna()
+                    act_rate = act_rates.iloc[0] if not act_rates.empty else np.nan
+                    
+                    if pd.notna(fc1_rate) and pd.notna(act_rate) and act_rate != 0:
+                        total_val += act_sum * (fc1_rate / act_rate)
+                    else:
+                        total_val += act_sum
+            return total_val
+            
+        ex_rate_row = pd.Series(0.0, index=total_row.index)
+        ex_rate_row[(col_prev, 'ACT')] = calc_ex_rate_act(df_sub, prev_year, [prev_month])
+        
+        month_lists = {
+            phase_curr: [month],
+            phase_ytd: list(range(1, month + 1)),
+            phase_ttl: list(range(1, 13))
+        }
+        
+        for p_name in phases:
+            ex_rate_row[(p_name, 'ACT')] = calc_ex_rate_act(df_sub, year, month_lists[p_name])
+            ex_rate_row[(p_name, '26 FC1')] = total_row.get((p_name, '26 FC1'), 0)
+            ex_rate_row[(p_name, '25 FC3')] = total_row.get((p_name, '25 FC3'), 0)
+            
+            den = total_row.get((p_name, '26 FC1'), 0)
+            if den != 0:
+                ex_rate_row[(p_name, 'ACHI %')] = ex_rate_row[(p_name, 'ACT')] / den
+            else:
+                ex_rate_row[(p_name, 'ACHI %')] = 0
+                
+        if isinstance(final_df.index, pd.MultiIndex):
+            ex_idx = tuple(['FC1 EX-RATE'] + [''] * (len(final_df.index.names)-1))
+            ex_df = pd.DataFrame([ex_rate_row], index=pd.MultiIndex.from_tuples([ex_idx], names=final_df.index.names))
+        else:
+            ex_df = pd.DataFrame([ex_rate_row], index=pd.Index(['FC1 EX-RATE'], name=final_df.index.name))
+            
+        dfs_to_concat.append(ex_df)
+        
     return pd.concat(dfs_to_concat), col_prev, phase_curr
 
 def get_biz_type_detailed_report(df, year, month):
@@ -532,6 +589,47 @@ def render_trend_html_table(df, apply_color=False):
     html_str = post_process_html_styles(apply_common_styles(styler, apply_hkmc_color=apply_color).to_html())
     return f'{get_trend_highlight_css(table_id)}<div id="{table_id}" class="table-container">{html_str}</div>'
 
+# --- [NEW] 이미지 캡처 버튼 기능 (html2canvas) ---
+def capture_button_ui():
+    html_code = """
+    <button id="cap-btn" onclick="capture()" style="background-color: #002060; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; font-family: sans-serif; font-size: 14px;">
+        📸 화면 전체 테이블 이미지로 저장
+    </button>
+    <script>
+    function capture() {
+        const parentDoc = window.parent.document;
+        // Streamlit의 메인 컨테이너 타겟팅
+        const target = parentDoc.querySelector('.block-container');
+        
+        document.getElementById('cap-btn').innerText = '⏳ 이미지 생성 중... (잠시만 기다려주세요)';
+        
+        // 동적으로 스크립트 로드 후 캡처 실행
+        if (typeof parentDoc.defaultView.html2canvas === 'undefined') {
+            const script = parentDoc.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+            script.onload = () => doCapture(parentDoc, target);
+            parentDoc.head.appendChild(script);
+        } else {
+            doCapture(parentDoc, target);
+        }
+    }
+
+    function doCapture(parentDoc, target) {
+        parentDoc.defaultView.html2canvas(target, {
+            scale: 2, 
+            backgroundColor: '#ffffff',
+            useCORS: true
+        }).then(canvas => {
+            const link = parentDoc.createElement('a');
+            link.download = 'Dashboard_Report.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            document.getElementById('cap-btn').innerText = '📸 화면 전체 테이블 이미지로 저장';
+        });
+    }
+    </script>
+    """
+    components.html(html_code, height=60)
 
 # ==========================================
 # 4. 사이드바 및 메인 로직
@@ -553,6 +651,14 @@ if selected_menu == "매출 보고서":
         
         reports_to_download = {}
         
+        # ==========================================
+        # 버튼 영역 (엑셀 & 이미지 다운로드)
+        # ==========================================
+        btn_col1, btn_col2 = st.columns([1, 1])
+        with btn_col1:
+            excel_data = to_excel_multiple(reports_to_download) # 주의: 초기에 빈 딕셔너리로 에러 방지. 최종 다운로드는 맨 밑에서 처리합니다.
+            pass # UI 구조를 위해 비워둡니다.
+            
         # ==========================================
         # 시각화 대시보드 (Plotly)
         # ==========================================
@@ -682,6 +788,21 @@ if selected_menu == "매출 보고서":
             st.markdown(render_html_view(df_biz_type, c_col, apply_color=True), unsafe_allow_html=True)
             reports_to_download["Biz_Type_Summary"] = df_biz_type
 
+        st.subheader("📌 Sales Revenue: Power Electronics")
+        df_pe_raw = raw_df[raw_df['Business Type'].str.contains("Power", case=False, na=False)].copy()
+        if not df_pe_raw.empty:
+            df_pe_raw['Cust. GR'] = df_pe_raw['Group 2'].replace({'HYU': 'HKMC', 'KIA': 'HKMC'})
+            df_pe_summary, p_col, c_col = build_summary_report(
+                df_pe_raw[df_pe_raw['Cust. GR'] == 'HKMC'], 
+                ['Cust. GR', 'KOx'], 
+                selected_year, selected_month, 
+                total_label='PE Biz Rev. TTL (K.€)', 
+                sort_by_current_act=True,
+                add_ex_rate=True) 
+            if not df_pe_summary.empty:
+                st.markdown(render_html_view(df_pe_summary, c_col, apply_color=True), unsafe_allow_html=True)
+                reports_to_download["PE_HKMC_Summary"] = df_pe_summary
+
         for filter_key, display_name in BIZ_CONFIG.items():
             st.subheader(f"📌 Sales Revenue: {display_name}")
             df_biz, phase_names = get_biz_report(raw_df, filter_key, selected_year, selected_month)
@@ -691,7 +812,11 @@ if selected_menu == "매출 보고서":
 
         if reports_to_download:
             st.write("---")
-            st.download_button("📥 웹 화면 서식이 적용된 엑셀 다운로드", data=to_excel_multiple(reports_to_download), file_name=f"Monthly_Closing_Report_{selected_year}_{selected_month:02d}.xlsx", use_container_width=True)
+            col_a, col_b = st.columns([1, 1])
+            with col_a:
+                st.download_button("📥 월간회의 자료용 엑셀 다운로드", data=to_excel_multiple(reports_to_download), file_name=f"Monthly_Closing_Report_{selected_year}_{selected_month:02d}.xlsx", use_container_width=True)
+            with col_b:
+                capture_button_ui()
     else:
         st.info("👈 좌측 메뉴에서 '월간 회의용 엑셀 파일'을 업로드하시면 요약 리포트가 생성됩니다.")
 
