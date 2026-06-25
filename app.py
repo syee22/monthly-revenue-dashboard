@@ -21,7 +21,7 @@ BIZ_CONFIG = {"Power": "PE Biz", "Core": "Core Biz"}
 # ==========================================
 st.markdown("""<style>
 .block-container { padding: 2rem 3rem; }
-h1 { font-size: 1rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
+h1 { font-size: 1.6rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
 h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0.5rem !important; color: #002060 !important; }
 .table-container { overflow-x: auto; box-shadow: 2px 2px 10px rgba(0,0,0,0.1); margin-bottom: 1rem !important; padding: 2px !important; display: inline-block; width: auto; min-width: 100%; box-sizing: border-box; background-color: white; }
 .report-table { border-collapse: collapse !important; font-family: 'Arial', sans-serif; font-size: 12px; width: 100%; background-color: white; margin: 0 !important; border: 2px solid #002060 !important; }
@@ -219,32 +219,18 @@ def to_excel_multiple(df_dict):
                     new_tuples.append(tuple(new_t))
                 df.index = pd.MultiIndex.from_tuples(new_tuples, names=df.index.names)
             
-            format_dict = {}
-            for col in df.columns:
-                is_achi = any('ACHI' in str(c) for c in col) if isinstance(col, tuple) else 'ACHI' in str(col)
-                if is_achi:
-                    format_dict[col] = lambda x: f"{x:.0%}" if isinstance(x, (int, float)) and not pd.isna(x) else x
-                else:
-                    format_dict[col] = format_k_val
-
-            styler = df.style.format(format_dict)
+            styler = df.style.format(lambda x: format_k_val(x) if isinstance(x, (int, float)) else x)
             apply_color = sheet_name in ["PE_HKMC_Summary", "PE_Biz_Detailed", "Core_Biz", "Biz_Type_Summary"]
             styler = apply_common_styles(styler, apply_hkmc_color=apply_color, is_export=True)
             
-            if hasattr(styler, 'apply_index'):
-                styler.apply_index(lambda idx: ["background-color: #002060; color: white; border: 1px solid #8ea9db; font-weight: bold; text-align: center;"] * len(idx), axis=1)
-                
             styler.to_excel(writer, sheet_name=sheet_name[:31])
             worksheet = writer.sheets[sheet_name[:31]]
-            
-            for i in range(len(df.index.names)): worksheet.set_column(i, i, 12)
-            for i in range(len(df.columns)): worksheet.set_column(i + len(df.index.names), i + len(df.index.names), 12)
-            
+            for i in range(len(df.columns)): worksheet.set_column(i+1, i+1, 15)
     return output.getvalue()
 
 
 # ==========================================
-# 3. 데이터 로딩 및 집계 함수 (매출 보고서용)
+# 3. 데이터 로딩 및 공통 함수 (매출 보고서용)
 # ==========================================
 @st.cache_data
 def load_and_preprocess(file):
@@ -339,60 +325,6 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
         
     dfs_to_concat = [final_df, t_df]
 
-    if add_ex_rate:
-        def calc_ex_rate_act(df_target, target_year, target_month_list):
-            total_val = 0
-            for kox in df_target['KOx'].unique():
-                kox_df = df_target[(df_target['KOx'] == kox) & (df_target['Year'] == target_year)]
-                fc1_df = kox_df[kox_df['Desc.'] == '26 FC1']
-                
-                rate_col = 'EUR:KRW' if kox in ['KOKOR', 'KEM-KR'] else 'EUR:USD'
-                
-                fc1_rates = pd.to_numeric(fc1_df[rate_col], errors='coerce').replace(0, np.nan).dropna()
-                fc1_rate = fc1_rates.iloc[0] if not fc1_rates.empty else np.nan
-                
-                for m in target_month_list:
-                    m_act_df = kox_df[(kox_df['Desc.'] == 'ACT') & (kox_df['Month'] == m)]
-                    act_sum = m_act_df['Rev. (€)'].sum()
-                    if act_sum == 0: continue
-                    
-                    act_rates = pd.to_numeric(m_act_df[rate_col], errors='coerce').replace(0, np.nan).dropna()
-                    act_rate = act_rates.iloc[0] if not act_rates.empty else np.nan
-                    
-                    if pd.notna(fc1_rate) and pd.notna(act_rate) and act_rate != 0:
-                        total_val += act_sum * (fc1_rate / act_rate)
-                    else:
-                        total_val += act_sum
-            return total_val
-            
-        ex_rate_row = pd.Series(0.0, index=total_row.index)
-        ex_rate_row[(col_prev, 'ACT')] = calc_ex_rate_act(df_sub, prev_year, [prev_month])
-        
-        month_lists = {
-            phase_curr: [month],
-            phase_ytd: list(range(1, month + 1)),
-            phase_ttl: list(range(1, 13))
-        }
-        
-        for p_name in phases:
-            ex_rate_row[(p_name, 'ACT')] = calc_ex_rate_act(df_sub, year, month_lists[p_name])
-            ex_rate_row[(p_name, '26 FC1')] = total_row.get((p_name, '26 FC1'), 0)
-            ex_rate_row[(p_name, '25 FC3')] = total_row.get((p_name, '25 FC3'), 0)
-            
-            den = total_row.get((p_name, '26 FC1'), 0)
-            if den != 0:
-                ex_rate_row[(p_name, 'ACHI %')] = ex_rate_row[(p_name, 'ACT')] / den
-            else:
-                ex_rate_row[(p_name, 'ACHI %')] = 0
-                
-        if isinstance(final_df.index, pd.MultiIndex):
-            ex_idx = tuple(['FC1 EX-RATE'] + [''] * (len(final_df.index.names)-1))
-            ex_df = pd.DataFrame([ex_rate_row], index=pd.MultiIndex.from_tuples([ex_idx], names=final_df.index.names))
-        else:
-            ex_df = pd.DataFrame([ex_rate_row], index=pd.Index(['FC1 EX-RATE'], name=final_df.index.name))
-            
-        dfs_to_concat.append(ex_df)
-        
     return pd.concat(dfs_to_concat), col_prev, phase_curr
 
 def get_biz_type_detailed_report(df, year, month):
@@ -600,6 +532,7 @@ def render_trend_html_table(df, apply_color=False):
     html_str = post_process_html_styles(apply_common_styles(styler, apply_hkmc_color=apply_color).to_html())
     return f'{get_trend_highlight_css(table_id)}<div id="{table_id}" class="table-container">{html_str}</div>'
 
+
 # ==========================================
 # 4. 사이드바 및 메인 로직
 # ==========================================
@@ -749,21 +682,6 @@ if selected_menu == "매출 보고서":
             st.markdown(render_html_view(df_biz_type, c_col, apply_color=True), unsafe_allow_html=True)
             reports_to_download["Biz_Type_Summary"] = df_biz_type
 
-        st.subheader("📌 Sales Revenue: Power Electronics")
-        df_pe_raw = raw_df[raw_df['Business Type'].str.contains("Power", case=False, na=False)].copy()
-        if not df_pe_raw.empty:
-            df_pe_raw['Cust. GR'] = df_pe_raw['Group 2'].replace({'HYU': 'HKMC', 'KIA': 'HKMC'})
-            df_pe_summary, p_col, c_col = build_summary_report(
-                df_pe_raw[df_pe_raw['Cust. GR'] == 'HKMC'], 
-                ['Cust. GR', 'KOx'], 
-                selected_year, selected_month, 
-                total_label='PE Biz Rev. TTL (K.€)', 
-                sort_by_current_act=True,
-                add_ex_rate=True) 
-            if not df_pe_summary.empty:
-                st.markdown(render_html_view(df_pe_summary, c_col, apply_color=True), unsafe_allow_html=True)
-                reports_to_download["PE_HKMC_Summary"] = df_pe_summary
-
         for filter_key, display_name in BIZ_CONFIG.items():
             st.subheader(f"📌 Sales Revenue: {display_name}")
             df_biz, phase_names = get_biz_report(raw_df, filter_key, selected_year, selected_month)
@@ -834,7 +752,7 @@ elif selected_menu == "판매가 조회":
             
             st.markdown("---")
             st.subheader("🔍 특정 일자/조건 기준 단가 합산 시뮬레이터")
-            st.info("입력하신 조건과 조회 기준일(Target Date)에 유효한(From~To 사이) 단가를 필터링하여 총합을 계산합니다.")
+            st.info("입력하신 조건과 조회 기준일(Target Date)에 유효한(From~To 사이) 단가를 필터링하여 합산합니다.")
             
             with st.form("price_simulator_form"):
                 c1, c2, c3, c4 = st.columns(4)
@@ -865,8 +783,7 @@ elif selected_menu == "판매가 조회":
                 if not df_sim.empty:
                     df_sim['Price_Num'] = pd.to_numeric(df_sim['Price'], errors='coerce').fillna(0)
                     
-                    # --- [수정] 그룹핑 시 CnTy를 독립적인 열(Column)로 피벗(Pivot)하고 Sales Price 합계 계산 ---
-                    # 1. 기본 정보 및 Memo 생성
+                    # 1. 고정 정보 및 Memo 열 생성
                     base_info = df_sim.groupby(
                         ['Sales Org.', 'Distr. Channel', 'Customer', 'Material'], 
                         as_index=False
@@ -876,7 +793,7 @@ elif selected_menu == "판매가 조회":
                         'CnTy': lambda x: ' + '.join(x.dropna().astype(str).unique())
                     }).rename(columns={'CnTy': 'Memo'})
                     
-                    # 2. CnTy별 Price를 개별 컬럼으로 Pivot
+                    # 2. CnTy 항목들을 열(Column)로 피벗(Pivot) 변환
                     pivot_prices = df_sim.pivot_table(
                         index=['Sales Org.', 'Distr. Channel', 'Customer', 'Material'],
                         columns='CnTy',
@@ -884,44 +801,37 @@ elif selected_menu == "판매가 조회":
                         aggfunc='sum'
                     ).fillna(0).reset_index()
                     
-                    # 3. 기본 정보와 Pivot된 가격 병합
+                    # 3. 데이터 병합
                     df_grouped = pd.merge(base_info, pivot_prices, on=['Sales Org.', 'Distr. Channel', 'Customer', 'Material'])
                     
-                    # 4. 새로 생성된 CnTy 컬럼 목록 추출
+                    # 4. 새로 생성된 CnTy 컬럼 식별
                     cnty_cols = [c for c in pivot_prices.columns if c not in ['Sales Org.', 'Distr. Channel', 'Customer', 'Material']]
                     
-                    # 5. 합산된 단가 컬럼 추가 (Sales price)
+                    # 5. 합산된 Sales price 생성
                     df_grouped['Sales price'] = df_grouped[cnty_cols].sum(axis=1)
                     
-                    # 6. 보기 좋게 컬럼 순서 정렬
+                    # 6. 컬럼 순서 재배치 (요청사항 반영)
                     cols_order = ['Sales Org.', 'Distr. Channel', 'Customer', 'Material', 'Material Description'] + cnty_cols + ['Sales price', 'Memo', 'Curr.']
                     df_grouped = df_grouped[cols_order]
                     
-                    total_price = df_grouped['Sales price'].sum()
+                    total_sales_price = df_grouped['Sales price'].sum()
                     
-                    st.success(f"### 🎉 전체 합산 단가 (Total Sales Price): {total_price:,.2f} (조회된 자재: {len(df_grouped)}건)")
+                    st.success(f"### 🎉 전체 합산 단가 (Total Sales Price): {total_sales_price:,.2f} (조회된 자재: {len(df_grouped)}건)")
                     st.dataframe(df_grouped, use_container_width=True)
                     
-                    # 시뮬레이션 결과 전용 엑셀 다운로드 
                     out_sim = io.BytesIO()
                     with pd.ExcelWriter(out_sim, engine='xlsxwriter') as writer:
                         df_grouped.to_excel(writer, sheet_name="Simulation_Result", index=False)
                         ws = writer.sheets["Simulation_Result"]
                         ws.set_column('A:E', 15)
-                        
-                        # 동적으로 생성된 CnTy 열 너비 조절
                         for i, _ in enumerate(cnty_cols):
                             ws.set_column(5+i, 5+i, 12)
-                            
                         sales_price_idx = 5 + len(cnty_cols)
-                        memo_idx = sales_price_idx + 1
-                        curr_idx = memo_idx + 1
-                        
                         ws.set_column(sales_price_idx, sales_price_idx, 15)
-                        ws.set_column(memo_idx, memo_idx, 20)
-                        ws.set_column(curr_idx, curr_idx, 10)
+                        ws.set_column(sales_price_idx+1, sales_price_idx+1, 20) # Memo 열
+                        ws.set_column(sales_price_idx+2, sales_price_idx+2, 10) # Curr 열
                         
-                    st.download_button("📥 합산된 시뮬레이션 결과 엑셀 다운로드", data=out_sim.getvalue(), file_name="Simulation_Result.xlsx", use_container_width=True)
+                    st.download_button("📥 시뮬레이션 결과 엑셀 다운로드", data=out_sim.getvalue(), file_name="Simulation_Result.xlsx", use_container_width=True)
                 else:
                     st.warning("조건에 일치하며 해당 일자에 유효한 단가 데이터가 없습니다.")
 
@@ -929,7 +839,6 @@ elif selected_menu == "판매가 조회":
             st.subheader("📋 정제된 단가 데이터 전체 목록")
             st.dataframe(df_final, use_container_width=True)
             
-            # 원본 전체 데이터 엑셀 다운로드
             df_export = df_final.copy()
             df_export.columns = ["Sales Org.", "Distr. Channel", "Customer", "CnTy", "Condition Type", "Material", "Material", "From", "To", "Price", "Curr."]
             output = io.BytesIO()
