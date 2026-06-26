@@ -17,12 +17,15 @@ MONTH_NAMES = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:
 BIZ_CONFIG = {"Power": "PE Biz", "Core": "Core Biz"}
 
 # ==========================================
-# 전역 CSS 주입
+# 전역 CSS 주입 (간격 축소 스타일 적용)
 # ==========================================
 st.markdown("""<style>
 .block-container { padding: 2rem 3rem; }
-h1 { font-size: 1rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
-h3 { font-size: 1.1rem !important; margin-top: 1rem !important; margin-bottom: 0.5rem !important; color: #002060 !important; }
+h1 { font-size: 1rem !important; margin-bottom: 0.3rem !important; padding-bottom: 0 !important; }
+h3 { font-size: 1.1rem !important; margin-top: 0.4rem !important; margin-bottom: 0.3rem !important; color: #002060 !important; }
+hr { margin-top: 0.3rem !important; margin-bottom: 0.3rem !important; border: none !important; border-top: 1px solid #d9d9d9 !important; }
+div[data-testid="stForm"] { margin-top: 0rem !important; margin-bottom: 0.4rem !important; padding: 1rem !important; }
+
 .table-container { overflow-x: auto; box-shadow: 2px 2px 10px rgba(0,0,0,0.1); margin-bottom: 1rem !important; padding: 2px !important; display: inline-block; width: auto; min-width: 100%; box-sizing: border-box; background-color: white; }
 .report-table { border-collapse: collapse !important; font-family: 'Arial', sans-serif; font-size: 12px; width: 100%; background-color: white; margin: 0 !important; border: 2px solid #002060 !important; }
 .report-table tr { border-bottom: none !important; }
@@ -585,7 +588,7 @@ def get_core_biz_summary_report(df, year, month):
             fc1_rate = fc1_rates.iloc[0] if not fc1_rates.empty else np.nan
 
             for m_idx in target_month_list:
-                m_act_df = kox_df[(kox_df['Desc.'] == 'ACT') & (kox_df['Month'] == m_idx)]
+                m_act_df = df_target[(df_target['Desc.'] == 'ACT') & (df_target['Month'] == m_idx)]
                 act_sum = m_act_df['Rev. (€)'].sum()
                 if act_sum == 0: continue
                 
@@ -1125,7 +1128,6 @@ elif selected_menu == "판매가 조회":
             st.dataframe(df_final, use_container_width=True)
             
             df_export = df_final.copy()
-            # 수정 1: Material 두 번 들어간 오타 제거 -> Material Description으로 수정
             df_export.columns = ["Sales Org.", "Distr. Channel", "Customer", "CnTy", "Condition Type", "Material", "Material Description", "From", "To", "Price", "Curr."]
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -1133,7 +1135,6 @@ elif selected_menu == "판매가 조회":
                 workbook = writer.book
                 ws = writer.sheets["Sheet1"]
                 header_format = workbook.add_format({'bold': True, 'border': 1, 'bg_color': '#F0F0F0', 'align': 'center'})
-                # 수정 2: 다운로드 헤더 리스트 오타 수정
                 headers = ["Sales Org.", "Distr. Channel", "Customer", "CnTy", "Condition Type", "Material", "Material Description", "From", "To", "Price", "Curr."]
                 for col_num, value in enumerate(headers):
                     ws.write(2, col_num, value, header_format)
