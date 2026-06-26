@@ -2015,6 +2015,7 @@ elif selected_menu == "판매가 조회":
             st.subheader("🔍 특정 일자/조건 기준 단가 합산 시뮬레이터")
             st.info("입력하신 조건과 조회 기준일(Target Date)에 유효한(From~To 사이) 단가를 필터링하여 합산합니다.")
             
+            # Form 선언
             with st.form("price_simulator_form"):
                 c1, c2, c3, c4 = st.columns(4)
                 with c1: sim_org = st.text_input("Sales Org. (입력 시 필터)")
@@ -2023,6 +2024,8 @@ elif selected_menu == "판매가 조회":
                 with c4: sim_date = st.date_input("조회 기준일 (Target Date)", value=datetime.date.today())
                     
                 sim_mats = st.text_area("조회할 Material 리스트 (엔터 또는 쉼표(,)로 구분하여 여러 개 입력)")
+                
+                # 버튼을 Form 내부에 정확하게 배치 (Missing Submit Button 에러 방지)
                 submitted = st.form_submit_button("단가 합산 조회하기")
                 
             if submitted:
@@ -2071,7 +2074,7 @@ elif selected_menu == "판매가 조회":
                     # 5. 합산된 Sales price 생성
                     df_grouped['Sales price'] = df_grouped[cnty_cols].sum(axis=1)
                     
-                    # 6. 컬럼 순서 재배치 (요청사항 반영)
+                    # 6. 컬럼 순서 재배치
                     cols_order = ['Sales Org.', 'Distr. Channel', 'Customer', 'Material', 'Material Description'] + cnty_cols + ['Sales price', 'Memo', 'Curr.']
                     df_grouped = df_grouped[cols_order]
                     
