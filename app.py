@@ -17,7 +17,7 @@ MONTH_NAMES = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:
 BIZ_CONFIG = {"Power": "PE Biz", "Core": "Core Biz"}
 
 # ==========================================
-# 전역 CSS 주입 (간격 축소 스타일 적용)
+# 전역 CSS 주입 (간격 축소 스타일 유지)
 # ==========================================
 st.markdown("""<style>
 .block-container { padding: 2rem 3rem; }
@@ -1015,12 +1015,22 @@ elif selected_menu == "판매가 조회":
                             except: 
                                 price = ""
                             
+                            # 고성능 통합 날짜 포맷터 (구분자 ., -, / 완벽 대응 및 일-월-년도 변환 고도화)
                             def format_date(d_str):
+                                d_str = str(d_str).strip()
+                                if not d_str: return d_str
+                                # 정규식을 이용해 모든 날짜 구분자를 분할
+                                pts = re.split(r'[\.\-\/]', d_str)
+                                if len(pts) == 3:
+                                    # 앞자리가 4자리인 경우 (이미 YYYY-MM-DD 형태)
+                                    if len(pts[0]) == 4:
+                                        return f"{pts[0]}-{pts[1].zfill(2)}-{pts[2].zfill(2)}"
+                                    # 뒷자리가 4자리인 경우 (DD-MM-YYYY 또는 DD.MM.YYYY 형태를 YYYY-MM-DD로 대전환)
+                                    elif len(pts[2]) == 4:
+                                        return f"{pts[2]}-{pts[1].zfill(2)}-{pts[0].zfill(2)}"
                                 try: 
-                                    return pd.to_datetime(d_str, format='%d.%m.%Y').strftime('%Y-%m-%d')
+                                    return pd.to_datetime(d_str, dayfirst=True).strftime('%Y-%m-%d')
                                 except Exception:
-                                    pts = str(d_str).split('.')
-                                    if len(pts) == 3: return f"{pts[2]}-{pts[1]}-{pts[0]}"
                                     return d_str
                                 
                             v_from = format_date(parts[14])
@@ -1049,7 +1059,6 @@ elif selected_menu == "판매가 조회":
                     
                 sim_mats = st.text_area("조회할 Material 리스트 (엔터 또는 쉼표(,)로 구분하여 여러 개 입력)")
                 
-                # 버튼을 Form 내부에 정확하게 배치 (Missing Submit Button 에러 방지)
                 submitted = st.form_submit_button("단가 합산 조회하기")
                 
             if submitted:
@@ -1116,8 +1125,8 @@ elif selected_menu == "판매가 조회":
                             ws.set_column(5+i, 5+i, 12)
                         sales_price_idx = 5 + len(cnty_cols)
                         ws.set_column(sales_price_idx, sales_price_idx, 15)
-                        ws.set_column(sales_price_idx+1, sales_price_idx+1, 20) # Memo 열
-                        ws.set_column(sales_price_idx+2, sales_price_idx+2, 10) # Curr 열
+                        ws.set_column(sales_price_idx+1, sales_price_idx+1, 20)
+                        ws.set_column(sales_price_idx+2, sales_price_idx+2, 10)
                         
                     st.download_button("📥 시뮬레이션 결과 엑셀 다운로드", data=out_sim.getvalue(), file_name="Simulation_Result.xlsx", use_container_width=True)
                 else:
