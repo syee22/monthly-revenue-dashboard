@@ -17,7 +17,7 @@ MONTH_NAMES = {1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr', 5:'May', 6:'Jun', 7:'Jul', 8:
 BIZ_CONFIG = {"Power": "PE Biz", "Core": "Core Biz"}
 
 # ==========================================
-# 전역 CSS 주입 (간격 축소 스타일 유지)
+# 전역 CSS 주입
 # ==========================================
 st.markdown("""<style>
 .block-container { padding: 2rem 3rem; }
@@ -25,7 +25,6 @@ h1 { font-size: 1rem !important; margin-bottom: 0.3rem !important; padding-botto
 h3 { font-size: 1.1rem !important; margin-top: 0.4rem !important; margin-bottom: 0.3rem !important; color: #002060 !important; }
 hr { margin-top: 0.3rem !important; margin-bottom: 0.3rem !important; border: none !important; border-top: 1px solid #d9d9d9 !important; }
 div[data-testid="stForm"] { margin-top: 0rem !important; margin-bottom: 0.4rem !important; padding: 1rem !important; }
-
 .table-container { overflow-x: auto; box-shadow: 2px 2px 10px rgba(0,0,0,0.1); margin-bottom: 1rem !important; padding: 2px !important; display: inline-block; width: auto; min-width: 100%; box-sizing: border-box; background-color: white; }
 .report-table { border-collapse: collapse !important; font-family: 'Arial', sans-serif; font-size: 12px; width: 100%; background-color: white; margin: 0 !important; border: 2px solid #002060 !important; }
 .report-table tr { border-bottom: none !important; }
@@ -50,7 +49,7 @@ div[data-testid="stForm"] { margin-top: 0rem !important; margin-bottom: 0.4rem !
 </style>""", unsafe_allow_html=True)
 
 # ==========================================
-# 2. 포맷터 및 공통 함수
+# 2. 모든 함수 정의
 # ==========================================
 def get_trend_highlight_css(table_id):
     return f"<style>#{table_id} thead tr:nth-child(1) th:last-child {{ border-top: 4px solid #c00000 !important; border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody td:last-child {{ border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:last-child {{ border-bottom: 4px solid #c00000 !important; }}</style>"
@@ -256,10 +255,20 @@ def to_excel_multiple(df_dict):
             for i in range(len(df.columns)): worksheet.set_column(i+1, i+1, 15)
     return output.getvalue()
 
+def parse_sop_date(val):
+    if pd.isna(val) or str(val).strip() == '' or str(val).strip().lower() == 'nan':
+        return ""
+    if isinstance(val, (datetime.datetime, datetime.date, pd.Timestamp)):
+        return val.strftime("%Y.%m.01")
+    val_str = str(val).strip()
+    m = re.search(r'\b(\d{1,2})\.(\d{4})\b', val_str)
+    if m:
+        return f"{m.group(2)}.{m.group(1).zfill(2)}.01"
+    try:
+        return pd.to_datetime(val_str).strftime("%Y.%m.01")
+    except:
+        return val_str
 
-# ==========================================
-# 3. 데이터 로딩 및 공통 함수
-# ==========================================
 @st.cache_data
 def load_and_preprocess(file):
     xl = pd.ExcelFile(file)
@@ -588,7 +597,8 @@ def get_core_biz_summary_report(df, year, month):
             fc1_rate = fc1_rates.iloc[0] if not fc1_rates.empty else np.nan
 
             for m_idx in target_month_list:
-                m_act_df = df_target[(df_target['Desc.'] == 'ACT') & (df_target['Month'] == m_idx)]
+                # 문제 수정: 전체 데이터(df_target)가 아닌 해당 법인(kox_df) 데이터로 필터링
+                m_act_df = kox_df[(kox_df['Desc.'] == 'ACT') & (kox_df['Month'] == m_idx)]
                 act_sum = m_act_df['Rev. (€)'].sum()
                 if act_sum == 0: continue
                 
@@ -1158,7 +1168,6 @@ elif selected_menu == "AQL status 정리":
             df_temp = pd.read_excel(uploaded_aql_file, header=None)
             
             header_row_idx = -1
-            # KOKOR SOP까지 필수 컬럼에 추가
             required_cols = ['PRJT', 'Status', 'PF Desc.', 'KOKOR SOP']
             
             for idx, row in df_temp.iterrows():
@@ -1176,21 +1185,19 @@ elif selected_menu == "AQL status 정리":
                 
                 df_aql['PRJT'] = df_aql['PRJT'].fillna('Unknown')
                 
-                # SOP 날짜를 YYYY.MM.01 형태로 변환하는 도우미 함수
                 def format_sop_date(val):
                     if pd.isna(val) or str(val).strip() in ['', 'nan', 'NaT']:
                         return None
                     val_str = str(val).strip()
-                    # 엑셀 Timestamp 형식이 그대로 파싱된 경우
                     if isinstance(val, (datetime.date, datetime.datetime, pd.Timestamp)):
                         return val.strftime('%Y.%m.01')
                     
                     pts = re.split(r'[\.\-\/]', val_str.split(' ')[0])
                     if len(pts) == 2:
                         p1, p2 = pts[0], pts[1]
-                        if len(p2) == 4 and p1.isdigit():  # mm.yyyy 형태
+                        if len(p2) == 4 and p1.isdigit(): 
                             return f"{p2}.{p1.zfill(2)}.01"
-                        elif len(p1) == 4 and p2.isdigit():  # yyyy.mm 형태
+                        elif len(p1) == 4 and p2.isdigit(): 
                             return f"{p1}.{p2.zfill(2)}.01"
                     elif len(pts) == 3:
                         try:
@@ -1214,14 +1221,11 @@ elif selected_menu == "AQL status 정리":
                         status = str(row['Status']).strip().lower()
                         pf_desc = str(row['PF Desc.']).strip()
                         
-                        # 유효한 Status인 경우에만 아이템 분류 및 SOP 파싱 수행
                         if status in valid_statuses:
-                            # SOP 수집
                             formatted_sop = format_sop_date(row['KOKOR SOP'])
                             if formatted_sop:
                                 sop_set.add(formatted_sop)
                                 
-                            # PF Desc 수집
                             if pf_desc != 'nan' and pf_desc:
                                 if status == 'awarded to kostal':
                                     if pf_desc not in a_list: a_list.append(pf_desc)
@@ -1234,7 +1238,6 @@ elif selected_menu == "AQL status 정리":
                         
                     item_result = " ".join(item_str_parts)
                     
-                    # SOP 결괏값 판별
                     if len(sop_set) == 1:
                         sop_result = list(sop_set)[0]
                     elif len(sop_set) > 1:
@@ -1256,9 +1259,9 @@ elif selected_menu == "AQL status 정리":
                     with pd.ExcelWriter(output_aql, engine='xlsxwriter') as writer:
                         df_result.to_excel(writer, sheet_name="AQL_Status", index=False)
                         worksheet = writer.sheets["AQL_Status"]
-                        worksheet.set_column('A:A', 20)  # PRJT
-                        worksheet.set_column('B:B', 70)  # ITEM
-                        worksheet.set_column('C:C', 20)  # SOP
+                        worksheet.set_column('A:A', 20) 
+                        worksheet.set_column('B:B', 70) 
+                        worksheet.set_column('C:C', 20) 
                         
                     st.download_button(
                         label="📥 AQL 정리 결과 엑셀 다운로드",
