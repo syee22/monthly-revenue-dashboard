@@ -796,7 +796,8 @@ def render_trend_html_table(df, apply_color=False):
 # 4. 사이드바 및 메인 로직
 # ==========================================
 st.sidebar.title("📌 메뉴 설정")
-selected_menu = st.sidebar.radio("원하시는 작업을 선택하세요.", ["매출 보고서", "판매가 조회"])
+# 메뉴 옵션에 "AQL status 정리" 추가
+selected_menu = st.sidebar.radio("원하시는 작업을 선택하세요.", ["매출 보고서", "판매가 조회", "AQL status 정리"])
 st.sidebar.divider()
 
 if selected_menu == "매출 보고서":
@@ -822,7 +823,7 @@ if selected_menu == "매출 보고서":
             if not df_trend_data.empty:
                 plot_df = df_trend_data.drop('TTL (K.€)').reset_index().melt(id_vars='index', var_name='Month', value_name='Rev')
                 plot_df.rename(columns={'index': 'CPS'}, inplace=True)
-                plot_df['Rev'] = plot_df['Rev'] / 1000.0  # K.€ 단위 변환
+                plot_df['Rev'] = plot_df['Rev'] / 1000.0
                 
                 fig1 = px.bar(plot_df, x='Month', y='Rev', color='CPS', 
                               title='12 Months Revenue Trend (K.€)',
@@ -1007,7 +1008,7 @@ elif selected_menu == "판매가 조회":
                     if len(parts) > 2:
                         if parts[1].isdigit() and parts[2] == '': 
                             current_customer = parts[1]
-                        elif len(parts) >= 16 and parts[1] in ['YPR0', 'ZADD']:
+                        elif len(parts) >= 16 and parts[1] in ['YPR0', 'ZADD', 'YSPR']:
                             try: 
                                 amt = float(parts[10].replace(',', ''))
                                 per = float(parts[12].replace(',', ''))
@@ -1015,17 +1016,13 @@ elif selected_menu == "판매가 조회":
                             except: 
                                 price = ""
                             
-                            # 고성능 통합 날짜 포맷터 (구분자 ., -, / 완벽 대응 및 일-월-년도 변환 고도화)
                             def format_date(d_str):
                                 d_str = str(d_str).strip()
                                 if not d_str: return d_str
-                                # 정규식을 이용해 모든 날짜 구분자를 분할
                                 pts = re.split(r'[\.\-\/]', d_str)
                                 if len(pts) == 3:
-                                    # 앞자리가 4자리인 경우 (이미 YYYY-MM-DD 형태)
                                     if len(pts[0]) == 4:
                                         return f"{pts[0]}-{pts[1].zfill(2)}-{pts[2].zfill(2)}"
-                                    # 뒷자리가 4자리인 경우 (DD-MM-YYYY 또는 DD.MM.YYYY 형태를 YYYY-MM-DD로 대전환)
                                     elif len(pts[2]) == 4:
                                         return f"{pts[2]}-{pts[1].zfill(2)}-{pts[0].zfill(2)}"
                                 try: 
@@ -1104,10 +1101,10 @@ elif selected_menu == "판매가 조회":
                     # 4. 새로 생성된 CnTy 컬럼 식별
                     cnty_cols = [c for c in pivot_prices.columns if c not in ['Sales Org.', 'Distr. Channel', 'Customer', 'Material']]
                     
-                    # 5. 합산된 Sales price 생성
-                    df_grouped['Sales price'] = df_grouped[cnty_cols].sum(axis=1)
+                    standard_sum_cols = [c for c in cnty_cols if c != 'YSPR']
+                    df_grouped['Sales price'] = df_grouped[standard_sum_cols].sum(axis=1)
                     
-                    # 6. 컬럼 순서 재배치
+                    # 5. 컬럼 순서 재배치
                     cols_order = ['Sales Org.', 'Distr. Channel', 'Customer', 'Material', 'Material Description'] + cnty_cols + ['Sales price', 'Memo', 'Curr.']
                     df_grouped = df_grouped[cols_order]
                     
@@ -1153,3 +1150,95 @@ elif selected_menu == "판매가 조회":
             
         else:
             st.warning("분석할 수 있는 데이터가 없습니다. txt 파일 형식을 확인해주세요.")
+
+# ==========================================
+# 6. AQL status 정리 메뉴 로직 
+# ==========================================
+elif selected_menu == "AQL status 정리":
+    st.title("📑 AQL Status 정리")
+    st.info("엑셀 파일을 업로드하면 PRJT 기준으로 Status에 따라 PF Desc.를 그룹화하여 깔끔하게 정리해 드립니다.")
+    
+    uploaded_aql_file = st.sidebar.file_uploader("AQL 엑셀 데이터를 업로드하세요.", type=['xlsx', 'xls'], key="aql_uploader")
+    
+    if uploaded_aql_file:
+        try:
+            df_aql = pd.read_excel(uploaded_aql_file)
+            
+            # 필수 컬럼 확인
+            required_cols = ['PRJT', 'Status', 'PF Desc.']
+            missing_cols = [col for col in required_cols if col not in df_aql.columns]
+            
+            if missing_cols:
+                st.error(f"업로드하신 엑셀 파일에 다음 필수 컬럼이 누락되었습니다: {', '.join(missing_cols)}")
+            else:
+                st.success("📂 데이터를 성공적으로 불러왔습니다. 정리를 완료했습니다!")
+                
+                df_aql['PRJT'] = df_aql['PRJT'].fillna('Unknown')
+                
+                res_rows = []
+                # PRJT 기준으로 그룹핑
+                for prjt, group in df_aql.groupby('PRJT'):
+                    if prjt == 'Unknown': continue
+                    
+                    a_list = []
+                    t_list = []
+                    
+                    for _, row in group.iterrows():
+                        # Status와 PF Desc 추출 후 앞뒤 공백 제거
+                        status = str(row['Status']).strip().lower()
+                        pf_desc = str(row['PF Desc.']).strip()
+                        
+                        if pf_desc == 'nan' or not pf_desc:
+                            continue
+                            
+                        # 조건 1: Awarded to KOSTAL (대소문자 무시) -> [A]
+                        if status == 'awarded to kostal':
+                            if pf_desc not in a_list: 
+                                a_list.append(pf_desc)
+                                
+                        # 조건 2: Acq. Start / RFQ Rec. 또는 In planning -> [T]
+                        elif status in ['acq. start / rfq rec.', 'in planning']:
+                            if pf_desc not in t_list: 
+                                t_list.append(pf_desc)
+                            
+                    item_str_parts = []
+                    # 리스트에 값이 있을 경우 prefix와 함께 병합
+                    if a_list:
+                        item_str_parts.append("[A] " + ", ".join(a_list))
+                    if t_list:
+                        item_str_parts.append("[T] " + ", ".join(t_list))
+                        
+                    item_result = " ".join(item_str_parts)
+                    
+                    # 결괏값이 존재할 경우에만 행 추가
+                    if item_result:
+                        res_rows.append({'PRJT': prjt, 'ITEM': item_result})
+                        
+                if res_rows:
+                    df_result = pd.DataFrame(res_rows)
+                    
+                    st.markdown("---")
+                    st.subheader("📋 정리된 AQL Status 목록")
+                    st.dataframe(df_result, use_container_width=True)
+                    
+                    # 결과 엑셀 파일 생성
+                    output_aql = io.BytesIO()
+                    with pd.ExcelWriter(output_aql, engine='xlsxwriter') as writer:
+                        df_result.to_excel(writer, sheet_name="AQL_Status", index=False)
+                        worksheet = writer.sheets["AQL_Status"]
+                        worksheet.set_column('A:A', 20)  # PRJT 컬럼 너비
+                        worksheet.set_column('B:B', 70)  # ITEM 컬럼 너비
+                        
+                    st.download_button(
+                        label="📥 AQL 정리 결과 엑셀 다운로드",
+                        data=output_aql.getvalue(),
+                        file_name=f"AQL_Status_Summary_{datetime.date.today().strftime('%Y%m%d')}.xlsx",
+                        use_container_width=True
+                    )
+                else:
+                    st.warning("조건에 해당하는 유효한 PRJT 및 데이터가 없습니다.")
+                    
+        except Exception as e:
+            st.error(f"파일을 처리하는 중 오류가 발생했습니다: {e}")
+    else:
+        st.info("👈 좌측 메뉴에서 'AQL 엑셀 데이터'를 업로드하시면 요약 리포트가 생성됩니다.")
