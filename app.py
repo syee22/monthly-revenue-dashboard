@@ -1149,19 +1149,18 @@ elif selected_menu == "판매가 조회":
 # ==========================================
 elif selected_menu == "AQL status 정리":
     st.title("📑 AQL Status 정리")
-    st.info("엑셀 파일을 업로드하면 PRJT 기준으로 Status에 따라 PF Desc.를 그룹화하여 깔끔하게 정리해 드립니다.")
+    st.info("엑셀 파일을 업로드하면 PRJT 기준으로 Status에 따라 PF Desc. 및 KOKOR SOP 날짜 정보를 깔끔하게 정리해 드립니다.")
     
     uploaded_aql_file = st.sidebar.file_uploader("AQL 엑셀 데이터를 업로드하세요.", type=['xlsx', 'xls'], key="aql_uploader")
     
     if uploaded_aql_file:
         try:
-            # 헤더를 무시하고 일단 전체를 읽어들입니다.
             df_temp = pd.read_excel(uploaded_aql_file, header=None)
             
             header_row_idx = -1
-            required_cols = ['PRJT', 'Status', 'PF Desc.']
+            # KOKOR SOP까지 필수 컬럼에 추가
+            required_cols = ['PRJT', 'Status', 'PF Desc.', 'KOKOR SOP']
             
-            # 파일 내에서 필수 컬럼이 모두 포함된 행을 찾습니다.
             for idx, row in df_temp.iterrows():
                 row_vals = [str(x).strip() for x in row.values if pd.notna(x)]
                 if all(c in row_vals for c in required_cols):
@@ -1171,44 +1170,80 @@ elif selected_menu == "AQL status 정리":
             if header_row_idx == -1:
                 st.error(f"엑셀 파일 내에서 필수 컬럼({', '.join(required_cols)})을 찾을 수 없습니다. 파일 양식을 확인해주세요.")
             else:
-                # 찾은 헤더 행을 기준으로 데이터를 다시 읽어옵니다.
                 df_aql = pd.read_excel(uploaded_aql_file, header=header_row_idx)
                 
                 st.success("📂 데이터를 성공적으로 불러왔습니다. 정리를 완료했습니다!")
                 
                 df_aql['PRJT'] = df_aql['PRJT'].fillna('Unknown')
                 
+                # SOP 날짜를 YYYY.MM.01 형태로 변환하는 도우미 함수
+                def format_sop_date(val):
+                    if pd.isna(val) or str(val).strip() in ['', 'nan', 'NaT']:
+                        return None
+                    val_str = str(val).strip()
+                    # 엑셀 Timestamp 형식이 그대로 파싱된 경우
+                    if isinstance(val, (datetime.date, datetime.datetime, pd.Timestamp)):
+                        return val.strftime('%Y.%m.01')
+                    
+                    pts = re.split(r'[\.\-\/]', val_str.split(' ')[0])
+                    if len(pts) == 2:
+                        p1, p2 = pts[0], pts[1]
+                        if len(p2) == 4 and p1.isdigit():  # mm.yyyy 형태
+                            return f"{p2}.{p1.zfill(2)}.01"
+                        elif len(p1) == 4 and p2.isdigit():  # yyyy.mm 형태
+                            return f"{p1}.{p2.zfill(2)}.01"
+                    elif len(pts) == 3:
+                        try:
+                            dt = pd.to_datetime(val_str)
+                            return dt.strftime('%Y.%m.01')
+                        except:
+                            pass
+                    return val_str
+                
                 res_rows = []
+                valid_statuses = ['awarded to kostal', 'acq. start / rfq rec.', 'in planning']
+                
                 for prjt, group in df_aql.groupby('PRJT'):
                     if prjt == 'Unknown': continue
                     
                     a_list = []
                     t_list = []
+                    sop_set = set()
                     
                     for _, row in group.iterrows():
                         status = str(row['Status']).strip().lower()
                         pf_desc = str(row['PF Desc.']).strip()
                         
-                        if pf_desc == 'nan' or not pf_desc:
-                            continue
-                            
-                        if status == 'awarded to kostal':
-                            if pf_desc not in a_list: 
-                                a_list.append(pf_desc)
-                        elif status in ['acq. start / rfq rec.', 'in planning']:
-                            if pf_desc not in t_list: 
-                                t_list.append(pf_desc)
+                        # 유효한 Status인 경우에만 아이템 분류 및 SOP 파싱 수행
+                        if status in valid_statuses:
+                            # SOP 수집
+                            formatted_sop = format_sop_date(row['KOKOR SOP'])
+                            if formatted_sop:
+                                sop_set.add(formatted_sop)
+                                
+                            # PF Desc 수집
+                            if pf_desc != 'nan' and pf_desc:
+                                if status == 'awarded to kostal':
+                                    if pf_desc not in a_list: a_list.append(pf_desc)
+                                else:
+                                    if pf_desc not in t_list: t_list.append(pf_desc)
                             
                     item_str_parts = []
-                    if a_list:
-                        item_str_parts.append("[A] " + ", ".join(a_list))
-                    if t_list:
-                        item_str_parts.append("[T] " + ", ".join(t_list))
+                    if a_list: item_str_parts.append("[A] " + ", ".join(a_list))
+                    if t_list: item_str_parts.append("[T] " + ", ".join(t_list))
                         
                     item_result = " ".join(item_str_parts)
                     
-                    if item_result:
-                        res_rows.append({'PRJT': prjt, 'ITEM': item_result})
+                    # SOP 결괏값 판별
+                    if len(sop_set) == 1:
+                        sop_result = list(sop_set)[0]
+                    elif len(sop_set) > 1:
+                        sop_result = "SOP to be checked"
+                    else:
+                        sop_result = ""
+                    
+                    if item_result or sop_result:
+                        res_rows.append({'PRJT': prjt, 'ITEM': item_result, 'SOP': sop_result})
                         
                 if res_rows:
                     df_result = pd.DataFrame(res_rows)
@@ -1221,8 +1256,9 @@ elif selected_menu == "AQL status 정리":
                     with pd.ExcelWriter(output_aql, engine='xlsxwriter') as writer:
                         df_result.to_excel(writer, sheet_name="AQL_Status", index=False)
                         worksheet = writer.sheets["AQL_Status"]
-                        worksheet.set_column('A:A', 20) 
-                        worksheet.set_column('B:B', 70) 
+                        worksheet.set_column('A:A', 20)  # PRJT
+                        worksheet.set_column('B:B', 70)  # ITEM
+                        worksheet.set_column('C:C', 20)  # SOP
                         
                     st.download_button(
                         label="📥 AQL 정리 결과 엑셀 다운로드",
