@@ -796,7 +796,6 @@ def render_trend_html_table(df, apply_color=False):
 # 4. 사이드바 및 메인 로직
 # ==========================================
 st.sidebar.title("📌 메뉴 설정")
-# 메뉴 옵션에 "AQL status 정리" 추가
 selected_menu = st.sidebar.radio("원하시는 작업을 선택하세요.", ["매출 보고서", "판매가 조회", "AQL status 정리"])
 st.sidebar.divider()
 
@@ -1046,7 +1045,6 @@ elif selected_menu == "판매가 조회":
             st.subheader("🔍 특정 일자/조건 기준 단가 합산 시뮬레이터")
             st.info("입력하신 조건과 조회 기준일(Target Date)에 유효한(From~To 사이) 단가를 필터링하여 합산합니다.")
             
-            # Form 선언
             with st.form("price_simulator_form"):
                 c1, c2, c3, c4 = st.columns(4)
                 with c1: sim_org = st.text_input("Sales Org. (입력 시 필터)")
@@ -1077,7 +1075,6 @@ elif selected_menu == "판매가 조회":
                 if not df_sim.empty:
                     df_sim['Price_Num'] = pd.to_numeric(df_sim['Price'], errors='coerce').fillna(0)
                     
-                    # 1. 고정 정보 및 Memo 열 생성
                     base_info = df_sim.groupby(
                         ['Sales Org.', 'Distr. Channel', 'Customer', 'Material'], 
                         as_index=False
@@ -1087,7 +1084,6 @@ elif selected_menu == "판매가 조회":
                         'CnTy': lambda x: ' + '.join(x.dropna().astype(str).unique())
                     }).rename(columns={'CnTy': 'Memo'})
                     
-                    # 2. CnTy 항목들을 열(Column)로 피벗(Pivot) 변환
                     pivot_prices = df_sim.pivot_table(
                         index=['Sales Org.', 'Distr. Channel', 'Customer', 'Material'],
                         columns='CnTy',
@@ -1095,16 +1091,13 @@ elif selected_menu == "판매가 조회":
                         aggfunc='sum'
                     ).fillna(0).reset_index()
                     
-                    # 3. 데이터 병합
                     df_grouped = pd.merge(base_info, pivot_prices, on=['Sales Org.', 'Distr. Channel', 'Customer', 'Material'])
                     
-                    # 4. 새로 생성된 CnTy 컬럼 식별
                     cnty_cols = [c for c in pivot_prices.columns if c not in ['Sales Org.', 'Distr. Channel', 'Customer', 'Material']]
                     
                     standard_sum_cols = [c for c in cnty_cols if c != 'YSPR']
                     df_grouped['Sales price'] = df_grouped[standard_sum_cols].sum(axis=1)
                     
-                    # 5. 컬럼 순서 재배치
                     cols_order = ['Sales Org.', 'Distr. Channel', 'Customer', 'Material', 'Material Description'] + cnty_cols + ['Sales price', 'Memo', 'Curr.']
                     df_grouped = df_grouped[cols_order]
                     
@@ -1162,21 +1155,30 @@ elif selected_menu == "AQL status 정리":
     
     if uploaded_aql_file:
         try:
-            df_aql = pd.read_excel(uploaded_aql_file)
+            # 헤더를 무시하고 일단 전체를 읽어들입니다.
+            df_temp = pd.read_excel(uploaded_aql_file, header=None)
             
-            # 필수 컬럼 확인
+            header_row_idx = -1
             required_cols = ['PRJT', 'Status', 'PF Desc.']
-            missing_cols = [col for col in required_cols if col not in df_aql.columns]
             
-            if missing_cols:
-                st.error(f"업로드하신 엑셀 파일에 다음 필수 컬럼이 누락되었습니다: {', '.join(missing_cols)}")
+            # 파일 내에서 필수 컬럼이 모두 포함된 행을 찾습니다.
+            for idx, row in df_temp.iterrows():
+                row_vals = [str(x).strip() for x in row.values if pd.notna(x)]
+                if all(c in row_vals for c in required_cols):
+                    header_row_idx = idx
+                    break
+            
+            if header_row_idx == -1:
+                st.error(f"엑셀 파일 내에서 필수 컬럼({', '.join(required_cols)})을 찾을 수 없습니다. 파일 양식을 확인해주세요.")
             else:
+                # 찾은 헤더 행을 기준으로 데이터를 다시 읽어옵니다.
+                df_aql = pd.read_excel(uploaded_aql_file, header=header_row_idx)
+                
                 st.success("📂 데이터를 성공적으로 불러왔습니다. 정리를 완료했습니다!")
                 
                 df_aql['PRJT'] = df_aql['PRJT'].fillna('Unknown')
                 
                 res_rows = []
-                # PRJT 기준으로 그룹핑
                 for prjt, group in df_aql.groupby('PRJT'):
                     if prjt == 'Unknown': continue
                     
@@ -1184,25 +1186,20 @@ elif selected_menu == "AQL status 정리":
                     t_list = []
                     
                     for _, row in group.iterrows():
-                        # Status와 PF Desc 추출 후 앞뒤 공백 제거
                         status = str(row['Status']).strip().lower()
                         pf_desc = str(row['PF Desc.']).strip()
                         
                         if pf_desc == 'nan' or not pf_desc:
                             continue
                             
-                        # 조건 1: Awarded to KOSTAL (대소문자 무시) -> [A]
                         if status == 'awarded to kostal':
                             if pf_desc not in a_list: 
                                 a_list.append(pf_desc)
-                                
-                        # 조건 2: Acq. Start / RFQ Rec. 또는 In planning -> [T]
                         elif status in ['acq. start / rfq rec.', 'in planning']:
                             if pf_desc not in t_list: 
                                 t_list.append(pf_desc)
                             
                     item_str_parts = []
-                    # 리스트에 값이 있을 경우 prefix와 함께 병합
                     if a_list:
                         item_str_parts.append("[A] " + ", ".join(a_list))
                     if t_list:
@@ -1210,7 +1207,6 @@ elif selected_menu == "AQL status 정리":
                         
                     item_result = " ".join(item_str_parts)
                     
-                    # 결괏값이 존재할 경우에만 행 추가
                     if item_result:
                         res_rows.append({'PRJT': prjt, 'ITEM': item_result})
                         
@@ -1221,13 +1217,12 @@ elif selected_menu == "AQL status 정리":
                     st.subheader("📋 정리된 AQL Status 목록")
                     st.dataframe(df_result, use_container_width=True)
                     
-                    # 결과 엑셀 파일 생성
                     output_aql = io.BytesIO()
                     with pd.ExcelWriter(output_aql, engine='xlsxwriter') as writer:
                         df_result.to_excel(writer, sheet_name="AQL_Status", index=False)
                         worksheet = writer.sheets["AQL_Status"]
-                        worksheet.set_column('A:A', 20)  # PRJT 컬럼 너비
-                        worksheet.set_column('B:B', 70)  # ITEM 컬럼 너비
+                        worksheet.set_column('A:A', 20) 
+                        worksheet.set_column('B:B', 70) 
                         
                     st.download_button(
                         label="📥 AQL 정리 결과 엑셀 다운로드",
