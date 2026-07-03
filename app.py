@@ -68,10 +68,8 @@ def get_dynamic_highlight_css(table_id, df, highlight_phase):
         if c0 == highlight_phase:
             if start_col == -1: start_col = i
             end_col = i
-            if isinstance(col, tuple) and len(col) > 1 and col[1] == 'ACT':
-                act_col_idx = i
-            elif str(col) == 'ACT':
-                act_col_idx = i
+            if isinstance(col, tuple) and len(col) > 1 and col[1] == 'ACT': act_col_idx = i
+            elif str(col) == 'ACT': act_col_idx = i
                 
     if start_col == -1: return ""
     
@@ -256,18 +254,13 @@ def to_excel_multiple(df_dict):
     return output.getvalue()
 
 def parse_sop_date(val):
-    if pd.isna(val) or str(val).strip() == '' or str(val).strip().lower() == 'nan':
-        return ""
-    if isinstance(val, (datetime.datetime, datetime.date, pd.Timestamp)):
-        return val.strftime("%Y.%m.01")
+    if pd.isna(val) or str(val).strip() == '' or str(val).strip().lower() == 'nan': return ""
+    if isinstance(val, (datetime.datetime, datetime.date, pd.Timestamp)): return val.strftime("%Y.%m.01")
     val_str = str(val).strip()
     m = re.search(r'\b(\d{1,2})\.(\d{4})\b', val_str)
-    if m:
-        return f"{m.group(2)}.{m.group(1).zfill(2)}.01"
-    try:
-        return pd.to_datetime(val_str).strftime("%Y.%m.01")
-    except:
-        return val_str
+    if m: return f"{m.group(2)}.{m.group(1).zfill(2)}.01"
+    try: return pd.to_datetime(val_str).strftime("%Y.%m.01")
+    except: return val_str
 
 @st.cache_data
 def load_and_preprocess(file):
@@ -597,7 +590,6 @@ def get_core_biz_summary_report(df, year, month):
             fc1_rate = fc1_rates.iloc[0] if not fc1_rates.empty else np.nan
 
             for m_idx in target_month_list:
-                # 문제 수정: 전체 데이터(df_target)가 아닌 해당 법인(kox_df) 데이터로 필터링
                 m_act_df = kox_df[(kox_df['Desc.'] == 'ACT') & (kox_df['Month'] == m_idx)]
                 act_sum = m_act_df['Rev. (€)'].sum()
                 if act_sum == 0: continue
@@ -806,7 +798,7 @@ def render_trend_html_table(df, apply_color=False):
 # 4. 사이드바 및 메인 로직
 # ==========================================
 st.sidebar.title("📌 메뉴 설정")
-selected_menu = st.sidebar.radio("원하시는 작업을 선택하세요.", ["매출 보고서", "판매가 조회", "AQL status 정리"])
+selected_menu = st.sidebar.radio("원하시는 작업을 선택하세요.", ["매출 보고서", "판매가 조회", "AQL status 정리", "생산 실적 분석"])
 st.sidebar.divider()
 
 if selected_menu == "매출 보고서":
@@ -1159,7 +1151,7 @@ elif selected_menu == "판매가 조회":
 # ==========================================
 elif selected_menu == "AQL status 정리":
     st.title("📑 AQL Status 정리")
-    st.info("엑셀 파일을 업로드하면 PRJT 기준으로 Status에 따라 PF Desc. 및 KOKOR SOP 날짜 정보를 깔끔하게 정리해 드립니다.")
+    st.info("엑셀 파일을 업로드하면 PRJT 기준으로 Status에 따라 PF Desc.를 그룹화하고, 동일한 KOKOR SOP 날짜를 정리해 드립니다.")
     
     uploaded_aql_file = st.sidebar.file_uploader("AQL 엑셀 데이터를 업로드하세요.", type=['xlsx', 'xls'], key="aql_uploader")
     
@@ -1180,32 +1172,8 @@ elif selected_menu == "AQL status 정리":
                 st.error(f"엑셀 파일 내에서 필수 컬럼({', '.join(required_cols)})을 찾을 수 없습니다. 파일 양식을 확인해주세요.")
             else:
                 df_aql = pd.read_excel(uploaded_aql_file, header=header_row_idx)
-                
                 st.success("📂 데이터를 성공적으로 불러왔습니다. 정리를 완료했습니다!")
-                
                 df_aql['PRJT'] = df_aql['PRJT'].fillna('Unknown')
-                
-                def format_sop_date(val):
-                    if pd.isna(val) or str(val).strip() in ['', 'nan', 'NaT']:
-                        return None
-                    val_str = str(val).strip()
-                    if isinstance(val, (datetime.date, datetime.datetime, pd.Timestamp)):
-                        return val.strftime('%Y.%m.01')
-                    
-                    pts = re.split(r'[\.\-\/]', val_str.split(' ')[0])
-                    if len(pts) == 2:
-                        p1, p2 = pts[0], pts[1]
-                        if len(p2) == 4 and p1.isdigit(): 
-                            return f"{p2}.{p1.zfill(2)}.01"
-                        elif len(p1) == 4 and p2.isdigit(): 
-                            return f"{p1}.{p2.zfill(2)}.01"
-                    elif len(pts) == 3:
-                        try:
-                            dt = pd.to_datetime(val_str)
-                            return dt.strftime('%Y.%m.01')
-                        except:
-                            pass
-                    return val_str
                 
                 res_rows = []
                 valid_statuses = ['awarded to kostal', 'acq. start / rfq rec.', 'in planning']
@@ -1222,7 +1190,7 @@ elif selected_menu == "AQL status 정리":
                         pf_desc = str(row['PF Desc.']).strip()
                         
                         if status in valid_statuses:
-                            formatted_sop = format_sop_date(row['KOKOR SOP'])
+                            formatted_sop = parse_sop_date(row.get('KOKOR SOP'))
                             if formatted_sop:
                                 sop_set.add(formatted_sop)
                                 
@@ -1250,7 +1218,6 @@ elif selected_menu == "AQL status 정리":
                         
                 if res_rows:
                     df_result = pd.DataFrame(res_rows)
-                    
                     st.markdown("---")
                     st.subheader("📋 정리된 AQL Status 목록")
                     st.dataframe(df_result, use_container_width=True)
@@ -1276,3 +1243,97 @@ elif selected_menu == "AQL status 정리":
             st.error(f"파일을 처리하는 중 오류가 발생했습니다: {e}")
     else:
         st.info("👈 좌측 메뉴에서 'AQL 엑셀 데이터'를 업로드하시면 요약 리포트가 생성됩니다.")
+
+# ==========================================
+# 7. 생산 실적 분석 메뉴 로직
+# ==========================================
+elif selected_menu == "생산 실적 분석":
+    st.title("📈 생산 실적 분석 (YoY Performance)")
+    st.info("엑셀 파일을 업로드하면 선택한 월에 대해 전년 동월 대비 증감 및 증감율을 분석합니다.")
+    
+    uploaded_prod_file = st.sidebar.file_uploader("생산 실적 데이터를 업로드하세요.", type=['xlsx', 'xls'], key="prod_uploader")
+    
+    if uploaded_prod_file:
+        try:
+            df_prod = pd.read_excel(uploaded_prod_file)
+            st.success("📂 데이터를 성공적으로 불러왔습니다.")
+            
+            st.sidebar.markdown("### ⚙️ 데이터 컬럼 매핑")
+            date_col = st.sidebar.selectbox("날짜/연월 컬럼", df_prod.columns)
+            hk_col = st.sidebar.selectbox("H/K 컬럼", df_prod.columns, index=df_prod.columns.get_loc('H/K') if 'H/K' in df_prod.columns else 0)
+            cn_col = st.sidebar.selectbox("CN 컬럼", df_prod.columns, index=df_prod.columns.get_loc('CN') if 'CN' in df_prod.columns else 0)
+            
+            # Car code master 매핑
+            default_car_idx = 0
+            if 'Car code master' in df_prod.columns: default_car_idx = df_prod.columns.get_loc('Car code master')
+            car_col = st.sidebar.selectbox("Car code master 컬럼", df_prod.columns, index=default_car_idx)
+            
+            val_col = st.sidebar.selectbox("실적(수량) 컬럼", df_prod.columns)
+            
+            # 날짜 파싱 및 추출
+            df_prod['__Date'] = pd.to_datetime(df_prod[date_col], errors='coerce')
+            df_prod = df_prod.dropna(subset=['__Date'])
+            df_prod['__Year'] = df_prod['__Date'].dt.year
+            df_prod['__Month'] = df_prod['__Date'].dt.month
+            
+            years = sorted(df_prod['__Year'].unique(), reverse=True)
+            months = sorted(df_prod['__Month'].unique())
+            
+            c1, c2 = st.columns(2)
+            with c1: target_year = st.selectbox("조회 연도 (Target Year)", years)
+            with c2: target_month = st.selectbox("조회 월 (Target Month)", months)
+            
+            if st.button("분석 실행하기"):
+                df_curr = df_prod[(df_prod['__Year'] == target_year) & (df_prod['__Month'] == target_month)]
+                df_prev = df_prod[(df_prod['__Year'] == target_year - 1) & (df_prod['__Month'] == target_month)]
+                
+                def build_yoy(df_c, df_p, group_cols):
+                    curr_agg = df_c.groupby(group_cols)[val_col].sum().rename('당월 실적')
+                    prev_agg = df_p.groupby(group_cols)[val_col].sum().rename('전년 동월 실적')
+                    merged = pd.concat([prev_agg, curr_agg], axis=1).fillna(0)
+                    merged['증감(Diff)'] = merged['당월 실적'] - merged['전년 동월 실적']
+                    merged['증감율(YoY %)'] = np.where(merged['전년 동월 실적'] == 0, 
+                                                    np.where(merged['당월 실적'] > 0, 1.0, 0.0), 
+                                                    merged['증감(Diff)'] / merged['전년 동월 실적'])
+                    return merged
+                    
+                table1 = build_yoy(df_curr, df_prev, [hk_col, cn_col])
+                
+                total_curr = df_curr[val_col].sum()
+                total_prev = df_prev[val_col].sum()
+                total_diff = total_curr - total_prev
+                total_pct = (total_diff / total_prev) if total_prev != 0 else 0
+                
+                st.markdown("---")
+                st.subheader(f"💡 전체 실적 요약: {total_curr:,.0f} (전년 동월 대비 **{total_diff:+,.0f}**, **{total_pct:+.1%}**)")
+                
+                if total_diff < 0:
+                    st.error("📉 **분석 의견:** 전체 생산 실적이 전년 동월 대비 감소했습니다. 전년 동월 대비 가장 많이 감소한 항목(H/K, CN)은 다음과 같습니다.")
+                    dec_df = table1[table1['증감(Diff)'] < 0].sort_values('증감(Diff)', ascending=True)
+                    for i, (idx, row) in enumerate(dec_df.iterrows()):
+                        hk, cn = idx
+                        st.write(f"{i+1}. **{hk} - {cn}** : {row['증감(Diff)']:,.0f} 감소 (전년비 {row['증감율(YoY %)']:.1%})")
+                elif total_diff > 0:
+                    st.success("📈 **분석 의견:** 전체 생산 실적이 전년 동월 대비 증가했습니다. 전년 동월 대비 가장 많이 증가한 항목(H/K, CN)은 다음과 같습니다.")
+                    inc_df = table1[table1['증감(Diff)'] > 0].sort_values('증감(Diff)', ascending=False)
+                    for i, (idx, row) in enumerate(inc_df.iterrows()):
+                        hk, cn = idx
+                        st.write(f"{i+1}. **{hk} - {cn}** : +{row['증감(Diff)']:,.0f} 증가 (전년비 {row['증감율(YoY %)']:.1%})")
+                else:
+                    st.info("전년 동월 대비 전체 실적에 변동이 없습니다.")
+                    
+                st.markdown("---")
+                st.subheader("1. H/K, CN 기준 전년 동월대비 실적")
+                st.dataframe(table1.style.format({'전년 동월 실적': '{:,.0f}', '당월 실적': '{:,.0f}', '증감(Diff)': '{:,.0f}', '증감율(YoY %)': '{:.1%}'}), use_container_width=True)
+                
+                table2 = build_yoy(df_curr, df_prev, [hk_col, cn_col, car_col])
+                # H/K, CN 알파벳순 정렬 후, Car code master의 경우 그룹 내에서 Diff 기준 내림차순 정렬
+                table2 = table2.reset_index().sort_values(by=[hk_col, cn_col, '증감(Diff)'], ascending=[True, True, False]).set_index([hk_col, cn_col, car_col])
+                
+                st.subheader("2. H/K, CN, Car code master 기준 전년 동월대비 실적")
+                st.dataframe(table2.style.format({'전년 동월 실적': '{:,.0f}', '당월 실적': '{:,.0f}', '증감(Diff)': '{:,.0f}', '증감율(YoY %)': '{:.1%}'}), use_container_width=True)
+                
+        except Exception as e:
+            st.error(f"오류가 발생했습니다: {e}")
+    else:
+        st.info("👈 좌측 메뉴에서 '생산 실적 데이터'를 업로드하시면 실적 비교 리포트가 자동 생성됩니다.")
