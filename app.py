@@ -1015,11 +1015,12 @@ elif selected_menu == "생산 실적 분석":
                             total_diff = total_curr - total_prev
                             total_pct = (total_diff / total_prev) if total_prev != 0 else 0
                             
-                            # 동적 정렬 방향 결정
+                            # 1. 전체 실적 증감에 따른 동적 정렬 (플러스면 내림차순, 마이너스면 오름차순)
                             sort_ascending = True if total_diff < 0 else False
                             
                             # 테이블 1 정렬 및 Rank 부여
-                            table1 = table1.sort_values('증감(Diff)', ascending=sort_ascending).reset_index()
+                            table1 = table1.reset_index()
+                            table1 = table1.sort_values('증감(Diff)', ascending=sort_ascending)
                             table1.insert(0, 'Rank', range(1, len(table1) + 1))
                             table1 = table1.set_index('Rank')
                             
@@ -1046,12 +1047,16 @@ elif selected_menu == "생산 실적 분석":
                             
                             if car_col in df_prod.columns:
                                 table2 = build_yoy(df_curr, df_prev, [hk_col, cn_col, car_col])
-                                # 테이블 2 정렬 및 Rank 부여
-                                table2 = table2.reset_index().sort_values(by=[hk_col, cn_col, '증감(Diff)'], ascending=[True, True, sort_ascending])
-                                table2.insert(0, 'Rank', range(1, len(table2) + 1))
+                                table2 = table2.reset_index()
+                                
+                                # 2. 그룹(H/K, CN) 내에서의 Rank 계산
+                                table2.insert(0, 'Rank', table2.groupby([hk_col, cn_col])['증감(Diff)'].rank(method='min', ascending=sort_ascending).astype(int))
+                                
+                                # H/K, CN 순으로 묶고, 그 안에서 Rank 순으로 정렬
+                                table2 = table2.sort_values(by=[hk_col, cn_col, 'Rank'], ascending=[True, True, True])
                                 table2 = table2.set_index('Rank')
                                 
-                                st.subheader(f"2. H/K, CN, Car code master 기준 전년 동월대비 실적 (세부 항목 기준 {'내림차순' if not sort_ascending else '오름차순'} 정렬)")
+                                st.subheader(f"2. H/K, CN, Car code master 기준 전년 동월대비 실적 (그룹 내 {'내림차순' if not sort_ascending else '오름차순'} 정렬)")
                                 st.dataframe(table2.style.format(format_dict), use_container_width=True)
                             else:
                                 st.warning(f"'{car_col}' 컬럼이 없어서 상세 테이블은 생략되었습니다.")
