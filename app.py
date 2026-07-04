@@ -25,7 +25,6 @@ h1 { font-size: 1rem !important; margin-bottom: 0.3rem !important; padding-botto
 h3 { font-size: 1.1rem !important; margin-top: 0.4rem !important; margin-bottom: 0.3rem !important; color: #002060 !important; }
 hr { margin-top: 0.3rem !important; margin-bottom: 0.3rem !important; border: none !important; border-top: 1px solid #d9d9d9 !important; }
 div[data-testid="stForm"] { margin-top: 0rem !important; margin-bottom: 0.4rem !important; padding: 1rem !important; }
-
 .table-container { overflow-x: auto; box-shadow: 2px 2px 10px rgba(0,0,0,0.1); margin-bottom: 1rem !important; padding: 2px !important; display: inline-block; width: auto; min-width: 100%; box-sizing: border-box; background-color: white; }
 .report-table { border-collapse: collapse !important; font-family: 'Arial', sans-serif; font-size: 12px; width: 100%; background-color: white; margin: 0 !important; border: 2px solid #002060 !important; }
 .report-table tr { border-bottom: none !important; }
@@ -50,7 +49,7 @@ div[data-testid="stForm"] { margin-top: 0rem !important; margin-bottom: 0.4rem !
 </style>""", unsafe_allow_html=True)
 
 # ==========================================
-# 2. 포맷터 및 공통 함수
+# 2. 모든 함수 정의
 # ==========================================
 def get_trend_highlight_css(table_id):
     return f"<style>#{table_id} thead tr:nth-child(1) th:last-child {{ border-top: 4px solid #c00000 !important; border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody td:last-child {{ border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:last-child {{ border-bottom: 4px solid #c00000 !important; }}</style>"
@@ -69,10 +68,8 @@ def get_dynamic_highlight_css(table_id, df, highlight_phase):
         if c0 == highlight_phase:
             if start_col == -1: start_col = i
             end_col = i
-            if isinstance(col, tuple) and len(col) > 1 and col[1] == 'ACT':
-                act_col_idx = i
-            elif str(col) == 'ACT':
-                act_col_idx = i
+            if isinstance(col, tuple) and len(col) > 1 and col[1] == 'ACT': act_col_idx = i
+            elif str(col) == 'ACT': act_col_idx = i
                 
     if start_col == -1: return ""
     
@@ -1136,7 +1133,7 @@ elif selected_menu == "AQL status 정리":
 # ==========================================
 elif selected_menu == "생산 실적 분석":
     st.title("📈 생산 실적 분석 (YoY Performance)")
-    st.info("엑셀 파일을 업로드하면 선택한 월에 대해 전년 동월 대비 증감 및 증감율을 분석합니다.")
+    st.info("엑셀 파일을 업로드하면 날짜형식으로 된 컬럼들을 자동으로 인식하여 지정한 월의 전년 동월 대비 증감을 분석합니다.")
     
     uploaded_prod_file = st.sidebar.file_uploader("생산 실적 데이터를 업로드하세요.", type=['xlsx', 'xls'], key="prod_uploader")
     
@@ -1149,87 +1146,95 @@ elif selected_menu == "생산 실적 분석":
             cn_col = 'CN'
             car_col = 'Car code master'
             
-            val_col = None
-            for col in ["Q'ty", "실적", "생산량", "Qty"]:
-                if col in df_prod.columns:
-                    val_col = col
-                    break
-            if not val_col:
-                numeric_cols = df_prod.select_dtypes(include=[np.number]).columns.tolist()
-                numeric_cols = [c for c in numeric_cols if str(c) not in ['Year', 'Month']]
-                val_col = numeric_cols[-1] if numeric_cols else df_prod.columns[-1]
-                
-            if 'Year' in df_prod.columns and 'Month' in df_prod.columns:
-                df_prod['__Year'] = df_prod['Year']
-                df_prod['__Month'] = df_prod['Month']
+            missing = [c for c in [hk_col, cn_col] if c not in df_prod.columns]
+            if missing:
+                st.error(f"엑셀 파일에 다음 필수 컬럼이 없습니다: {', '.join(missing)}\n해당 데이터 포맷이 맞는지 확인해주세요.")
             else:
-                date_cols = [c for c in df_prod.columns if 'date' in str(c).lower() or '일자' in str(c) or '월' in str(c)]
-                date_col = date_cols[0] if date_cols else df_prod.columns[0]
-                df_prod['__Date'] = pd.to_datetime(df_prod[date_col], errors='coerce')
-                df_prod = df_prod.dropna(subset=['__Date'])
-                df_prod['__Year'] = df_prod['__Date'].dt.year
-                df_prod['__Month'] = df_prod['__Date'].dt.month
+                # 1. 날짜 컬럼 식별 (컬럼명이 날짜로 변환 가능한 것들만 추출, str()로 강제 형변환)
+                date_cols = []
+                date_mapping = {}
+                for col in df_prod.columns:
+                    try:
+                        dt = pd.to_datetime(str(col))
+                        date_cols.append(col)
+                        date_mapping[col] = dt
+                    except:
+                        pass
                 
-            years = sorted(df_prod['__Year'].dropna().unique(), reverse=True)
-            months = sorted(df_prod['__Month'].dropna().unique())
-            
-            st.sidebar.markdown("### 📅 조회 기준 선택")
-            target_year = st.sidebar.selectbox("조회 연도 (Target Year)", years)
-            target_month = st.sidebar.selectbox("조회 월 (Target Month)", months)
-            
-            if st.button("분석 실행하기"):
-                missing = [c for c in [hk_col, cn_col, car_col] if c not in df_prod.columns]
-                if missing:
-                    st.error(f"엑셀 파일에 다음 필수 컬럼이 없습니다: {', '.join(missing)}\n해당 데이터 포맷이 맞는지 확인해주세요.")
+                if not date_cols:
+                    st.error("엑셀 파일의 컬럼명에서 날짜(연/월) 정보를 인식할 수 없습니다. (예: 2026-01, 2026.01 등의 컬럼 필요)")
                 else:
-                    df_curr = df_prod[(df_prod['__Year'] == target_year) & (df_prod['__Month'] == target_month)]
-                    df_prev = df_prod[(df_prod['__Year'] == target_year - 1) & (df_prod['__Month'] == target_month)]
+                    # 2. Wide -> Long 포맷 변환 (Melt)
+                    id_vars = [c for c in [hk_col, cn_col, car_col] if c in df_prod.columns]
+                    df_melted = df_prod.melt(id_vars=id_vars, value_vars=date_cols, var_name='RawDate', value_name='Qty')
                     
-                    def build_yoy(df_c, df_p, group_cols):
-                        curr_agg = df_c.groupby(group_cols)[val_col].sum().rename('당월 실적')
-                        prev_agg = df_p.groupby(group_cols)[val_col].sum().rename('전년 동월 실적')
-                        merged = pd.concat([prev_agg, curr_agg], axis=1).fillna(0)
-                        merged['증감(Diff)'] = merged['당월 실적'] - merged['전년 동월 실적']
-                        merged['증감율(YoY %)'] = np.where(merged['전년 동월 실적'] == 0, 
-                                                        np.where(merged['당월 실적'] > 0, 1.0, 0.0), 
-                                                        merged['증감(Diff)'] / merged['전년 동월 실적'])
-                        return merged
-                        
-                    table1 = build_yoy(df_curr, df_prev, [hk_col, cn_col])
+                    df_melted['Date'] = df_melted['RawDate'].map(date_mapping)
+                    df_melted['Year'] = df_melted['Date'].dt.year
+                    df_melted['Month'] = df_melted['Date'].dt.month
+                    df_melted['Qty'] = pd.to_numeric(df_melted['Qty'], errors='coerce').fillna(0)
                     
-                    total_curr = df_curr[val_col].sum()
-                    total_prev = df_prev[val_col].sum()
-                    total_diff = total_curr - total_prev
-                    total_pct = (total_diff / total_prev) if total_prev != 0 else 0
+                    years = sorted(df_melted['Year'].dropna().unique(), reverse=True)
+                    months = sorted(df_melted['Month'].dropna().unique())
                     
-                    st.markdown("---")
-                    st.subheader(f"💡 전체 실적 요약: {total_curr:,.0f} (전년 동월 대비 **{total_diff:+,.0f}**, **{total_pct:+.1%}**)")
-                    
-                    if total_diff < 0:
-                        st.error("📉 **분석 의견:** 전체 생산 실적이 전년 동월 대비 감소했습니다. 전년 동월 대비 가장 많이 감소한 항목(H/K, CN)은 다음과 같습니다.")
-                        dec_df = table1[table1['증감(Diff)'] < 0].sort_values('증감(Diff)', ascending=True)
-                        for i, (idx, row) in enumerate(dec_df.iterrows()):
-                            hk, cn = idx
-                            st.write(f"{i+1}. **{hk} - {cn}** : {row['증감(Diff)']:,.0f} 감소 (전년비 {row['증감율(YoY %)']:.1%})")
-                    elif total_diff > 0:
-                        st.success("📈 **분석 의견:** 전체 생산 실적이 전년 동월 대비 증가했습니다. 전년 동월 대비 가장 많이 증가한 항목(H/K, CN)은 다음과 같습니다.")
-                        inc_df = table1[table1['증감(Diff)'] > 0].sort_values('증감(Diff)', ascending=False)
-                        for i, (idx, row) in enumerate(inc_df.iterrows()):
-                            hk, cn = idx
-                            st.write(f"{i+1}. **{hk} - {cn}** : +{row['증감(Diff)']:,.0f} 증가 (전년비 {row['증감율(YoY %)']:.1%})")
+                    st.sidebar.markdown("### 📅 조회 기준 선택")
+                    if not years:
+                        st.sidebar.error("날짜 데이터가 없습니다.")
                     else:
-                        st.info("전년 동월 대비 전체 실적에 변동이 없습니다.")
+                        target_year = st.sidebar.selectbox("조회 연도 (Target Year)", years)
+                        target_month = st.sidebar.selectbox("조회 월 (Target Month)", months)
                         
-                    st.markdown("---")
-                    st.subheader("1. H/K, CN 기준 전년 동월대비 실적")
-                    st.dataframe(table1.style.format({'전년 동월 실적': '{:,.0f}', '당월 실적': '{:,.0f}', '증감(Diff)': '{:,.0f}', '증감율(YoY %)': '{:.1%}'}), use_container_width=True)
-                    
-                    table2 = build_yoy(df_curr, df_prev, [hk_col, cn_col, car_col])
-                    table2 = table2.reset_index().sort_values(by=[hk_col, cn_col, '증감(Diff)'], ascending=[True, True, False]).set_index([hk_col, cn_col, car_col])
-                    
-                    st.subheader("2. H/K, CN, Car code master 기준 전년 동월대비 실적")
-                    st.dataframe(table2.style.format({'전년 동월 실적': '{:,.0f}', '당월 실적': '{:,.0f}', '증감(Diff)': '{:,.0f}', '증감율(YoY %)': '{:.1%}'}), use_container_width=True)
-                    
+                        if st.button("분석 실행하기"):
+                            df_curr = df_melted[(df_melted['Year'] == target_year) & (df_melted['Month'] == target_month)]
+                            df_prev = df_melted[(df_melted['Year'] == target_year - 1) & (df_melted['Month'] == target_month)]
+                            
+                            def build_yoy(df_c, df_p, group_cols):
+                                curr_agg = df_c.groupby(group_cols)['Qty'].sum().rename('당월 실적')
+                                prev_agg = df_p.groupby(group_cols)['Qty'].sum().rename('전년 동월 실적')
+                                merged = pd.concat([prev_agg, curr_agg], axis=1).fillna(0)
+                                merged['증감(Diff)'] = merged['당월 실적'] - merged['전년 동월 실적']
+                                merged['증감율(YoY %)'] = np.where(merged['전년 동월 실적'] == 0, 
+                                                                np.where(merged['당월 실적'] > 0, 1.0, 0.0), 
+                                                                merged['증감(Diff)'] / merged['전년 동월 실적'])
+                                return merged
+                                
+                            table1 = build_yoy(df_curr, df_prev, [hk_col, cn_col])
+                            
+                            total_curr = df_curr['Qty'].sum()
+                            total_prev = df_prev['Qty'].sum()
+                            total_diff = total_curr - total_prev
+                            total_pct = (total_diff / total_prev) if total_prev != 0 else 0
+                            
+                            st.markdown("---")
+                            st.subheader(f"💡 전체 실적 요약: {total_curr:,.0f} (전년 동월 대비 **{total_diff:+,.0f}**, **{total_pct:+.1%}**)")
+                            
+                            if total_diff < 0:
+                                st.error("📉 **분석 의견:** 전체 생산 실적이 전년 동월 대비 감소했습니다. 전년 동월 대비 가장 많이 감소한 항목(H/K, CN)은 다음과 같습니다.")
+                                dec_df = table1[table1['증감(Diff)'] < 0].sort_values('증감(Diff)', ascending=True)
+                                for i, (idx, row) in enumerate(dec_df.iterrows()):
+                                    hk, cn = idx
+                                    st.write(f"{i+1}. **{hk} - {cn}** : {row['증감(Diff)']:,.0f} 감소 (전년비 {row['증감율(YoY %)']:.1%})")
+                            elif total_diff > 0:
+                                st.success("📈 **분석 의견:** 전체 생산 실적이 전년 동월 대비 증가했습니다. 전년 동월 대비 가장 많이 증가한 항목(H/K, CN)은 다음과 같습니다.")
+                                inc_df = table1[table1['증감(Diff)'] > 0].sort_values('증감(Diff)', ascending=False)
+                                for i, (idx, row) in enumerate(inc_df.iterrows()):
+                                    hk, cn = idx
+                                    st.write(f"{i+1}. **{hk} - {cn}** : +{row['증감(Diff)']:,.0f} 증가 (전년비 {row['증감율(YoY %)']:.1%})")
+                            else:
+                                st.info("전년 동월 대비 전체 실적에 변동이 없습니다.")
+                                
+                            st.markdown("---")
+                            st.subheader("1. H/K, CN 기준 전년 동월대비 실적")
+                            st.dataframe(table1.style.format({'전년 동월 실적': '{:,.0f}', '당월 실적': '{:,.0f}', '증감(Diff)': '{:,.0f}', '증감율(YoY %)': '{:.1%}'}), use_container_width=True)
+                            
+                            if car_col in df_prod.columns:
+                                table2 = build_yoy(df_curr, df_prev, [hk_col, cn_col, car_col])
+                                table2 = table2.reset_index().sort_values(by=[hk_col, cn_col, '증감(Diff)'], ascending=[True, True, False]).set_index([hk_col, cn_col, car_col])
+                                
+                                st.subheader("2. H/K, CN, Car code master 기준 전년 동월대비 실적")
+                                st.dataframe(table2.style.format({'전년 동월 실적': '{:,.0f}', '당월 실적': '{:,.0f}', '증감(Diff)': '{:,.0f}', '증감율(YoY %)': '{:.1%}'}), use_container_width=True)
+                            else:
+                                st.warning(f"'{car_col}' 컬럼이 없어서 상세 테이블은 생략되었습니다.")
+                                
         except Exception as e:
             st.error(f"오류가 발생했습니다: {e}")
     else:
