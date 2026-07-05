@@ -954,9 +954,9 @@ elif selected_menu == "생산 실적 분석":
             df_prod = pd.read_excel(uploaded_prod_file)
             st.success("📂 데이터를 성공적으로 불러왔습니다.")
             
-            hk_col = 'H/K'
+            hk_col = 'OEM'
             cn_col = 'CN'
-            car_col = 'Car code master'
+            car_col = 'Mater car code'
             
             missing = [c for c in [hk_col, cn_col] if c not in df_prod.columns]
             if missing:
@@ -1015,10 +1015,8 @@ elif selected_menu == "생산 실적 분석":
                             total_diff = total_curr - total_prev
                             total_pct = (total_diff / total_prev) if total_prev != 0 else 0
                             
-                            # 1. 전체 실적 증감에 따른 동적 정렬 (플러스면 내림차순, 마이너스면 오름차순)
                             sort_ascending = True if total_diff < 0 else False
                             
-                            # 테이블 1 정렬 및 Rank 부여
                             table1 = table1.reset_index()
                             table1 = table1.sort_values('증감(Diff)', ascending=sort_ascending)
                             table1.insert(0, 'Rank', range(1, len(table1) + 1))
@@ -1028,12 +1026,12 @@ elif selected_menu == "생산 실적 분석":
                             st.subheader(f"💡 전체 실적 요약: {total_curr:,.0f} (전년 동월 대비 **{total_diff:+,.0f}**, **{total_pct:+.1%}**)")
                             
                             if total_diff < 0:
-                                st.error("📉 **분석 의견:** 전체 생산 실적이 전년 동월 대비 감소했습니다. 전년 동월 대비 가장 많이 감소한 항목(H/K, CN)은 다음과 같습니다.")
+                                st.error(f"📉 **분석 의견:** 전체 생산 실적이 전년 동월 대비 감소했습니다. 전년 동월 대비 가장 많이 감소한 항목({hk_col}, {cn_col})은 다음과 같습니다.")
                                 dec_df = table1[table1['증감(Diff)'] < 0]
                                 for i, (_, row) in enumerate(dec_df.iterrows()):
                                     st.write(f"{i+1}. **{row[hk_col]} - {row[cn_col]}** : {row['증감(Diff)']:,.0f} 감소 (전년비 {row['증감율(YoY %)']:.1%})")
                             elif total_diff > 0:
-                                st.success("📈 **분석 의견:** 전체 생산 실적이 전년 동월 대비 증가했습니다. 전년 동월 대비 가장 많이 증가한 항목(H/K, CN)은 다음과 같습니다.")
+                                st.success(f"📈 **분석 의견:** 전체 생산 실적이 전년 동월 대비 증가했습니다. 전년 동월 대비 가장 많이 증가한 항목({hk_col}, {cn_col})은 다음과 같습니다.")
                                 inc_df = table1[table1['증감(Diff)'] > 0]
                                 for i, (_, row) in enumerate(inc_df.iterrows()):
                                     st.write(f"{i+1}. **{row[hk_col]} - {row[cn_col]}** : +{row['증감(Diff)']:,.0f} 증가 (전년비 {row['증감율(YoY %)']:.1%})")
@@ -1041,7 +1039,7 @@ elif selected_menu == "생산 실적 분석":
                                 st.info("전년 동월 대비 전체 실적에 변동이 없습니다.")
                                 
                             st.markdown("---")
-                            st.subheader(f"1. H/K, CN 기준 전년 동월대비 실적 (전체 기준 {'내림차순' if not sort_ascending else '오름차순'} 정렬)")
+                            st.subheader(f"1. {hk_col}, CN 기준 전년 동월대비 실적 (전체 기준 {'내림차순' if not sort_ascending else '오름차순'} 정렬)")
                             format_dict = {prev_col_name: '{:,.0f}', curr_col_name: '{:,.0f}', '증감(Diff)': '{:,.0f}', '증감율(YoY %)': '{:.1%}'}
                             st.dataframe(table1.style.format(format_dict), use_container_width=True)
                             
@@ -1049,14 +1047,12 @@ elif selected_menu == "생산 실적 분석":
                                 table2 = build_yoy(df_curr, df_prev, [hk_col, cn_col, car_col])
                                 table2 = table2.reset_index()
                                 
-                                # 2. 그룹(H/K, CN) 내에서의 Rank 계산
                                 table2.insert(0, 'Rank', table2.groupby([hk_col, cn_col])['증감(Diff)'].rank(method='min', ascending=sort_ascending).astype(int))
                                 
-                                # H/K, CN 순으로 묶고, 그 안에서 Rank 순으로 정렬
                                 table2 = table2.sort_values(by=[hk_col, cn_col, 'Rank'], ascending=[True, True, True])
                                 table2 = table2.set_index('Rank')
                                 
-                                st.subheader(f"2. H/K, CN, Car code master 기준 전년 동월대비 실적 (그룹 내 {'내림차순' if not sort_ascending else '오름차순'} 정렬)")
+                                st.subheader(f"2. {hk_col}, CN, {car_col} 기준 전년 동월대비 실적 (그룹 내 {'내림차순' if not sort_ascending else '오름차순'} 정렬)")
                                 st.dataframe(table2.style.format(format_dict), use_container_width=True)
                             else:
                                 st.warning(f"'{car_col}' 컬럼이 없어서 상세 테이블은 생략되었습니다.")
