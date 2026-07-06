@@ -466,119 +466,106 @@ def get_core_biz_summary_report(df, year, month):
     ex_df = pd.DataFrame([ex_rate_row], index=pd.MultiIndex.from_tuples([('FC1 EX-RATE', ' ')], names=['Cust. GR', 'KOx']))
     return pd.concat([final_df, grand_row, ex_df]), phase_names[0]
 
+# ==========================================
+# 과거 안정적으로 복구된 get_biz_report 
+# (인덱스 불일치 해결, Others 그룹화 및 0원 필터링 로직 원상복구)
+# ==========================================
 def get_biz_report(df, biz_type, year, month):
     if month == 1: prev_year, prev_month = year - 1, 12
     else: prev_year, prev_month = year, month - 1
     
-    df_biz = df[(df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == year)].copy()
+    df_biz = df[(df['Business Type'].str.contains(biz_type, case=False, na=False))].copy()
     m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
-    phase_names = [f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL']
-    prev_phase_name = f'{pm_str}. {prev_year}'
+    p_curr, p_ytd, p_ttl, p_prev = f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL', f'{pm_str}. {prev_year}'
+    phases = [p_curr, p_ytd, p_ttl]
     
-    brands = ['HYU', 'KIA', 'GM']
-    if biz_type == 'Power': brands = ['HYU', 'KIA']
-    
+    brands = ['HYU', 'KIA'] if biz_type == 'Power' else ['HYU', 'KIA', 'GM']
     results = []
+    
     for brand in brands:
-        if brand == 'GM':
-            brand_df = df_biz[df_biz['Project'] == 'GM'].copy()
-            prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Project'] == 'GM')
-            subtotal_dict = {}
-            prev_act = df[prev_mask & (df['Desc.'] == 'ACT')]['Rev. (€)'].sum() if not df[prev_mask].empty else 0.0
-            subtotal_dict[(prev_phase_name, 'ACT')] = prev_act
+        b_data = df_biz[(df_biz['Project'] == 'GM')] if brand == 'GM' else df_biz[(df_biz['Group 2'] == brand)]
+        if b_data.empty: continue
+        
+        def get_rev(d, year_f, month_f=None, is_ytd=False):
+            mask = (d['Year'] == year_f)
+            if month_f: mask = mask & (d['Month'] <= month_f) if is_ytd else mask & (d['Month'] == month_f)
+            return d[mask].groupby(['Project', 'Con.', 'SOP', 'Desc.'])['Rev. (€)'].sum().unstack(fill_value=0)
             
-            df_m = brand_df[brand_df['Month'] == month]
-            for c in ['25 FC3', '26 FC1', 'ACT']: subtotal_dict[(phase_names[0], c)] = df_m[df_m['Desc.'] == c]['Rev. (€)'].sum()
-            subtotal_dict[(phase_names[0], 'ACHI %')] = subtotal_dict[(phase_names[0], 'ACT')] / subtotal_dict[(phase_names[0], '26 FC1')] if subtotal_dict[(phase_names[0], '26 FC1')] != 0 else 0.0
+        data_prev = get_rev(b_data, prev_year, prev_month)
+        data_m = get_rev(b_data, year, month)
+        data_y = get_rev(b_data, year, month, is_ytd=True)
+        data_fy = get_rev(b_data, year)
+        
+        all_idx = set()
+        for p in [data_prev, data_m, data_y, data_fy]:
+            if not p.empty: all_idx.update(p.index.tolist())
+        if not all_idx: continue
+        
+        idx = pd.MultiIndex.from_tuples(sorted(list(all_idx)), names=['Project', 'Con.', 'SOP'])
+        data_prev = data_prev.reindex(idx, fill_value=0)
+        data_m = data_m.reindex(idx, fill_value=0)
+        data_y = data_y.reindex(idx, fill_value=0)
+        data_fy = data_fy.reindex(idx, fill_value=0)
+        
+        if "Core" in biz_type and brand in ['HYU', 'KIA']:
+            act_col = data_m['ACT'] if 'ACT' in data_m.columns else pd.Series(0, index=idx)
+            top = act_col[act_col >= 10000].index
+            def group_others(p):
+                if p.empty: return pd.DataFrame(columns=['25 FC3', '26 FC1', 'ACT']).reindex(pd.MultiIndex.from_tuples([], names=['Project', 'Con.', 'SOP']))
+                main = p.loc[p.index.isin(top)]
+                oth = p.loc[~p.index.isin(top)].sum().to_frame().T
+                oth.index = pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP'])
+                return pd.concat([main, oth])
+            data_m, data_y, data_fy, data_prev = group_others(data_m), group_others(data_y), group_others(data_fy), group_others(data_prev)
+            idx = data_m.index
             
-            df_y = brand_df[brand_df['Month'] <= month]
-            for c in ['25 FC3', '26 FC1', 'ACT']: subtotal_dict[(phase_names[1], c)] = df_y[df_y['Desc.'] == c]['Rev. (€)'].sum()
-            subtotal_dict[(phase_names[1], 'ACHI %')] = subtotal_dict[(phase_names[1], 'ACT')] / subtotal_dict[(phase_names[1], '26 FC1')] if subtotal_dict[(phase_names[1], '26 FC1')] != 0 else 0.0
+        combined_dict = {}
+        combined_dict[(p_prev, 'ACT')] = data_prev['ACT'] if 'ACT' in data_prev.columns else pd.Series(0, index=idx)
+        
+        for phase_name, data in zip(phases, [data_m, data_y, data_fy]):
+            for c in ['25 FC3', '26 FC1', 'ACT']:
+                combined_dict[(phase_name, c)] = data[c] if c in data.columns else pd.Series(0, index=idx)
+            num = pd.Series(combined_dict[(phase_name, 'ACT')])
+            den = pd.Series(combined_dict[(phase_name, '26 FC1')])
+            combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
             
-            for c in ['25 FC3', '26 FC1', 'ACT']: subtotal_dict[(phase_names[2], c)] = brand_df[brand_df['Desc.'] == c]['Rev. (€)'].sum()
-            subtotal_dict[(phase_names[2], 'ACHI %')] = subtotal_dict[(phase_names[2], 'ACT')] / subtotal_dict[(phase_names[2], '26 FC1')] if subtotal_dict[(phase_names[2], '26 FC1')] != 0 else 0.0
+        combined = pd.DataFrame(combined_dict, index=idx)
+        
+        if (p_curr, '26 FC1') in combined.columns and (p_curr, 'ACT') in combined.columns:
+            fc1_curr = combined[(p_curr, '26 FC1')].abs()
+            act_curr = combined[(p_curr, 'ACT')].abs()
+            combined = combined[(fc1_curr >= 0.01) | (act_curr >= 0.01)]
             
-            subtotal = pd.Series(subtotal_dict)
-            results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
-            continue
-        else:
-            brand_df = df_biz[df_biz['Group 2'] == brand].copy()
-            prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)
-            if brand_df.empty and df[prev_mask].empty: continue
-            
-            p_m = brand_df[brand_df['Month'] == month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-            p_y = brand_df[brand_df['Month'] <= month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-            p_fy = brand_df.pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-            p_prev = df[prev_mask].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-            
-            all_idx = set()
-            for p in [p_prev, p_m, p_y, p_fy]:
-                if not p.empty: all_idx.update(p.index.tolist())
-            if not all_idx: continue
-            
-            idx = pd.MultiIndex.from_tuples(sorted(list(all_idx)), names=['Project', 'Con.', 'SOP'])
-            p_prev = p_prev.reindex(idx, fill_value=0)
-            p_m = p_m.reindex(idx, fill_value=0)
-            p_y = p_y.reindex(idx, fill_value=0)
-            p_fy = p_fy.reindex(idx, fill_value=0)
-            
-            if "Core" in biz_type and brand in ['HYU', 'KIA']:
-                act_col = p_m['ACT'] if 'ACT' in p_m.columns else pd.Series(0, index=idx)
-                top = act_col[act_col >= 10000].index
-                def group_others(p):
-                    if p.empty: return pd.DataFrame(columns=['25 FC3', '26 FC1', 'ACT']).reindex(pd.MultiIndex.from_tuples([], names=['Project', 'Con.', 'SOP']))
-                    main = p.loc[p.index.isin(top)]
-                    oth = p.loc[~p.index.isin(top)].sum().to_frame().T
-                    oth.index = pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP'])
-                    return pd.concat([main, oth])
-                p_m, p_y, p_fy, p_prev = group_others(p_m), group_others(p_y), group_others(p_fy), group_others(p_prev)
-                idx = p_m.index
+        if combined.empty: continue
+        
+        if ('Others', '', '') in combined.index: 
+            combined = pd.concat([combined.drop(index=('Others', '', '')).sort_values(by=(p_curr, 'ACT'), ascending=False), combined.loc[[('Others', '', '')]]])
+        else: 
+            if not combined.empty and (p_curr, 'ACT') in combined.columns:
+                combined = combined.sort_values(by=(p_curr, 'ACT'), ascending=False)
                 
-            combined_dict = {}
-            combined_dict[(prev_phase_name, 'ACT')] = p_prev['ACT'] if 'ACT' in p_prev.columns else pd.Series(0, index=idx)
-            for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
-                for c in ['25 FC3', '26 FC1', 'ACT']:
-                    combined_dict[(phase_name, c)] = data[c] if c in data.columns else pd.Series(0, index=idx)
-                num = pd.Series(combined_dict[(phase_name, 'ACT')])
-                den = pd.Series(combined_dict[(phase_name, '26 FC1')])
-                combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
+        subtotal = combined.sum(numeric_only=True) if not combined.empty else pd.Series(0, index=combined.columns)
+        for p_name in phases:
+            num = subtotal.get((p_name, 'ACT'), 0)
+            den = subtotal.get((p_name, '26 FC1'), 0)
+            subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
             
-            combined = pd.DataFrame(combined_dict, index=idx)
-            if (phase_names[0], '26 FC1') in combined.columns and (phase_names[0], 'ACT') in combined.columns:
-                fc1_curr = combined[(phase_names[0], '26 FC1')].abs()
-                act_curr = combined[(phase_names[0], 'ACT')].abs()
-                combined = combined[(fc1_curr >= 0.01) | (act_curr >= 0.01)]
-                
-            if combined.empty: continue
-            
-            if ('Others', '', '') in combined.index: 
-                combined = pd.concat([combined.drop(index=('Others', '', '')).sort_values(by=(phase_names[0], 'ACT'), ascending=False), combined.loc[[('Others', '', '')]]])
-            else: 
-                if not combined.empty and (phase_names[0], 'ACT') in combined.columns:
-                    combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
-            
-            subtotal = combined.sum(numeric_only=True) if not combined.empty else pd.Series(0, index=combined.columns)
-            for p_name in phase_names:
-                num = subtotal.get((p_name, 'ACT'), 0)
-                den = subtotal.get((p_name, '26 FC1'), 0)
-                subtotal[(p_name, 'ACHI %')] = num / den if den != 0 else 0
-            
-            combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
-            results.append(combined)
-            results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
-            
-    if not results: return pd.DataFrame(), phase_names
+        combined.index = pd.MultiIndex.from_tuples([(brand, p, c, s) for p, c, s in combined.index], names=['Cust. GR', 'Project', 'Con.', 'SOP'])
+        results.append(combined)
+        results.append(pd.DataFrame([subtotal], index=pd.MultiIndex.from_tuples([(brand, f'{brand}_소계', '', '')], names=['Cust. GR', 'Project', 'Con.', 'SOP'])))
+        
+    if not results: return pd.DataFrame(), phases
     final_df = pd.concat(results)
     
     grand_total = final_df[final_df.index.get_level_values(1).str.contains('소계', na=False)].sum(numeric_only=True)
-    for p_name in phase_names:
+    for p_name in phases:
         num = grand_total.get((p_name, 'ACT'), 0)
         den = grand_total.get((p_name, '26 FC1'), 0)
         grand_total[(p_name, 'ACHI %')] = num / den if den != 0 else 0
         
     grand_label = f'{BIZ_CONFIG.get(biz_type, biz_type)} Rev. TTL (K.€)'
     grand_row = pd.DataFrame([grand_total], index=pd.MultiIndex.from_tuples([(f'GRAND_TOTAL_MERGE_START{grand_label}', 'GRAND_TOTAL_MERGE_DEL', 'GRAND_TOTAL_MERGE_DEL', 'GRAND_TOTAL_MERGE_DEL')], names=['Cust. GR', 'Project', 'Con.', 'SOP']))
-    return pd.concat([final_df, grand_row]), phase_names
+    return pd.concat([final_df, grand_row]), phases
 
 def build_trend_report(df, end_year, end_month):
     months, curr_y, curr_m = [], end_year, end_month
@@ -1042,7 +1029,6 @@ elif selected_menu == "Prod result":
                             st.subheader(f"1. {hk_col}, CN 기준 전년 동월대비 실적 (전체 기준 {'내림차순' if not sort_ascending else '오름차순'} 정렬)")
                             format_dict = {prev_col_name: '{:,.0f}', curr_col_name: '{:,.0f}', '증감(Diff)': '{:,.0f}', '증감율(YoY %)': '{:.1%}'}
                             
-                            # 높이를 동적으로 계산하여 내부 스크롤을 완전히 제거
                             height1 = (len(table1) + 1) * 35 + 40
                             st.dataframe(table1.style.format(format_dict), use_container_width=True, height=height1)
                             
@@ -1056,7 +1042,6 @@ elif selected_menu == "Prod result":
                                 table2 = table2.set_index('Rank')
                                 
                                 st.subheader(f"2. {hk_col}, CN, {car_col} 기준 전년 동월대비 실적 (그룹 내 {'내림차순' if not sort_ascending else '오름차순'} 정렬)")
-                                # 두 번째 표도 내부 스크롤 제거
                                 height2 = (len(table2) + 1) * 35 + 40
                                 st.dataframe(table2.style.format(format_dict), use_container_width=True, height=height2)
                             else:
@@ -1075,11 +1060,9 @@ elif selected_menu == "Car volume - status":
     
     if uploaded_car_file:
         try:
-            # 4행부터 데이터가 있으므로 header=3 (0-indexed)
             df_car = pd.read_excel(uploaded_car_file, header=3)
             st.success("📂 데이터를 성공적으로 불러왔습니다.")
             
-            # 필수 컬럼 체크
             missing_cols = [c for c in ['PROJECT', 'NOMI', 'RUN'] if c not in df_car.columns]
             if missing_cols:
                 st.error(f"엑셀 파일에 다음 필수 컬럼이 없습니다: {', '.join(missing_cols)}")
@@ -1087,16 +1070,12 @@ elif selected_menu == "Car volume - status":
                 idx_nomi = df_car.columns.get_loc('NOMI')
                 idx_run = df_car.columns.get_loc('RUN')
                 
-                # NOMI 다음 컬럼부터 RUN 전의 전 컬럼까지 타겟 지정
-                # Python 슬라이싱: [시작 : 끝] -> 끝 인덱스는 포함하지 않음
-                # idx_run - 1 을 넣으면 idx_run - 2 까지 (RUN 전의 전) 포함됨
                 target_cols = df_car.columns[idx_nomi + 1 : idx_run - 1]
                 
                 res_rows = []
                 
                 for idx, row in df_car.iterrows():
                     prjt = str(row['PROJECT']).strip()
-                    # PROJECT 이름이 비어있으면 건너뛰기
                     if pd.isna(row['PROJECT']) or prjt == 'nan' or not prjt:
                         continue
                         
@@ -1105,7 +1084,6 @@ elif selected_menu == "Car volume - status":
                     
                     for col in target_cols:
                         val = str(row[col]).strip().upper()
-                        # 셀 값이 A 이거나 T 이면 해당 컬럼명 저장 (그 외는 무시)
                         if val == 'A':
                             a_cols.append(str(col))
                         elif val == 'T':
@@ -1119,7 +1097,6 @@ elif selected_menu == "Car volume - status":
                         
                     status_str = " ".join(status_parts)
                     
-                    # Status 문자열과 함께 결과 저장
                     res_rows.append({
                         'PROJECT': prjt,
                         'Status': status_str
@@ -1127,15 +1104,12 @@ elif selected_menu == "Car volume - status":
                     
                 if res_rows:
                     df_status = pd.DataFrame(res_rows)
-                    
-                    # 혹시 동일한 PROJECT가 여러 개 있을 경우 그룹화하여 고유값만 병합
                     df_status = df_status.groupby('PROJECT', as_index=False).agg({'Status': lambda x: ' | '.join([s for s in x.unique() if s])})
                     
                     st.markdown("---")
                     st.subheader("📋 정리된 PROJECT별 Status 목록")
                     st.dataframe(df_status, use_container_width=True)
                     
-                    # 엑셀 다운로드 파일 생성
                     output_car = io.BytesIO()
                     with pd.ExcelWriter(output_car, engine='xlsxwriter') as writer:
                         df_status.to_excel(writer, sheet_name="Car_Status", index=False)
