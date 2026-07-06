@@ -637,7 +637,7 @@ def render_trend_html_table(df, apply_color=False):
 # 4. 사이드바 및 메인 로직
 # ==========================================
 st.sidebar.title("📌 메뉴 설정")
-selected_menu = st.sidebar.radio("원하시는 작업을 선택하세요.", ["매출 보고서", "판매가 조회", "AQL status 정리", "Prod result"])
+selected_menu = st.sidebar.radio("원하시는 작업을 선택하세요.", ["매출 보고서", "판매가 조회", "AQL status 정리", "Prod result", "Car volume - status"])
 st.sidebar.divider()
 
 if selected_menu == "매출 보고서":
@@ -1041,7 +1041,10 @@ elif selected_menu == "Prod result":
                             st.markdown("---")
                             st.subheader(f"1. {hk_col}, CN 기준 전년 동월대비 실적 (전체 기준 {'내림차순' if not sort_ascending else '오름차순'} 정렬)")
                             format_dict = {prev_col_name: '{:,.0f}', curr_col_name: '{:,.0f}', '증감(Diff)': '{:,.0f}', '증감율(YoY %)': '{:.1%}'}
-                            st.dataframe(table1.style.format(format_dict), use_container_width=True)
+                            
+                            # 높이를 동적으로 계산하여 내부 스크롤을 완전히 제거
+                            height1 = (len(table1) + 1) * 35 + 40
+                            st.dataframe(table1.style.format(format_dict), use_container_width=True, height=height1)
                             
                             if car_col in df_prod.columns:
                                 table2 = build_yoy(df_curr, df_prev, [hk_col, cn_col, car_col])
@@ -1053,7 +1056,9 @@ elif selected_menu == "Prod result":
                                 table2 = table2.set_index('Rank')
                                 
                                 st.subheader(f"2. {hk_col}, CN, {car_col} 기준 전년 동월대비 실적 (그룹 내 {'내림차순' if not sort_ascending else '오름차순'} 정렬)")
-                                st.dataframe(table2.style.format(format_dict), use_container_width=True)
+                                # 두 번째 표도 내부 스크롤 제거
+                                height2 = (len(table2) + 1) * 35 + 40
+                                st.dataframe(table2.style.format(format_dict), use_container_width=True, height=height2)
                             else:
                                 st.warning(f"'{car_col}' 컬럼이 없어서 상세 테이블은 생략되었습니다.")
                                 
@@ -1061,3 +1066,93 @@ elif selected_menu == "Prod result":
             st.error(f"오류가 발생했습니다: {e}")
     else:
         st.info("👈 좌측 메뉴에서 '생산 실적 데이터'를 업로드하시면 실적 비교 리포트가 자동 생성됩니다.")
+
+elif selected_menu == "Car volume - status":
+    st.title("🚗 Car volume - Status 정리")
+    st.info("엑셀 파일을 업로드하면 NOMI 다음 컬럼부터 RUN 전의 전 컬럼까지 확인하여, PROJECT별 Status를 정리합니다.")
+    
+    uploaded_car_file = st.sidebar.file_uploader("Car volume 데이터를 업로드하세요.", type=['xlsx', 'xls'], key="car_uploader")
+    
+    if uploaded_car_file:
+        try:
+            # 4행부터 데이터가 있으므로 header=3 (0-indexed)
+            df_car = pd.read_excel(uploaded_car_file, header=3)
+            st.success("📂 데이터를 성공적으로 불러왔습니다.")
+            
+            # 필수 컬럼 체크
+            missing_cols = [c for c in ['PROJECT', 'NOMI', 'RUN'] if c not in df_car.columns]
+            if missing_cols:
+                st.error(f"엑셀 파일에 다음 필수 컬럼이 없습니다: {', '.join(missing_cols)}")
+            else:
+                idx_nomi = df_car.columns.get_loc('NOMI')
+                idx_run = df_car.columns.get_loc('RUN')
+                
+                # NOMI 다음 컬럼부터 RUN 전의 전 컬럼까지 타겟 지정
+                # Python 슬라이싱: [시작 : 끝] -> 끝 인덱스는 포함하지 않음
+                # idx_run - 1 을 넣으면 idx_run - 2 까지 (RUN 전의 전) 포함됨
+                target_cols = df_car.columns[idx_nomi + 1 : idx_run - 1]
+                
+                res_rows = []
+                
+                for idx, row in df_car.iterrows():
+                    prjt = str(row['PROJECT']).strip()
+                    # PROJECT 이름이 비어있으면 건너뛰기
+                    if pd.isna(row['PROJECT']) or prjt == 'nan' or not prjt:
+                        continue
+                        
+                    a_cols = []
+                    t_cols = []
+                    
+                    for col in target_cols:
+                        val = str(row[col]).strip().upper()
+                        # 셀 값이 A 이거나 T 이면 해당 컬럼명 저장 (그 외는 무시)
+                        if val == 'A':
+                            a_cols.append(str(col))
+                        elif val == 'T':
+                            t_cols.append(str(col))
+                            
+                    status_parts = []
+                    if a_cols:
+                        status_parts.append(f"[A] {', '.join(a_cols)}")
+                    if t_cols:
+                        status_parts.append(f"[T] {', '.join(t_cols)}")
+                        
+                    status_str = " ".join(status_parts)
+                    
+                    # Status 문자열과 함께 결과 저장
+                    res_rows.append({
+                        'PROJECT': prjt,
+                        'Status': status_str
+                    })
+                    
+                if res_rows:
+                    df_status = pd.DataFrame(res_rows)
+                    
+                    # 혹시 동일한 PROJECT가 여러 개 있을 경우 그룹화하여 고유값만 병합
+                    df_status = df_status.groupby('PROJECT', as_index=False).agg({'Status': lambda x: ' | '.join([s for s in x.unique() if s])})
+                    
+                    st.markdown("---")
+                    st.subheader("📋 정리된 PROJECT별 Status 목록")
+                    st.dataframe(df_status, use_container_width=True)
+                    
+                    # 엑셀 다운로드 파일 생성
+                    output_car = io.BytesIO()
+                    with pd.ExcelWriter(output_car, engine='xlsxwriter') as writer:
+                        df_status.to_excel(writer, sheet_name="Car_Status", index=False)
+                        worksheet = writer.sheets["Car_Status"]
+                        worksheet.set_column('A:A', 30)
+                        worksheet.set_column('B:B', 80)
+                        
+                    st.download_button(
+                        label="📥 Car Volume Status 정리 엑셀 다운로드",
+                        data=output_car.getvalue(),
+                        file_name=f"Car_Volume_Status_{datetime.date.today().strftime('%Y%m%d')}.xlsx",
+                        use_container_width=True
+                    )
+                else:
+                    st.warning("분석할 수 있는 PROJECT 데이터가 없습니다.")
+                    
+        except Exception as e:
+            st.error(f"파일을 처리하는 중 오류가 발생했습니다: {e}")
+    else:
+        st.info("👈 좌측 메뉴에서 'Car volume' 엑셀 데이터를 업로드하시면 리포트가 생성됩니다.")
