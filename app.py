@@ -637,7 +637,7 @@ def render_trend_html_table(df, apply_color=False):
 # 4. 사이드바 및 메인 로직
 # ==========================================
 st.sidebar.title("📌 메뉴 설정")
-selected_menu = st.sidebar.radio("원하시는 작업을 선택하세요.", ["매출 보고서", "판매가 조회", "AQL status 정리", "생산 실적 분석"])
+selected_menu = st.sidebar.radio("원하시는 작업을 선택하세요.", ["매출 보고서", "판매가 조회", "AQL status 정리", "Prod result"])
 st.sidebar.divider()
 
 if selected_menu == "매출 보고서":
@@ -943,8 +943,8 @@ elif selected_menu == "AQL status 정리":
         except Exception as e: st.error(f"파일을 처리하는 중 오류가 발생했습니다: {e}")
     else: st.info("👈 좌측 메뉴에서 'AQL 엑셀 데이터'를 업로드하시면 요약 리포트가 생성됩니다.")
 
-elif selected_menu == "생산 실적 분석":
-    st.title("📈 생산 실적 분석 (YoY Performance)")
+elif selected_menu == "Prod result":
+    st.title("📈 Prod result (YoY Performance)")
     st.info("엑셀 파일을 업로드하면 날짜형식으로 된 컬럼들을 자동으로 인식하여 지정한 월의 전년 동월 대비 증감을 분석합니다.")
     
     uploaded_prod_file = st.sidebar.file_uploader("생산 실적 데이터를 업로드하세요.", type=['xlsx', 'xls'], key="prod_uploader")
