@@ -255,20 +255,10 @@ def to_excel_multiple(df_dict):
             for i in range(len(df.columns)): worksheet.set_column(i+1, i+1, 15)
     return output.getvalue()
 
-def parse_sop_date(val):
-    if pd.isna(val) or str(val).strip() == '' or str(val).strip().lower() == 'nan':
-        return ""
-    if isinstance(val, (datetime.datetime, datetime.date, pd.Timestamp)):
-        return val.strftime("%Y.%m.01")
-    val_str = str(val).strip()
-    m = re.search(r'\b(\d{1,2})\.(\d{4})\b', val_str)
-    if m:
-        return f"{m.group(2)}.{m.group(1).zfill(2)}.01"
-    try:
-        return pd.to_datetime(val_str).strftime("%Y.%m.01")
-    except:
-        return val_str
 
+# ==========================================
+# 3. 데이터 로딩 및 공통 함수
+# ==========================================
 @st.cache_data
 def load_and_preprocess(file):
     xl = pd.ExcelFile(file)
@@ -805,10 +795,11 @@ def render_trend_html_table(df, apply_color=False):
 # 4. 사이드바 및 메인 로직
 # ==========================================
 st.sidebar.title("📌 메뉴 설정")
-selected_menu = st.sidebar.radio("원하시는 작업을 선택하세요.", ["매출 보고서", "판매가 조회", "AQL status 정리", "Rank"])
+selected_menu = st.sidebar.radio("원하시는 작업을 선택하세요.", ["매출 보고서", "판매가 조회", "AQL status 정리", "생산 실적 분석"])
 st.sidebar.divider()
 
 if selected_menu == "매출 보고서":
+    
     st.title("📊 매출 보고서 (Monthly Report)")
     uploaded_file = st.sidebar.file_uploader("월간 회의용 엑셀 데이터를 업로드하세요.", type=['xlsx', 'xls'], key="sales_uploader")
 
@@ -820,13 +811,17 @@ if selected_menu == "매출 보고서":
         
         reports_to_download = {}
         
+        # ==========================================
+        # 시각화 대시보드 (Plotly)
+        # ==========================================
         col1, col2 = st.columns(2)
+        
         with col1:
             df_trend_data = build_trend_report(raw_df, selected_year, selected_month)
             if not df_trend_data.empty:
                 plot_df = df_trend_data.drop('TTL (K.€)').reset_index().melt(id_vars='index', var_name='Month', value_name='Rev')
                 plot_df.rename(columns={'index': 'CPS'}, inplace=True)
-                plot_df['Rev'] = plot_df['Rev'] / 1000.0 
+                plot_df['Rev'] = plot_df['Rev'] / 1000.0
                 
                 fig1 = px.bar(plot_df, x='Month', y='Rev', color='CPS', 
                               title='12 Months Revenue Trend (K.€)',
@@ -921,6 +916,9 @@ if selected_menu == "매출 보고서":
                 
         st.markdown("---")
 
+        # ==========================================
+        # 테이블 영역
+        # ==========================================
         st.subheader("📌 Sales Revenue Trend")
         if not df_trend_data.empty:
             st.markdown(render_trend_html_table(df_trend_data, apply_color=False), unsafe_allow_html=True)
@@ -938,6 +936,7 @@ if selected_menu == "매출 보고서":
             st.markdown(render_html_view(df_biz_type, c_col, apply_color=True), unsafe_allow_html=True)
             reports_to_download["Biz_Type_Summary"] = df_biz_type
 
+        # --- PE Biz 전용 FC1 EX-RATE 로직 적용 ---
         st.subheader("📌 Sales Revenue: Power Electronics")
         df_pe_raw = raw_df[raw_df['Business Type'].str.contains("Power", case=False, na=False)].copy()
         if not df_pe_raw.empty:
@@ -960,6 +959,7 @@ if selected_menu == "매출 보고서":
             st.markdown(render_html_view(df_item, c_col, apply_color=False), unsafe_allow_html=True)
             reports_to_download["Item_Summary"] = df_item
             
+        # --- Core Biz Summary ---
         st.subheader("📌 Core Biz Summary")
         df_core_grp, c_col = get_core_biz_summary_report(raw_df, selected_year, selected_month)
         if not df_core_grp.empty:
@@ -1003,29 +1003,64 @@ elif selected_menu == "판매가 조회":
                     if len(parts) > 2:
                         if parts[1].isdigit() and parts[2] == '': 
                             current_customer = parts[1]
-                        elif len(parts) >= 16 and parts[1] in ['YPR0', 'ZADD']:
-                            try: 
-                                amt = float(parts[10].replace(',', ''))
-                                per = float(parts[12].replace(',', ''))
-                                price = int(amt / per) if (amt / per).is_integer() else round(amt / per, 2) if per != 0 else ""
-                            except: 
-                                price = ""
+                        elif len(parts) >= 8 and parts[1] in ['YPR0', 'ZADD', 'YSPR']:
                             
-                            def format_date(d_str):
-                                try: 
-                                    return pd.to_datetime(d_str, format='%d.%m.%Y').strftime('%Y-%m-%d')
-                                except Exception:
-                                    pts = str(d_str).split('.')
-                                    if len(pts) == 3: return f"{pts[2]}-{pts[1]}-{pts[0]}"
-                                    return d_str
+                            date_candidates = [p.strip() for i, p in enumerate(parts) if i > 5 and re.match(r'^\d{1,4}[\.\-\/]\d{1,2}[\.\-\/]\d{1,4}$', p.strip())]
+                            
+                            if len(date_candidates) >= 2:
+                                raw_from = date_candidates[-2]
+                                raw_to = date_candidates[-1]
+                            elif len(parts) >= 16:
+                                raw_from = parts[14].strip()
+                                raw_to = parts[15].strip()
+                            else:
+                                raw_from = ""
+                                raw_to = ""
                                 
-                            v_from = format_date(parts[14])
-                            v_to = format_date(parts[15])
+                            v_from = format_price_date(raw_from)
+                            v_to = format_price_date(raw_to)
+
+                            curr_val = ""
+                            price_val = ""
+                            idx_curr = -1
+                            
+                            for i, p in enumerate(parts):
+                                if p.strip() in ['KRW', 'EUR', 'USD', 'CNY', 'JPY', 'MXN', 'INR']:
+                                    idx_curr = i
+                                    break
+                                    
+                            if idx_curr == -1:
+                                for i, p in enumerate(parts):
+                                    if re.match(r'^[A-Z]{3}$', p.strip()) and i > 0:
+                                        prev_val = parts[i-1].replace(',', '').replace('.', '').replace('-', '').strip()
+                                        if prev_val.isdigit():
+                                            idx_curr = i
+                                            break
+                            
+                            if idx_curr != -1:
+                                curr_val = parts[idx_curr].strip()
+                                try:
+                                    amt = float(parts[idx_curr - 1].replace(',', '').strip())
+                                    per_str = parts[idx_curr + 1].replace(',', '').strip()
+                                    per = float(per_str) if per_str else 1.0
+                                    price_val = int(amt / per) if (amt / per).is_integer() else round(amt / per, 2) if per != 0 else ""
+                                except:
+                                    price_val = ""
+                            else:
+                                if len(parts) >= 13:
+                                    try: 
+                                        amt = float(parts[10].replace(',', ''))
+                                        per = float(parts[12].replace(',', ''))
+                                        price_val = int(amt / per) if (amt / per).is_integer() else round(amt / per, 2) if per != 0 else ""
+                                        curr_val = parts[11].strip()
+                                    except: 
+                                        price_val = ""
+                                        curr_val = ""
                             
                             parsed_data.append({
                                 "Sales Org.": sales_org, "Distr. Channel": distr_channel, "Customer": current_customer,
                                 "CnTy": parts[1], "Condition Type": parts[2], "Material": parts[5], "Material Description": parts[6],
-                                "From": v_from, "To": v_to, "Price": price, "Curr.": parts[11]
+                                "From": v_from, "To": v_to, "Price": price_val, "Curr.": curr_val
                             })
         
         if parsed_data:
@@ -1085,7 +1120,8 @@ elif selected_menu == "판매가 조회":
                     
                     cnty_cols = [c for c in pivot_prices.columns if c not in ['Sales Org.', 'Distr. Channel', 'Customer', 'Material']]
                     
-                    df_grouped['Sales price'] = df_grouped[cnty_cols].sum(axis=1)
+                    standard_sum_cols = [c for c in cnty_cols if c != 'YSPR']
+                    df_grouped['Sales price'] = df_grouped[standard_sum_cols].sum(axis=1)
                     
                     cols_order = ['Sales Org.', 'Distr. Channel', 'Customer', 'Material', 'Material Description'] + cnty_cols + ['Sales price', 'Memo', 'Curr.']
                     df_grouped = df_grouped[cols_order]
@@ -1116,14 +1152,14 @@ elif selected_menu == "판매가 조회":
             st.dataframe(df_final, use_container_width=True)
             
             df_export = df_final.copy()
-            df_export.columns = ["Sales Org.", "Distr. Channel", "Customer", "CnTy", "Condition Type", "Material", "Material", "From", "To", "Price", "Curr."]
+            df_export.columns = ["Sales Org.", "Distr. Channel", "Customer", "CnTy", "Condition Type", "Material", "Material Description", "From", "To", "Price", "Curr."]
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df_export.to_excel(writer, sheet_name="Sheet1", index=False, startrow=3, header=False)
                 workbook = writer.book
                 ws = writer.sheets["Sheet1"]
                 header_format = workbook.add_format({'bold': True, 'border': 1, 'bg_color': '#F0F0F0', 'align': 'center'})
-                headers = ["Sales Org.", "Distr. Channel", "Customer", "CnTy", "Condition Type", "Material", "Material", "From", "To", "Price", "Curr."]
+                headers = ["Sales Org.", "Distr. Channel", "Customer", "CnTy", "Condition Type", "Material", "Material Description", "From", "To", "Price", "Curr."]
                 for col_num, value in enumerate(headers):
                     ws.write(2, col_num, value, header_format)
                 ws.set_column('A:E', 12); ws.set_column('F:F', 12); ws.set_column('G:G', 40)
@@ -1214,8 +1250,8 @@ elif selected_menu == "AQL status 정리":
     else: 
         st.info("👈 좌측 메뉴에서 'AQL 엑셀 데이터'를 업로드하시면 요약 리포트가 생성됩니다.")
 
-elif selected_menu == "Rank":
-    st.title("📈 Rank (YoY Performance)")
+elif selected_menu == "생산 실적 분석":
+    st.title("📈 생산 실적 분석 (YoY Performance)")
     st.info("엑셀 파일을 업로드하면 날짜형식으로 된 컬럼들을 자동으로 인식하여 지정한 월의 전년 동월 대비 증감을 분석합니다.")
     
     uploaded_prod_file = st.sidebar.file_uploader("생산 실적 데이터를 업로드하세요.", type=['xlsx', 'xls'], key="prod_uploader")
@@ -1227,7 +1263,7 @@ elif selected_menu == "Rank":
             
             hk_col = 'OEM'
             cn_col = 'CN'
-            car_col = 'Master code'
+            car_col = 'Mater car code'
             
             missing = [c for c in [hk_col, cn_col] if c not in df_prod.columns]
             if missing:
@@ -1286,10 +1322,8 @@ elif selected_menu == "Rank":
                             total_diff = total_curr - total_prev
                             total_pct = (total_diff / total_prev) if total_prev != 0 else 0
                             
-                            # 전체 실적 증감에 따른 동적 정렬 방향 결정
                             sort_ascending = True if total_diff < 0 else False
                             
-                            # 테이블 1 정렬 및 Rank 부여
                             table1 = table1.reset_index()
                             table1 = table1.sort_values('증감(Diff)', ascending=sort_ascending)
                             table1.insert(0, 'Rank', range(1, len(table1) + 1))
@@ -1320,10 +1354,8 @@ elif selected_menu == "Rank":
                                 table2 = build_yoy(df_curr, df_prev, [hk_col, cn_col, car_col])
                                 table2 = table2.reset_index()
                                 
-                                # 그룹 내 Rank 부여 (OEM, CN 별로 증감에 따라)
                                 table2.insert(0, 'Rank', table2.groupby([hk_col, cn_col])['증감(Diff)'].rank(method='min', ascending=sort_ascending).astype(int))
                                 
-                                # 그룹 및 랭크로 정렬
                                 table2 = table2.sort_values(by=[hk_col, cn_col, 'Rank'], ascending=[True, True, True])
                                 table2 = table2.set_index('Rank')
                                 
