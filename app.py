@@ -980,7 +980,7 @@ if selected_menu == "매출 보고서":
         st.info("👈 좌측 메뉴에서 '월간 회의용 엑셀 파일'을 업로드하시면 요약 리포트가 생성됩니다.")
 
 elif selected_menu == "판매가 조회":
-    st.title("💰 판매가 조회 (Price Lookup)")
+    st.title("💰 판매가 조회 (Price Lookup) !! 코드 수정 중")
     
     uploaded_txt_files = st.sidebar.file_uploader("판매가 TXT 파일들을 업로드하세요.", type=['txt'], accept_multiple_files=True, key="price_uploader")
     
