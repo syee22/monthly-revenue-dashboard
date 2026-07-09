@@ -795,7 +795,7 @@ def render_trend_html_table(df, apply_color=False):
 # 4. 사이드바 및 메인 로직
 # ==========================================
 st.sidebar.title("📌 메뉴 설정")
-selected_menu = st.sidebar.radio("원하시는 작업을 선택하세요.", ["매출 보고서", "판매가 조회", "AQL status 정리", "생산 실적 분석"])
+selected_menu = st.sidebar.radio("원하시는 작업을 선택하세요.", ["매출 보고서", "판매가 조회", "AQL status 정리"])
 st.sidebar.divider()
 
 if selected_menu == "매출 보고서":
@@ -821,7 +821,7 @@ if selected_menu == "매출 보고서":
             if not df_trend_data.empty:
                 plot_df = df_trend_data.drop('TTL (K.€)').reset_index().melt(id_vars='index', var_name='Month', value_name='Rev')
                 plot_df.rename(columns={'index': 'CPS'}, inplace=True)
-                plot_df['Rev'] = plot_df['Rev'] / 1000.0
+                plot_df['Rev'] = plot_df['Rev'] / 1000.0 
                 
                 fig1 = px.bar(plot_df, x='Month', y='Rev', color='CPS', 
                               title='12 Months Revenue Trend (K.€)',
@@ -1005,6 +1005,7 @@ elif selected_menu == "판매가 조회":
                             current_customer = parts[1]
                         elif len(parts) >= 8 and parts[1] in ['YPR0', 'ZADD', 'YSPR']:
                             
+                            # 날짜 컬럼을 동적으로 찾기 (인덱스 5번 이후에 나오는 날짜 형태 2개 추출)
                             date_candidates = [p.strip() for i, p in enumerate(parts) if i > 5 and re.match(r'^\d{1,4}[\.\-\/]\d{1,2}[\.\-\/]\d{1,4}$', p.strip())]
                             
                             if len(date_candidates) >= 2:
@@ -1024,6 +1025,7 @@ elif selected_menu == "판매가 조회":
                             price_val = ""
                             idx_curr = -1
                             
+                            # 통화 단위(Curr.) 동적 스캔
                             for i, p in enumerate(parts):
                                 if p.strip() in ['KRW', 'EUR', 'USD', 'CNY', 'JPY', 'MXN', 'INR']:
                                     idx_curr = i
@@ -1037,6 +1039,7 @@ elif selected_menu == "판매가 조회":
                                             idx_curr = i
                                             break
                             
+                            # 찾아낸 통화 단위를 기준으로 단가(Price) 역산
                             if idx_curr != -1:
                                 curr_val = parts[idx_curr].strip()
                                 try:
@@ -1249,122 +1252,3 @@ elif selected_menu == "AQL status 정리":
             st.error(f"파일을 처리하는 중 오류가 발생했습니다: {e}")
     else: 
         st.info("👈 좌측 메뉴에서 'AQL 엑셀 데이터'를 업로드하시면 요약 리포트가 생성됩니다.")
-
-elif selected_menu == "생산 실적 분석":
-    st.title("📈 생산 실적 분석 (YoY Performance)")
-    st.info("엑셀 파일을 업로드하면 날짜형식으로 된 컬럼들을 자동으로 인식하여 지정한 월의 전년 동월 대비 증감을 분석합니다.")
-    
-    uploaded_prod_file = st.sidebar.file_uploader("생산 실적 데이터를 업로드하세요.", type=['xlsx', 'xls'], key="prod_uploader")
-    
-    if uploaded_prod_file:
-        try:
-            df_prod = pd.read_excel(uploaded_prod_file)
-            st.success("📂 데이터를 성공적으로 불러왔습니다.")
-            
-            hk_col = 'OEM'
-            cn_col = 'CN'
-            car_col = 'Mater car code'
-            
-            missing = [c for c in [hk_col, cn_col] if c not in df_prod.columns]
-            if missing:
-                st.error(f"엑셀 파일에 다음 필수 컬럼이 없습니다: {', '.join(missing)}\n해당 데이터 포맷이 맞는지 확인해주세요.")
-            else:
-                date_cols = []
-                date_mapping = {}
-                for col in df_prod.columns:
-                    try:
-                        dt = pd.to_datetime(str(col))
-                        date_cols.append(col)
-                        date_mapping[col] = dt
-                    except: pass
-                
-                if not date_cols:
-                    st.error("엑셀 파일의 컬럼명에서 날짜(연/월) 정보를 인식할 수 없습니다. (예: 2026-01, 2026.01 등의 컬럼 필요)")
-                else:
-                    id_vars = [c for c in [hk_col, cn_col, car_col] if c in df_prod.columns]
-                    df_melted = df_prod.melt(id_vars=id_vars, value_vars=date_cols, var_name='RawDate', value_name='Qty')
-                    df_melted['Date'] = df_melted['RawDate'].map(date_mapping)
-                    df_melted['Year'] = df_melted['Date'].dt.year
-                    df_melted['Month'] = df_melted['Date'].dt.month
-                    df_melted['Qty'] = pd.to_numeric(df_melted['Qty'], errors='coerce').fillna(0)
-                    
-                    years = sorted(df_melted['Year'].dropna().unique(), reverse=True)
-                    months = sorted(df_melted['Month'].dropna().unique())
-                    
-                    st.sidebar.markdown("### 📅 조회 기준 선택")
-                    if not years:
-                        st.sidebar.error("날짜 데이터가 없습니다.")
-                    else:
-                        target_year = st.sidebar.selectbox("조회 연도 (Target Year)", years)
-                        target_month = st.sidebar.selectbox("조회 월 (Target Month)", months)
-                        
-                        if st.button("분석 실행하기"):
-                            df_curr = df_melted[(df_melted['Year'] == target_year) & (df_melted['Month'] == target_month)]
-                            df_prev = df_melted[(df_melted['Year'] == target_year - 1) & (df_melted['Month'] == target_month)]
-                            
-                            prev_col_name = f"{int(target_year) - 1}.{int(target_month):02d}"
-                            curr_col_name = f"{int(target_year)}.{int(target_month):02d}"
-                            
-                            def build_yoy(df_c, df_p, group_cols):
-                                curr_agg = df_c.groupby(group_cols)['Qty'].sum().rename(curr_col_name)
-                                prev_agg = df_p.groupby(group_cols)['Qty'].sum().rename(prev_col_name)
-                                merged = pd.concat([prev_agg, curr_agg], axis=1).fillna(0)
-                                merged['증감(Diff)'] = merged[curr_col_name] - merged[prev_col_name]
-                                merged['증감율(YoY %)'] = np.where(merged[prev_col_name] == 0, 
-                                                                np.where(merged[curr_col_name] > 0, 1.0, 0.0), 
-                                                                merged['증감(Diff)'] / merged[prev_col_name])
-                                return merged
-                                
-                            table1 = build_yoy(df_curr, df_prev, [hk_col, cn_col])
-                            
-                            total_curr = df_curr['Qty'].sum()
-                            total_prev = df_prev['Qty'].sum()
-                            total_diff = total_curr - total_prev
-                            total_pct = (total_diff / total_prev) if total_prev != 0 else 0
-                            
-                            sort_ascending = True if total_diff < 0 else False
-                            
-                            table1 = table1.reset_index()
-                            table1 = table1.sort_values('증감(Diff)', ascending=sort_ascending)
-                            table1.insert(0, 'Rank', range(1, len(table1) + 1))
-                            table1 = table1.set_index('Rank')
-                            
-                            st.markdown("---")
-                            st.subheader(f"💡 전체 실적 요약: {total_curr:,.0f} (전년 동월 대비 **{total_diff:+,.0f}**, **{total_pct:+.1%}**)")
-                            
-                            if total_diff < 0:
-                                st.error(f"📉 **분석 의견:** 전체 생산 실적이 전년 동월 대비 감소했습니다. 전년 동월 대비 가장 많이 감소한 항목({hk_col}, {cn_col})은 다음과 같습니다.")
-                                dec_df = table1[table1['증감(Diff)'] < 0]
-                                for i, (_, row) in enumerate(dec_df.iterrows()):
-                                    st.write(f"{i+1}. **{row[hk_col]} - {row[cn_col]}** : {row['증감(Diff)']:,.0f} 감소 (전년비 {row['증감율(YoY %)']:.1%})")
-                            elif total_diff > 0:
-                                st.success(f"📈 **분석 의견:** 전체 생산 실적이 전년 동월 대비 증가했습니다. 전년 동월 대비 가장 많이 증가한 항목({hk_col}, {cn_col})은 다음과 같습니다.")
-                                inc_df = table1[table1['증감(Diff)'] > 0]
-                                for i, (_, row) in enumerate(inc_df.iterrows()):
-                                    st.write(f"{i+1}. **{row[hk_col]} - {row[cn_col]}** : +{row['증감(Diff)']:,.0f} 증가 (전년비 {row['증감율(YoY %)']:.1%})")
-                            else:
-                                st.info("전년 동월 대비 전체 실적에 변동이 없습니다.")
-                                
-                            st.markdown("---")
-                            st.subheader(f"1. {hk_col}, CN 기준 전년 동월대비 실적 (전체 기준 {'내림차순' if not sort_ascending else '오름차순'} 정렬)")
-                            format_dict = {prev_col_name: '{:,.0f}', curr_col_name: '{:,.0f}', '증감(Diff)': '{:,.0f}', '증감율(YoY %)': '{:.1%}'}
-                            st.dataframe(table1.style.format(format_dict), use_container_width=True)
-                            
-                            if car_col in df_prod.columns:
-                                table2 = build_yoy(df_curr, df_prev, [hk_col, cn_col, car_col])
-                                table2 = table2.reset_index()
-                                
-                                table2.insert(0, 'Rank', table2.groupby([hk_col, cn_col])['증감(Diff)'].rank(method='min', ascending=sort_ascending).astype(int))
-                                
-                                table2 = table2.sort_values(by=[hk_col, cn_col, 'Rank'], ascending=[True, True, True])
-                                table2 = table2.set_index('Rank')
-                                
-                                st.subheader(f"2. {hk_col}, CN, {car_col} 기준 전년 동월대비 실적 (그룹 내 {'내림차순' if not sort_ascending else '오름차순'} 정렬)")
-                                st.dataframe(table2.style.format(format_dict), use_container_width=True)
-                            else:
-                                st.warning(f"'{car_col}' 컬럼이 없어서 상세 테이블은 생략되었습니다.")
-                                
-        except Exception as e:
-            st.error(f"오류가 발생했습니다: {e}")
-    else:
-        st.info("👈 좌측 메뉴에서 '생산 실적 데이터'를 업로드하시면 실적 비교 리포트가 자동 생성됩니다.")
