@@ -255,6 +255,29 @@ def to_excel_multiple(df_dict):
             for i in range(len(df.columns)): worksheet.set_column(i+1, i+1, 15)
     return output.getvalue()
 
+def parse_sop_date(val):
+    if pd.isna(val) or str(val).strip() == '' or str(val).strip().lower() == 'nan':
+        return ""
+    if isinstance(val, (datetime.datetime, datetime.date, pd.Timestamp)):
+        return val.strftime("%Y.%m.01")
+    val_str = str(val).strip()
+    m = re.search(r'\b(\d{1,2})\.(\d{4})\b', val_str)
+    if m:
+        return f"{m.group(2)}.{m.group(1).zfill(2)}.01"
+    try:
+        return pd.to_datetime(val_str).strftime("%Y.%m.01")
+    except:
+        return val_str
+
+def format_price_date(d_str):
+    d_str = str(d_str).strip()
+    if not d_str: return ""
+    pts = re.split(r'[\.\-\/]', d_str)
+    if len(pts) == 3:
+        if len(pts[0]) == 4: return f"{pts[0]}-{pts[1].zfill(2)}-{pts[2].zfill(2)}"
+        elif len(pts[2]) == 4: return f"{pts[2]}-{pts[1].zfill(2)}-{pts[0].zfill(2)}"
+    try: return pd.to_datetime(d_str, dayfirst=True).strftime('%Y-%m-%d')
+    except Exception: return d_str
 
 # ==========================================
 # 3. 데이터 로딩 및 공통 함수
@@ -980,7 +1003,7 @@ if selected_menu == "매출 보고서":
         st.info("👈 좌측 메뉴에서 '월간 회의용 엑셀 파일'을 업로드하시면 요약 리포트가 생성됩니다.")
 
 elif selected_menu == "판매가 조회":
-    st.title("💰 판매가 조회 (Price Lookup) !! 코드 수정 중")
+    st.title("💰 판매가 조회 (Price Lookup)")
     
     uploaded_txt_files = st.sidebar.file_uploader("판매가 TXT 파일들을 업로드하세요.", type=['txt'], accept_multiple_files=True, key="price_uploader")
     
