@@ -1286,7 +1286,7 @@ elif selected_menu == "생산 실적 분석":
             
             hk_col = 'OEM'
             cn_col = 'Con'
-            car_col = 'Master Code'
+            car_col = 'CODE'
             
             missing = [c for c in [hk_col, cn_col] if c not in df_prod.columns]
             if missing:
