@@ -1218,7 +1218,7 @@ elif selected_menu == "AQL status 정리":
                 df_aql['PRJT'] = df_aql['PRJT'].fillna('Unknown')
                 
                 res_rows = []
-                valid_statuses = ['awarded to kostal', 'acq. start / rfq rec.', 'in planning']
+                valid_statuses = ['awarded to kostal', 'acq. start / rfq rec.', 'acq. start / rfq rec', 'in planning']
                 
                 for prjt, group in df_aql.groupby('PRJT'):
                     if prjt == 'Unknown': continue
