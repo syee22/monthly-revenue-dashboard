@@ -349,7 +349,12 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
     final_df.columns = pd.MultiIndex.from_tuples(col_tuples)
     final_df.index.names = current_index_names
     
-    final_df = final_df.loc[(final_df.filter(like='ACT').sum(axis=1) != 0) | (final_df.filter(like='FC3').sum(axis=1) != 0)]
+    # 수정된 필터링: 세 개의 컬럼 중 하나라도 데이터가 있으면 표시
+    final_df = final_df.loc[
+        (final_df.filter(like='ACT').sum(axis=1) != 0) | 
+        (final_df.filter(like='FC3').sum(axis=1) != 0) | 
+        (final_df.filter(like='FC1').sum(axis=1) != 0)
+    ]
     
     if sort_by_current_act and (phase_curr, 'ACT') in final_df.columns: final_df = final_df.sort_values(by=(phase_curr, 'ACT'), ascending=False)
         
@@ -445,21 +450,33 @@ def get_biz_type_detailed_report(df, year, month):
         p_fy = biz_df.pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
         p_prev = df[(df['BIZ Type'] == biz) & (df['Year'] == prev_year) & (df['Month'] == prev_month)].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
         
-        combined_dict = {(prev_phase_name, 'ACT'): p_prev.get('ACT', pd.Series(0, index=p_m.index))}
+        # 모든 인덱스를 통합하여 누락 방지
+        all_idx = set(p_m.index.tolist() + p_y.index.tolist() + p_fy.index.tolist() + p_prev.index.tolist())
+        if not all_idx: continue
+        
+        idx = pd.MultiIndex.from_tuples(sorted(list(all_idx)), names=['BIZ Type', 'KOx'])
+        p_m = p_m.reindex(idx, fill_value=0)
+        p_y = p_y.reindex(idx, fill_value=0)
+        p_fy = p_fy.reindex(idx, fill_value=0)
+        p_prev = p_prev.reindex(idx, fill_value=0)
+        
+        combined_dict = {(prev_phase_name, 'ACT'): p_prev.get('ACT', pd.Series(0, index=idx))}
         for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
             for c in ['26 FC1', '26 FC3', 'ACT']: 
-                combined_dict[(phase_name, c)] = data.get(c, pd.Series(0, index=data.index))
+                combined_dict[(phase_name, c)] = data.get(c, pd.Series(0, index=idx))
             
             num = pd.Series(combined_dict[(phase_name, 'ACT')])
             den = pd.Series(combined_dict[(phase_name, '26 FC3')])
             combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
             
-        combined = pd.DataFrame(combined_dict, index=p_m.index)
+        combined = pd.DataFrame(combined_dict, index=idx)
         
-        if (phase_names[0], '26 FC3') in combined.columns and (phase_names[0], 'ACT') in combined.columns:
-            fc3_curr = combined[(phase_names[0], '26 FC3')].abs()
-            act_curr = combined[(phase_names[0], 'ACT')].abs()
-            combined = combined[(fc3_curr >= 0.01) | (act_curr >= 0.01)]
+        # 수정된 필터링: 세 개의 컬럼 중 하나라도 데이터가 있으면 표시
+        fc3_curr = combined.get((phase_names[0], '26 FC3'), pd.Series(0, index=idx)).abs()
+        act_curr = combined.get((phase_names[0], 'ACT'), pd.Series(0, index=idx)).abs()
+        fc1_curr = combined.get((phase_names[0], '26 FC1'), pd.Series(0, index=idx)).abs()
+        
+        combined = combined[(fc3_curr >= 0.01) | (act_curr >= 0.01) | (fc1_curr >= 0.01)]
             
         if combined.empty: continue
         
@@ -572,10 +589,12 @@ def get_core_biz_summary_report(df, year, month):
 
         combined = pd.DataFrame(combined_dict, index=idx)
 
-        if (phase_names[0], '26 FC3') in combined.columns and (phase_names[0], 'ACT') in combined.columns:
-            fc3_curr = combined[(phase_names[0], '26 FC3')].abs()
-            act_curr = combined[(phase_names[0], 'ACT')].abs()
-            combined = combined[(fc3_curr >= 0.01) | (act_curr >= 0.01)]
+        # 수정된 필터링: 세 개의 컬럼 중 하나라도 데이터가 있으면 표시
+        fc3_curr = combined.get((phase_names[0], '26 FC3'), pd.Series(0, index=idx)).abs()
+        act_curr = combined.get((phase_names[0], 'ACT'), pd.Series(0, index=idx)).abs()
+        fc1_curr = combined.get((phase_names[0], '26 FC1'), pd.Series(0, index=idx)).abs()
+        
+        combined = combined[(fc3_curr >= 0.01) | (act_curr >= 0.01) | (fc1_curr >= 0.01)]
             
         if combined.empty: continue
 
@@ -701,7 +720,7 @@ def get_biz_report(df, biz_type, year, month):
             p_fy = p_fy.reindex(idx, fill_value=0)
             
             if "Core" in biz_type and brand in ['HYU', 'KIA']:
-                act_col = p_m['ACT'] if 'ACT' in p_m.columns else pd.Series(0, index=idx)
+                act_col = p_m.get('ACT', pd.Series(0, index=idx))
                 top = act_col[act_col >= 10000].index
                 def group_others(p):
                     if p.empty: return pd.DataFrame(columns=['26 FC1', '26 FC3', 'ACT']).reindex(pd.MultiIndex.from_tuples([], names=['Project', 'Con.', 'SOP']))
@@ -713,20 +732,22 @@ def get_biz_report(df, biz_type, year, month):
                 idx = p_m.index
                 
             combined_dict = {}
-            combined_dict[(prev_phase_name, 'ACT')] = p_prev['ACT'] if 'ACT' in p_prev.columns else pd.Series(0, index=idx)
+            combined_dict[(prev_phase_name, 'ACT')] = p_prev.get('ACT', pd.Series(0, index=idx))
             for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
                 for c in ['26 FC1', '26 FC3', 'ACT']:
-                    combined_dict[(phase_name, c)] = data[c] if c in data.columns else pd.Series(0, index=idx)
+                    combined_dict[(phase_name, c)] = data.get(c, pd.Series(0, index=idx))
                 num = pd.Series(combined_dict[(phase_name, 'ACT')])
                 den = pd.Series(combined_dict[(phase_name, '26 FC3')])
                 combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
             
             combined = pd.DataFrame(combined_dict, index=idx)
             
-            if (phase_names[0], '26 FC3') in combined.columns and (phase_names[0], 'ACT') in combined.columns:
-                fc3_curr = combined[(phase_names[0], '26 FC3')].abs()
-                act_curr = combined[(phase_names[0], 'ACT')].abs()
-                combined = combined[(fc3_curr >= 0.01) | (act_curr >= 0.01)]
+            # 수정된 필터링: 세 개의 컬럼 중 하나라도 데이터가 있으면 표시
+            fc3_curr = combined.get((phase_names[0], '26 FC3'), pd.Series(0, index=idx)).abs()
+            act_curr = combined.get((phase_names[0], 'ACT'), pd.Series(0, index=idx)).abs()
+            fc1_curr = combined.get((phase_names[0], '26 FC1'), pd.Series(0, index=idx)).abs()
+            
+            combined = combined[(fc3_curr >= 0.01) | (act_curr >= 0.01) | (fc1_curr >= 0.01)]
                 
             if combined.empty: continue
             
@@ -1306,7 +1327,7 @@ elif selected_menu == "생산 실적 분석":
                     except: pass
                 
                 if not date_cols:
-                    st.error("엑셀 파일의 컬럼명에서 날짜(연/월) 정보를 인식할 수 정렬없습니다. (예: 2026-01, 2026.01 등의 컬럼 필요)")
+                    st.error("엑셀 파일의 컬럼명에서 날짜(연/월) 정보를 인식할 수 없습니다. (예: 2026-01, 2026.01 등의 컬럼 필요)")
                 else:
                     id_vars = [c for c in [hk_col, cn_col, car_col] if c in df_prod.columns]
                     df_melted = df_prod.melt(id_vars=id_vars, value_vars=date_cols, var_name='RawDate', value_name='Qty')
