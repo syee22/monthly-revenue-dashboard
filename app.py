@@ -445,10 +445,14 @@ def get_biz_type_detailed_report(df, year, month):
         p_fy = biz_df.pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
         p_prev = df[(df['BIZ Type'] == biz) & (df['Year'] == prev_year) & (df['Month'] == prev_month)].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
         
-        combined_dict = {(prev_phase_name, 'ACT'): p_prev.get('ACT', 0)}
+        combined_dict = {(prev_phase_name, 'ACT'): p_prev.get('ACT', pd.Series(0, index=p_m.index))}
         for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
-            for c in ['26 FC1', '26 FC3', 'ACT']: combined_dict[(phase_name, c)] = data.get(c, 0)
-            combined_dict[(phase_name, 'ACHI %')] = pd.Series(data.get('ACT', 0)).div(pd.Series(data.get('26 FC3', 0))).replace([np.inf, -np.inf], 0).fillna(0)
+            for c in ['26 FC1', '26 FC3', 'ACT']: 
+                combined_dict[(phase_name, c)] = data.get(c, pd.Series(0, index=data.index))
+            
+            num = pd.Series(combined_dict[(phase_name, 'ACT')])
+            den = pd.Series(combined_dict[(phase_name, '26 FC3')])
+            combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
             
         combined = pd.DataFrame(combined_dict, index=p_m.index)
         
@@ -1302,7 +1306,7 @@ elif selected_menu == "생산 실적 분석":
                     except: pass
                 
                 if not date_cols:
-                    st.error("엑셀 파일의 컬럼명에서 날짜(연/월) 정보를 인식할 수 없습니다. (예: 2026-01, 2026.01 등의 컬럼 필요)")
+                    st.error("엑셀 파일의 컬럼명에서 날짜(연/월) 정보를 인식할 수 정렬없습니다. (예: 2026-01, 2026.01 등의 컬럼 필요)")
                 else:
                     id_vars = [c for c in [hk_col, cn_col, car_col] if c in df_prod.columns]
                     df_melted = df_prod.melt(id_vars=id_vars, value_vars=date_cols, var_name='RawDate', value_name='Qty')
