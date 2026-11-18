@@ -51,6 +51,17 @@ div[data-testid="stForm"] { margin-top: 0rem !important; margin-bottom: 0.4rem !
 # ==========================================
 # 2. 모든 함수 정의
 # ==========================================
+def clean_idx_tuple(t):
+    """튜플 내의 NaN, None, 'nan' 등을 빈 문자열로 안전하게 정제"""
+    res = []
+    for x in t:
+        if pd.isna(x):
+            res.append('')
+        else:
+            s = str(x).strip()
+            res.append('' if s.lower() in ['nan', 'nat', 'none'] else s)
+    return tuple(res)
+
 def get_trend_highlight_css(table_id):
     return f"<style>#{table_id} thead tr:nth-child(1) th:last-child {{ border-top: 4px solid #c00000 !important; border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody td:last-child {{ border-left: 4px solid #c00000 !important; border-right: 4px solid #c00000 !important; }} #{table_id} tbody tr:last-child td:last-child {{ border-bottom: 4px solid #c00000 !important; }}</style>"
 
@@ -292,12 +303,11 @@ def load_and_preprocess(file):
     if 'BIZ Type' in df.columns:
         df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm', 'COMMERCIAL', 'commercial'], 'COMM').fillna('Unknown')
         
-    # [수정] 피벗 시 NaN으로 인한 데이터 증발을 막기 위해 주요 그룹핑 컬럼의 결측치를 빈 문자열 등으로 안전하게 정제
-    df['Project'] = df['Project'].fillna('Unknown').astype(str).str.strip()
+    df['Project'] = df['Project'].fillna('Unknown').astype(str).str.strip().replace({'nan': 'Unknown', 'None': 'Unknown', '': 'Unknown'})
     df['Con.'] = df['Con.'].fillna('').astype(str).str.strip().replace({'nan': '', 'None': ''})
-    df['Group 1'] = df['Group 1'].fillna('').astype(str).str.strip()
-    df['Group 2'] = df['Group 2'].fillna('').astype(str).str.strip()
-    df['KOx'] = df['KOx'].fillna('').astype(str).str.strip()
+    df['Group 1'] = df['Group 1'].fillna('').astype(str).str.strip().replace({'nan': '', 'None': ''})
+    df['Group 2'] = df['Group 2'].fillna('').astype(str).str.strip().replace({'nan': '', 'None': ''})
+    df['KOx'] = df['KOx'].fillna('').astype(str).str.strip().replace({'nan': '', 'None': ''})
 
     sop_dict = {}
     if len(sheets) > 1:
@@ -326,19 +336,27 @@ def load_and_preprocess(file):
 
 def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.€)", index_names=None, sort_by_current_act=False, add_ex_rate=False):
     if df_sub.empty: return pd.DataFrame(), "", ""
+    df_sub = df_sub.copy()
+    for c in index_cols:
+        df_sub[c] = df_sub[c].fillna('').astype(str).str.strip().replace({'nan': '', 'NaT': '', 'None': ''})
+
     prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
     
     m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
     col_prev, phase_curr, phase_ytd, phase_ttl = f'{pm_str}. {year if month != 1 else prev_year}', f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL'
     phases = [phase_curr, phase_ytd, phase_ttl]
 
-    def get_pivot(d): return d.pivot_table(index=index_cols, columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0) if not d.empty else pd.DataFrame()
-    s_prev = df_sub[(df_sub['Year'] == prev_year) & (df_sub['Month'] == prev_month) & (df_sub['Desc.'] == 'ACT')].groupby(index_cols, dropna=False)['Rev. (€)'].sum()
+    def get_pivot(d): return d.pivot_table(index=index_cols, columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not d.empty else pd.DataFrame()
+    s_prev = df_sub[(df_sub['Year'] == prev_year) & (df_sub['Month'] == prev_month) & (df_sub['Desc.'] == 'ACT')].groupby(index_cols)['Rev. (€)'].sum()
     p_curr, p_ytd, p_ttl = get_pivot(df_sub[(df_sub['Year'] == year) & (df_sub['Month'] == month)]), get_pivot(df_sub[(df_sub['Year'] == year) & (df_sub['Month'] <= month)]), get_pivot(df_sub[(df_sub['Year'] == year)])
 
     all_indices = set()
     for p in [s_prev, p_curr, p_ytd, p_ttl]:
-        if not p.empty: all_indices.update(p.index.tolist() if isinstance(p.index, pd.MultiIndex) else [(x,) for x in p.index.tolist()])
+        if not p.empty:
+            if isinstance(p.index, pd.MultiIndex):
+                all_indices.update([clean_idx_tuple(x) for x in p.index.tolist()])
+            else:
+                all_indices.update([clean_idx_tuple((x,)) for x in p.index.tolist()])
     if not all_indices: return pd.DataFrame(), col_prev, phase_curr
     
     all_indices = sorted(list(all_indices), key=lambda x: tuple(str(i) for i in x))
@@ -444,6 +462,10 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
     return pd.concat(dfs_to_concat), col_prev, phase_curr
 
 def get_biz_type_detailed_report(df, year, month):
+    df = df.copy()
+    for c in ['BIZ Type', 'KOx']:
+        df[c] = df[c].fillna('').astype(str).str.strip().replace({'nan': '', 'NaT': '', 'None': ''})
+
     prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
     m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
     phase_names = [f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL']
@@ -456,17 +478,19 @@ def get_biz_type_detailed_report(df, year, month):
         p_prev_df = df[(df['BIZ Type'] == biz) & (df['Year'] == prev_year) & (df['Month'] == prev_month)]
         if biz_df.empty and p_prev_df.empty: continue
         
-        p_m = biz_df[biz_df['Month'] == month].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0) if not biz_df[biz_df['Month'] == month].empty else pd.DataFrame()
-        p_y = biz_df[biz_df['Month'] <= month].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0) if not biz_df[biz_df['Month'] <= month].empty else pd.DataFrame()
-        p_fy = biz_df.pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0) if not biz_df.empty else pd.DataFrame()
-        p_prev = p_prev_df.pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0) if not p_prev_df.empty else pd.DataFrame()
+        p_m = biz_df[biz_df['Month'] == month].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not biz_df[biz_df['Month'] == month].empty else pd.DataFrame()
+        p_y = biz_df[biz_df['Month'] <= month].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not biz_df[biz_df['Month'] <= month].empty else pd.DataFrame()
+        p_fy = biz_df.pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not biz_df.empty else pd.DataFrame()
+        p_prev = p_prev_df.pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not p_prev_df.empty else pd.DataFrame()
         
         all_idx = set()
         for p in [p_m, p_y, p_fy, p_prev]:
-            if not p.empty: all_idx.update(p.index.tolist())
+            if not p.empty:
+                p.index = pd.MultiIndex.from_tuples([clean_idx_tuple(x) for x in p.index.tolist()], names=['BIZ Type', 'KOx'])
+                all_idx.update(p.index.tolist())
         if not all_idx: continue
         
-        idx = pd.MultiIndex.from_tuples(sorted(list(all_idx)), names=['BIZ Type', 'KOx'])
+        idx = pd.MultiIndex.from_tuples(sorted(list(all_idx), key=lambda x: tuple(str(i) for i in x)), names=['BIZ Type', 'KOx'])
         p_m = p_m.reindex(idx, fill_value=0)
         p_y = p_y.reindex(idx, fill_value=0)
         p_fy = p_fy.reindex(idx, fill_value=0)
@@ -566,6 +590,8 @@ def get_core_biz_summary_report(df, year, month):
     if df_core.empty: return pd.DataFrame(), phase_names[0]
 
     df_core['Cust. GR'] = df_core['Group 1'].replace({'HYU': 'HKMC', 'KIA': 'HKMC', 'GM': 'GM'})
+    for c in ['Cust. GR', 'KOx']:
+        df_core[c] = df_core[c].fillna('').astype(str).str.strip().replace({'nan': '', 'NaT': '', 'None': ''})
 
     results = []
     unique_grs = []
@@ -577,18 +603,20 @@ def get_core_biz_summary_report(df, year, month):
     for gr in unique_grs:
         gr_df = df_core[df_core['Cust. GR'] == gr]
         
-        p_m = gr_df[(gr_df['Year'] == year) & (gr_df['Month'] == month)].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0)
-        p_y = gr_df[(gr_df['Year'] == year) & (gr_df['Month'] <= month)].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0)
-        p_fy = gr_df[gr_df['Year'] == year].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0)
-        p_prev = gr_df[(gr_df['Year'] == prev_year) & (gr_df['Month'] == prev_month)].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0)
+        p_m = gr_df[(gr_df['Year'] == year) & (gr_df['Month'] == month)].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+        p_y = gr_df[(gr_df['Year'] == year) & (gr_df['Month'] <= month)].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+        p_fy = gr_df[gr_df['Year'] == year].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+        p_prev = gr_df[(gr_df['Year'] == prev_year) & (gr_df['Month'] == prev_month)].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
 
         all_idx = set()
         for p in [p_m, p_y, p_fy, p_prev]:
-            if not p.empty: all_idx.update(p.index.tolist())
+            if not p.empty:
+                p.index = pd.MultiIndex.from_tuples([clean_idx_tuple(x) for x in p.index.tolist()], names=['Cust. GR', 'KOx'])
+                all_idx.update(p.index.tolist())
         if not all_idx: continue
 
         order_map = {'KOASIA': 1, 'KOKOR': 2, 'KOIN': 3, 'KOA': 4}
-        idx_list = sorted(list(all_idx), key=lambda x: order_map.get(x[1], 99))
+        idx_list = sorted(list(all_idx), key=lambda x: (order_map.get(str(x[1]), 99), str(x[1])))
         idx = pd.MultiIndex.from_tuples(idx_list, names=['Cust. GR', 'KOx'])
 
         combined_dict = {(prev_phase_name, 'ACT'): p_prev.reindex(idx, fill_value=0).get('ACT', pd.Series(0, index=idx))}
@@ -678,6 +706,13 @@ def get_biz_report(df, biz_type, year, month):
     if month == 1: prev_year, prev_month = year - 1, 12
     else: prev_year, prev_month = year, month - 1
     
+    # 캐시된 이전 데이터프레임에 NaN이 남아있더라도 절대 에러가 나지 않도록 함수 내부에서 완벽 정제
+    df = df.copy()
+    for c in ['Project', 'Con.', 'SOP', 'Group 1', 'Group 2']:
+        if c in df.columns:
+            df[c] = df[c].fillna('').astype(str).str.strip().replace({'nan': '', 'NaT': '', 'None': ''})
+    df['Project'] = df['Project'].replace({'': 'Unknown'})
+
     df_biz = df[(df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == year)].copy()
     m_str, pm_str = MONTH_NAMES.get(month, f'{month}'), MONTH_NAMES.get(prev_month, f'{prev_month}')
     phase_names = [f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL']
@@ -713,19 +748,23 @@ def get_biz_report(df, biz_type, year, month):
         else:
             brand_df = df_biz[df_biz['Group 2'] == brand].copy()
             prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)
-            if brand_df.empty and df[prev_mask].empty: continue
+            df_prev_brand = df[prev_mask].copy()
+            if brand_df.empty and df_prev_brand.empty: continue
             
-            p_m = brand_df[brand_df['Month'] == month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0) if not brand_df[brand_df['Month'] == month].empty else pd.DataFrame()
-            p_y = brand_df[brand_df['Month'] <= month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0) if not brand_df[brand_df['Month'] <= month].empty else pd.DataFrame()
-            p_fy = brand_df.pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0) if not brand_df.empty else pd.DataFrame()
-            p_prev = df[prev_mask].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0) if not df[prev_mask].empty else pd.DataFrame()
+            p_m = brand_df[brand_df['Month'] == month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not brand_df[brand_df['Month'] == month].empty else pd.DataFrame()
+            p_y = brand_df[brand_df['Month'] <= month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not brand_df[brand_df['Month'] <= month].empty else pd.DataFrame()
+            p_fy = brand_df.pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not brand_df.empty else pd.DataFrame()
+            p_prev = df_prev_brand.pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not df_prev_brand.empty else pd.DataFrame()
             
             all_idx = set()
             for p in [p_prev, p_m, p_y, p_fy]:
-                if not p.empty: all_idx.update(p.index.tolist())
+                if not p.empty:
+                    p.index = pd.MultiIndex.from_tuples([clean_idx_tuple(x) for x in p.index.tolist()], names=['Project', 'Con.', 'SOP'])
+                    all_idx.update(p.index.tolist())
             if not all_idx: continue
             
-            idx = pd.MultiIndex.from_tuples(sorted(list(all_idx)), names=['Project', 'Con.', 'SOP'])
+            # [핵심 수정] TypeError 방지를 위해 튜플 요소를 문자열로 변환하여 안전하게 정렬
+            idx = pd.MultiIndex.from_tuples(sorted(list(all_idx), key=lambda x: tuple(str(i) for i in x)), names=['Project', 'Con.', 'SOP'])
             p_prev = p_prev.reindex(idx, fill_value=0)
             p_m = p_m.reindex(idx, fill_value=0)
             p_y = p_y.reindex(idx, fill_value=0)
@@ -743,24 +782,21 @@ def get_biz_report(df, biz_type, year, month):
             
             combined = pd.DataFrame(combined_dict, index=idx)
             
-            # 2단계: Core Biz의 HYU, KIA인 경우 당월 ACT 10K(10,000 €) 미만 항목을 Others로 통합
+            # 2단계: Core Biz의 HYU, KIA인 경우 당월 ACT 10K(10,000 €) 미만 항목을 Others로 통합하여 FC1, FC3, ACT 등 모두 표시
             if "Core" in biz_type and brand in ['HYU', 'KIA']:
                 curr_act = combined[(phase_names[0], 'ACT')]
                 
-                # 원본 Project명이 이미 'Others'인 경우도 무조건 Others 그룹으로 귀속
                 is_explicit_others = pd.Series([str(x[0]).strip().lower() == 'others' for x in combined.index], index=combined.index)
                 
-                # 당월 ACT >= 10,000 (10K) 이고 이름이 'Others'가 아닌 항목만 개별 표시(Top), 나머지는 전부 Others로 분류
+                # 당월 ACT >= 10,000 (10K) 이고 이름이 'Others'가 아닌 항목만 개별 표시(Top), 10K 미만은 모두 Others로 합산
                 top_mask = (curr_act >= 10000) & (~is_explicit_others)
                 
                 main_df = combined[top_mask].copy()
                 oth_source_df = combined[~top_mask].copy()
                 
-                # 개별 표시 항목(10K 이상) 정렬
                 if not main_df.empty:
                     main_df = main_df.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
                 
-                # 10K 미만 항목들을 합산하여 'Others' 행 생성 (FC1, FC3, ACT 모두 합산 후 ACHI % 재계산)
                 if not oth_source_df.empty:
                     oth_sum = oth_source_df.sum(numeric_only=True)
                     for p_name in phase_names:
@@ -768,7 +804,6 @@ def get_biz_report(df, biz_type, year, month):
                         den = oth_sum.get((p_name, '26 FC3'), 0)
                         oth_sum[(p_name, 'ACHI %')] = num / den if den != 0 else 0
                         
-                    # Others 합계 행에 전월/당월/YTD/TTL 중 하나라도 유의미한 금액이 있으면 표 하단에 추가
                     val_cols = [c for c in combined.columns if c[1] in ['26 FC1', '26 FC3', 'ACT']]
                     if oth_sum[val_cols].abs().sum() >= 0.01:
                         oth_row = pd.DataFrame([oth_sum], index=pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP']))
@@ -778,7 +813,6 @@ def get_biz_report(df, biz_type, year, month):
                 else:
                     combined = main_df
             else:
-                # PE Biz 등 Others 묶음을 하지 않는 테이블의 필터링 및 정렬
                 fc3_curr = combined.get((phase_names[0], '26 FC3'), pd.Series(0, index=idx)).abs()
                 act_curr = combined.get((phase_names[0], 'ACT'), pd.Series(0, index=idx)).abs()
                 fc1_curr = combined.get((phase_names[0], '26 FC1'), pd.Series(0, index=idx)).abs()
@@ -788,7 +822,7 @@ def get_biz_report(df, biz_type, year, month):
                 
             if combined.empty: continue
             
-            # 3단계: 브랜드별 소계(HYU_소계, KIA_소계) 계산
+            # 3단계: 브랜드별 소계 계산
             subtotal = combined.sum(numeric_only=True)
             for p_name in phase_names:
                 num = subtotal.get((p_name, 'ACT'), 0)
@@ -821,7 +855,7 @@ def build_trend_report(df, end_year, end_month):
     months.reverse() 
     
     df_act = df[df['Desc.'] == 'ACT']
-    cps_list = sorted(df_act['CPS'].dropna().unique().tolist())
+    cps_list = sorted([str(x) for x in df_act['CPS'].dropna().unique().tolist()])
     
     pivot_data = {}
     for y, m in months:
@@ -1082,7 +1116,6 @@ elif selected_menu == "판매가 조회":
                             current_customer = parts[1]
                         elif len(parts) >= 8 and parts[1] in ['YPR0', 'ZADD', 'YSPR']:
                             
-                            # 날짜 컬럼을 동적으로 찾기 (인덱스 5번 이후에 나오는 날짜 형태 2개 추출)
                             date_candidates = [p.strip() for i, p in enumerate(parts) if i > 5 and re.match(r'^\d{1,4}[\.\-\/]\d{1,2}[\.\-\/]\d{1,4}$', p.strip())]
                             
                             if len(date_candidates) >= 2:
@@ -1102,7 +1135,6 @@ elif selected_menu == "판매가 조회":
                             price_val = ""
                             idx_curr = -1
                             
-                            # 통화 단위(Curr.) 동적 스캔
                             for i, p in enumerate(parts):
                                 if p.strip() in ['KRW', 'EUR', 'USD', 'CNY', 'JPY', 'MXN', 'INR']:
                                     idx_curr = i
@@ -1116,7 +1148,6 @@ elif selected_menu == "판매가 조회":
                                             idx_curr = i
                                             break
                             
-                            # 찾아낸 통화 단위를 기준으로 단가(Price) 역산
                             if idx_curr != -1:
                                 curr_val = parts[idx_curr].strip()
                                 try:
