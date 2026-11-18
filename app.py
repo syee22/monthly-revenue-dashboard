@@ -292,21 +292,23 @@ def load_and_preprocess(file):
     if 'BIZ Type' in df.columns:
         df['BIZ Type'] = df['BIZ Type'].replace(['COMM', 'comm', 'COMMERCIAL', 'commercial'], 'COMM').fillna('Unknown')
         
-    sop_dict = {}
-    if len(sheets) > 1:
-        df_sop = pd.read_excel(xl, sheet_name=sheets[1])
-        sop_dict = dict(zip(df_sop.iloc[:, 0], df_sop.iloc[:, 3]))
-        
-    # [수정] 피벗 시 NaN으로 인한 행 누락을 방지하기 위해 주요 그룹핑 컬럼의 결측치를 안전하게 치환
+    # [수정] 피벗 시 NaN으로 인한 데이터 증발을 막기 위해 주요 그룹핑 컬럼의 결측치를 빈 문자열 등으로 안전하게 정제
     df['Project'] = df['Project'].fillna('Unknown').astype(str).str.strip()
-    df['Con.'] = df['Con.'].fillna('').astype(str).str.strip()
+    df['Con.'] = df['Con.'].fillna('').astype(str).str.strip().replace({'nan': '', 'None': ''})
     df['Group 1'] = df['Group 1'].fillna('').astype(str).str.strip()
     df['Group 2'] = df['Group 2'].fillna('').astype(str).str.strip()
     df['KOx'] = df['KOx'].fillna('').astype(str).str.strip()
 
+    sop_dict = {}
+    if len(sheets) > 1:
+        df_sop = pd.read_excel(xl, sheet_name=sheets[1])
+        for k, v in zip(df_sop.iloc[:, 0], df_sop.iloc[:, 3]):
+            if pd.notna(k):
+                sop_dict[str(k).strip()] = v
+        
     raw_sop = df['Project'].map(sop_dict)
     formatted_sop = pd.to_datetime(raw_sop, errors='coerce').dt.strftime('%Y.%m')
-    df['SOP'] = formatted_sop.fillna(raw_sop.fillna('').astype(str)).replace({'nan': '', 'NaT': ''}).str.strip()
+    df['SOP'] = formatted_sop.fillna(raw_sop.fillna('').astype(str)).replace({'nan': '', 'NaT': '', 'None': ''}).str.strip()
 
     df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
     df['Month'] = pd.to_numeric(df['Month'], errors='coerce')
@@ -330,8 +332,8 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
     col_prev, phase_curr, phase_ytd, phase_ttl = f'{pm_str}. {year if month != 1 else prev_year}', f'{m_str}. {year}', f'YTD {m_str}. {year}', f'{year} TTL'
     phases = [phase_curr, phase_ytd, phase_ttl]
 
-    def get_pivot(d): return d.pivot_table(index=index_cols, columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not d.empty else pd.DataFrame()
-    s_prev = df_sub[(df_sub['Year'] == prev_year) & (df_sub['Month'] == prev_month) & (df_sub['Desc.'] == 'ACT')].groupby(index_cols)['Rev. (€)'].sum()
+    def get_pivot(d): return d.pivot_table(index=index_cols, columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0) if not d.empty else pd.DataFrame()
+    s_prev = df_sub[(df_sub['Year'] == prev_year) & (df_sub['Month'] == prev_month) & (df_sub['Desc.'] == 'ACT')].groupby(index_cols, dropna=False)['Rev. (€)'].sum()
     p_curr, p_ytd, p_ttl = get_pivot(df_sub[(df_sub['Year'] == year) & (df_sub['Month'] == month)]), get_pivot(df_sub[(df_sub['Year'] == year) & (df_sub['Month'] <= month)]), get_pivot(df_sub[(df_sub['Year'] == year)])
 
     all_indices = set()
@@ -358,7 +360,6 @@ def build_summary_report(df_sub, index_cols, year, month, total_label="TTL (K.�
     final_df.columns = pd.MultiIndex.from_tuples(col_tuples)
     final_df.index.names = current_index_names
     
-    # 데이터 존재 여부 필터링 (절댓값 합 기준)
     final_df = final_df.loc[
         (final_df.filter(like='ACT').abs().sum(axis=1) >= 0.01) | 
         (final_df.filter(like='FC3').abs().sum(axis=1) >= 0.01) | 
@@ -455,10 +456,10 @@ def get_biz_type_detailed_report(df, year, month):
         p_prev_df = df[(df['BIZ Type'] == biz) & (df['Year'] == prev_year) & (df['Month'] == prev_month)]
         if biz_df.empty and p_prev_df.empty: continue
         
-        p_m = biz_df[biz_df['Month'] == month].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not biz_df.empty else pd.DataFrame()
-        p_y = biz_df[biz_df['Month'] <= month].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not biz_df.empty else pd.DataFrame()
-        p_fy = biz_df.pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not biz_df.empty else pd.DataFrame()
-        p_prev = p_prev_df.pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not p_prev_df.empty else pd.DataFrame()
+        p_m = biz_df[biz_df['Month'] == month].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0) if not biz_df[biz_df['Month'] == month].empty else pd.DataFrame()
+        p_y = biz_df[biz_df['Month'] <= month].pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0) if not biz_df[biz_df['Month'] <= month].empty else pd.DataFrame()
+        p_fy = biz_df.pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0) if not biz_df.empty else pd.DataFrame()
+        p_prev = p_prev_df.pivot_table(index=['BIZ Type', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0) if not p_prev_df.empty else pd.DataFrame()
         
         all_idx = set()
         for p in [p_m, p_y, p_fy, p_prev]:
@@ -482,9 +483,11 @@ def get_biz_type_detailed_report(df, year, month):
             
         combined = pd.DataFrame(combined_dict, index=idx)
         
-        # 전체 구간(전월, 당월, YTD, 연간) 중 데이터가 하나라도 있으면 표시
-        val_cols = [c for c in combined.columns if c[1] in ['26 FC1', '26 FC3', 'ACT']]
-        combined = combined[combined[val_cols].abs().sum(axis=1) >= 0.01]
+        fc3_curr = combined.get((phase_names[0], '26 FC3'), pd.Series(0, index=idx)).abs()
+        act_curr = combined.get((phase_names[0], 'ACT'), pd.Series(0, index=idx)).abs()
+        fc1_curr = combined.get((phase_names[0], '26 FC1'), pd.Series(0, index=idx)).abs()
+        
+        combined = combined[(fc3_curr >= 0.01) | (act_curr >= 0.01) | (fc1_curr >= 0.01)]
             
         if combined.empty: continue
         
@@ -574,10 +577,10 @@ def get_core_biz_summary_report(df, year, month):
     for gr in unique_grs:
         gr_df = df_core[df_core['Cust. GR'] == gr]
         
-        p_m = gr_df[(gr_df['Year'] == year) & (gr_df['Month'] == month)].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-        p_y = gr_df[(gr_df['Year'] == year) & (gr_df['Month'] <= month)].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-        p_fy = gr_df[gr_df['Year'] == year].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
-        p_prev = gr_df[(gr_df['Year'] == prev_year) & (gr_df['Month'] == prev_month)].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0)
+        p_m = gr_df[(gr_df['Year'] == year) & (gr_df['Month'] == month)].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0)
+        p_y = gr_df[(gr_df['Year'] == year) & (gr_df['Month'] <= month)].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0)
+        p_fy = gr_df[gr_df['Year'] == year].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0)
+        p_prev = gr_df[(gr_df['Year'] == prev_year) & (gr_df['Month'] == prev_month)].pivot_table(index=['Cust. GR', 'KOx'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0)
 
         all_idx = set()
         for p in [p_m, p_y, p_fy, p_prev]:
@@ -599,9 +602,11 @@ def get_core_biz_summary_report(df, year, month):
 
         combined = pd.DataFrame(combined_dict, index=idx)
 
-        # 전체 구간 중 하나라도 데이터가 있으면 표시
-        val_cols = [c for c in combined.columns if c[1] in ['26 FC1', '26 FC3', 'ACT']]
-        combined = combined[combined[val_cols].abs().sum(axis=1) >= 0.01]
+        fc3_curr = combined.get((phase_names[0], '26 FC3'), pd.Series(0, index=idx)).abs()
+        act_curr = combined.get((phase_names[0], 'ACT'), pd.Series(0, index=idx)).abs()
+        fc1_curr = combined.get((phase_names[0], '26 FC1'), pd.Series(0, index=idx)).abs()
+        
+        combined = combined[(fc3_curr >= 0.01) | (act_curr >= 0.01) | (fc1_curr >= 0.01)]
             
         if combined.empty: continue
 
@@ -710,10 +715,10 @@ def get_biz_report(df, biz_type, year, month):
             prev_mask = (df['Business Type'].str.contains(biz_type, case=False, na=False)) & (df['Year'] == prev_year) & (df['Month'] == prev_month) & (df['Group 2'] == brand)
             if brand_df.empty and df[prev_mask].empty: continue
             
-            p_m = brand_df[brand_df['Month'] == month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not brand_df[brand_df['Month'] == month].empty else pd.DataFrame()
-            p_y = brand_df[brand_df['Month'] <= month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not brand_df[brand_df['Month'] <= month].empty else pd.DataFrame()
-            p_fy = brand_df.pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not brand_df.empty else pd.DataFrame()
-            p_prev = df[prev_mask].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum').fillna(0) if not df[prev_mask].empty else pd.DataFrame()
+            p_m = brand_df[brand_df['Month'] == month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0) if not brand_df[brand_df['Month'] == month].empty else pd.DataFrame()
+            p_y = brand_df[brand_df['Month'] <= month].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0) if not brand_df[brand_df['Month'] <= month].empty else pd.DataFrame()
+            p_fy = brand_df.pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0) if not brand_df.empty else pd.DataFrame()
+            p_prev = df[prev_mask].pivot_table(index=['Project', 'Con.', 'SOP'], columns='Desc.', values='Rev. (€)', aggfunc='sum', dropna=False).fillna(0) if not df[prev_mask].empty else pd.DataFrame()
             
             all_idx = set()
             for p in [p_prev, p_m, p_y, p_fy]:
@@ -726,60 +731,65 @@ def get_biz_report(df, biz_type, year, month):
             p_y = p_y.reindex(idx, fill_value=0)
             p_fy = p_fy.reindex(idx, fill_value=0)
             
-            # [수정] Core Biz의 HYU, KIA 프로젝트 그룹핑 로직 개선
-            if "Core" in biz_type and brand in ['HYU', 'KIA']:
-                act_col = p_m.get('ACT', pd.Series(0, index=idx))
-                # (참고) 만약 당월 FC3가 10K 이상인 항목도 개별 표시하려면 아래 주석을 해제하세요:
-                # fc3_col = p_m.get('26 FC3', pd.Series(0, index=idx))
-                # top_mask = (act_col >= 10000) | (fc3_col >= 10000)
-                top_mask = (act_col >= 10000)
-                
-                # 원본에 이미 'Others'라는 이름의 프로젝트가 있다면 무조건 Others 그룹으로 합산되도록 유도
-                is_explicit_others = pd.Series([str(x[0]).strip().lower() == 'others' for x in idx], index=idx)
-                top_mask = top_mask & (~is_explicit_others)
-                
-                top_idx = idx[top_mask]
-                oth_idx = idx[~top_mask]
-                
-                def group_others(p):
-                    for col_c in ['26 FC1', '26 FC3', 'ACT']:
-                        if col_c not in p.columns: p[col_c] = 0.0
-                    main = p.loc[top_idx]
-                    if len(oth_idx) > 0:
-                        oth_sum = p.loc[oth_idx].sum(numeric_only=True)
-                        oth_df = pd.DataFrame([oth_sum], index=pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP']))
-                        return pd.concat([main, oth_df])
-                    return main
-                    
-                p_m, p_y, p_fy, p_prev = group_others(p_m), group_others(p_y), group_others(p_fy), group_others(p_prev)
-                idx = p_m.index
-                
+            # 1단계: 모든 프로젝트의 전체 구간(전월, 당월, YTD, 연간) 컬럼 먼저 생성
             combined_dict = {}
-            combined_dict[(prev_phase_name, 'ACT')] = p_prev.get('ACT', pd.Series(0, index=idx))
+            combined_dict[(prev_phase_name, 'ACT')] = p_prev['ACT'] if 'ACT' in p_prev.columns else pd.Series(0.0, index=idx)
             for phase_name, data in [(phase_names[0], p_m), (phase_names[1], p_y), (phase_names[2], p_fy)]:
                 for c in ['26 FC1', '26 FC3', 'ACT']:
-                    combined_dict[(phase_name, c)] = data.get(c, pd.Series(0, index=idx))
+                    combined_dict[(phase_name, c)] = data[c] if c in data.columns else pd.Series(0.0, index=idx)
                 num = pd.Series(combined_dict[(phase_name, 'ACT')])
                 den = pd.Series(combined_dict[(phase_name, '26 FC3')])
                 combined_dict[(phase_name, 'ACHI %')] = num.div(den).replace([np.inf, -np.inf], 0).fillna(0)
             
             combined = pd.DataFrame(combined_dict, index=idx)
             
-            # [핵심 수정] 당월 실적이 0이더라도 전월, YTD, 연간(TTL) 중 하나라도 실적이 있으면 삭제하지 않도록 수정 (Others 증발 방지)
-            val_cols = [c for c in combined.columns if c[1] in ['26 FC1', '26 FC3', 'ACT']]
-            combined = combined[combined[val_cols].abs().sum(axis=1) >= 0.01]
+            # 2단계: Core Biz의 HYU, KIA인 경우 당월 ACT 10K(10,000 €) 미만 항목을 Others로 통합
+            if "Core" in biz_type and brand in ['HYU', 'KIA']:
+                curr_act = combined[(phase_names[0], 'ACT')]
+                
+                # 원본 Project명이 이미 'Others'인 경우도 무조건 Others 그룹으로 귀속
+                is_explicit_others = pd.Series([str(x[0]).strip().lower() == 'others' for x in combined.index], index=combined.index)
+                
+                # 당월 ACT >= 10,000 (10K) 이고 이름이 'Others'가 아닌 항목만 개별 표시(Top), 나머지는 전부 Others로 분류
+                top_mask = (curr_act >= 10000) & (~is_explicit_others)
+                
+                main_df = combined[top_mask].copy()
+                oth_source_df = combined[~top_mask].copy()
+                
+                # 개별 표시 항목(10K 이상) 정렬
+                if not main_df.empty:
+                    main_df = main_df.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
+                
+                # 10K 미만 항목들을 합산하여 'Others' 행 생성 (FC1, FC3, ACT 모두 합산 후 ACHI % 재계산)
+                if not oth_source_df.empty:
+                    oth_sum = oth_source_df.sum(numeric_only=True)
+                    for p_name in phase_names:
+                        num = oth_sum.get((p_name, 'ACT'), 0)
+                        den = oth_sum.get((p_name, '26 FC3'), 0)
+                        oth_sum[(p_name, 'ACHI %')] = num / den if den != 0 else 0
+                        
+                    # Others 합계 행에 전월/당월/YTD/TTL 중 하나라도 유의미한 금액이 있으면 표 하단에 추가
+                    val_cols = [c for c in combined.columns if c[1] in ['26 FC1', '26 FC3', 'ACT']]
+                    if oth_sum[val_cols].abs().sum() >= 0.01:
+                        oth_row = pd.DataFrame([oth_sum], index=pd.MultiIndex.from_tuples([('Others', '', '')], names=['Project', 'Con.', 'SOP']))
+                        combined = pd.concat([main_df, oth_row])
+                    else:
+                        combined = main_df
+                else:
+                    combined = main_df
+            else:
+                # PE Biz 등 Others 묶음을 하지 않는 테이블의 필터링 및 정렬
+                fc3_curr = combined.get((phase_names[0], '26 FC3'), pd.Series(0, index=idx)).abs()
+                act_curr = combined.get((phase_names[0], 'ACT'), pd.Series(0, index=idx)).abs()
+                fc1_curr = combined.get((phase_names[0], '26 FC1'), pd.Series(0, index=idx)).abs()
+                combined = combined[(fc3_curr >= 0.01) | (act_curr >= 0.01) | (fc1_curr >= 0.01)]
+                if not combined.empty and (phase_names[0], 'ACT') in combined.columns:
+                    combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
                 
             if combined.empty: continue
             
-            if ('Others', '', '') in combined.index: 
-                main_part = combined.drop(index=('Others', '', '')).sort_values(by=(phase_names[0], 'ACT'), ascending=False)
-                oth_part = combined.loc[[('Others', '', '')]]
-                combined = pd.concat([main_part, oth_part])
-            else: 
-                if not combined.empty and (phase_names[0], 'ACT') in combined.columns:
-                    combined = combined.sort_values(by=(phase_names[0], 'ACT'), ascending=False)
-            
-            subtotal = combined.sum(numeric_only=True) if not combined.empty else pd.Series(0, index=combined.columns)
+            # 3단계: 브랜드별 소계(HYU_소계, KIA_소계) 계산
+            subtotal = combined.sum(numeric_only=True)
             for p_name in phase_names:
                 num = subtotal.get((p_name, 'ACT'), 0)
                 den = subtotal.get((p_name, '26 FC3'), 0)
